@@ -5,3 +5,7 @@ xcuserdata/
 .DS_Store
 node_modules/
 .vercel/
+DerivedData/
+
+# Secrets (API keys)
+SipCheck/Secrets.swift
