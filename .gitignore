@@ -1,0 +1,7 @@
+.env
+.env.local
+*.xcuserstate
+xcuserdata/
+.DS_Store
+node_modules/
+.vercel/
