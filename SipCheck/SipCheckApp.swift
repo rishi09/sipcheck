@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct SipCheckApp: App {
     @StateObject private var drinkStore: DrinkStore
+    @StateObject private var scanStore: ScanStore
+    @StateObject private var journalStore: JournalStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     init() {
@@ -28,11 +30,17 @@ struct SipCheckApp: App {
                 .appendingPathComponent("SipCheckTestStorage")
             try? FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
             _drinkStore = StateObject(wrappedValue: DrinkStore(storageDirectory: testDir, useSeedData: useSeedData))
+            _scanStore = StateObject(wrappedValue: ScanStore(storageDirectory: testDir, useSeedData: useSeedData))
+            _journalStore = StateObject(wrappedValue: JournalStore(storageDirectory: testDir, useSeedData: useSeedData))
         } else if useSeedData {
             let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             _drinkStore = StateObject(wrappedValue: DrinkStore(storageDirectory: docsDir, useSeedData: true))
+            _scanStore = StateObject(wrappedValue: ScanStore(storageDirectory: docsDir, useSeedData: true))
+            _journalStore = StateObject(wrappedValue: JournalStore(storageDirectory: docsDir, useSeedData: true))
         } else {
             _drinkStore = StateObject(wrappedValue: DrinkStore())
+            _scanStore = StateObject(wrappedValue: ScanStore())
+            _journalStore = StateObject(wrappedValue: JournalStore())
         }
 
         print("🍺 SipCheck app launched successfully!")
@@ -44,11 +52,15 @@ struct SipCheckApp: App {
     var body: some Scene {
         WindowGroup {
             if hasCompletedOnboarding {
-                HomeView()
+                MainTabView()
                     .environmentObject(drinkStore)
+                    .environmentObject(scanStore)
+                    .environmentObject(journalStore)
             } else {
                 OnboardingView()
                     .environmentObject(drinkStore)
+                    .environmentObject(scanStore)
+                    .environmentObject(journalStore)
             }
         }
     }

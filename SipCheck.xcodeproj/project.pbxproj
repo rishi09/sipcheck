@@ -32,6 +32,18 @@
 		A1000023 /* TasteProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023; };
 		A1000024 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024; };
 		A1000025 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025; };
+		A1000026 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026; };
+		A1000027 /* CheckTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027; };
+		A1000028 /* JournalTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000028; };
+		A1000029 /* ProfileTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029; };
+		A1000030 /* SettingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030; };
+		C1000001 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001; };
+		C1000002 /* Scan.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000002; };
+		C1000003 /* JournalEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000003; };
+		C1000004 /* ScanStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000004; };
+		C1000005 /* JournalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000005; };
+		B1000007 /* ScanStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007; };
+		B1000008 /* JournalStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000008; };
 		B1000001 /* BeerMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001; };
 		B1000002 /* DrinkStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002; };
 		B1000004 /* ScanningPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004; };
@@ -83,12 +95,24 @@
 		A2000023 /* TasteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfile.swift; sourceTree = "<group>"; };
 		A2000024 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		A2000025 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A2000026 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		A2000027 /* CheckTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckTabView.swift; sourceTree = "<group>"; };
+		A2000028 /* JournalTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalTabView.swift; sourceTree = "<group>"; };
+		A2000029 /* ProfileTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileTabView.swift; sourceTree = "<group>"; };
+		A2000030 /* SettingsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabView.swift; sourceTree = "<group>"; };
+		C2000001 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		C2000002 /* Scan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Scan.swift; sourceTree = "<group>"; };
+		C2000003 /* JournalEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntry.swift; sourceTree = "<group>"; };
+		C2000004 /* ScanStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanStore.swift; sourceTree = "<group>"; };
+		C2000005 /* JournalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStore.swift; sourceTree = "<group>"; };
 		A3000001 /* SipCheck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SipCheck.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B2000001 /* BeerMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatcherTests.swift; sourceTree = "<group>"; };
 		B2000002 /* DrinkStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrinkStoreTests.swift; sourceTree = "<group>"; };
 		B2000004 /* ScanningPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningPipelineTests.swift; sourceTree = "<group>"; };
 		B2000005 /* PipelineIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineIntegrationTests.swift; sourceTree = "<group>"; };
 		B2000006 /* StoreIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreIntegrationTests.swift; sourceTree = "<group>"; };
+		B2000007 /* ScanStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanStoreTests.swift; sourceTree = "<group>"; };
+		B2000008 /* JournalStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalStoreTests.swift; sourceTree = "<group>"; };
 		B2000003 /* SipCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SipCheckUITests.swift; sourceTree = "<group>"; };
 		B3000001 /* SipCheckTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3000002 /* SipCheckUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -149,6 +173,8 @@
 				A2000002 /* Drink.swift */,
 				A2000003 /* DrinkEnums.swift */,
 				A2000023 /* TasteProfile.swift */,
+				C2000002 /* Scan.swift */,
+				C2000003 /* JournalEntry.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -157,15 +183,29 @@
 			isa = PBXGroup;
 			children = (
 				A2000004 /* HomeView.swift */,
+				A2000026 /* MainTabView.swift */,
 				A2000005 /* AddBeerView.swift */,
 				A2000006 /* BeerListView.swift */,
 				A2000007 /* BeerDetailView.swift */,
 				A2000013 /* CheckBeerView.swift */,
 				A2000024 /* StatsView.swift */,
 				A2000025 /* OnboardingView.swift */,
+				C2000001 /* DesignSystem.swift */,
+				A5000008 /* Tabs */,
 				A5000005 /* Components */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A5000008 /* Tabs */ = {
+			isa = PBXGroup;
+			children = (
+				A2000027 /* CheckTabView.swift */,
+				A2000028 /* JournalTabView.swift */,
+				A2000029 /* ProfileTabView.swift */,
+				A2000030 /* SettingsTabView.swift */,
+			);
+			path = Tabs;
 			sourceTree = "<group>";
 		};
 		A5000005 /* Components */ = {
@@ -189,6 +229,8 @@
 				A2000020 /* VisionOCRService.swift */,
 				A2000021 /* ImageCompressor.swift */,
 				A2000022 /* ScanningPipeline.swift */,
+				C2000004 /* ScanStore.swift */,
+				C2000005 /* JournalStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -219,6 +261,8 @@
 				B2000004 /* ScanningPipelineTests.swift */,
 				B2000005 /* PipelineIntegrationTests.swift */,
 				B2000006 /* StoreIntegrationTests.swift */,
+				B2000007 /* ScanStoreTests.swift */,
+				B2000008 /* JournalStoreTests.swift */,
 			);
 			path = SipCheckTests;
 			sourceTree = "<group>";
@@ -368,6 +412,16 @@
 				A1000023 /* TasteProfile.swift in Sources */,
 				A1000024 /* StatsView.swift in Sources */,
 				A1000025 /* OnboardingView.swift in Sources */,
+				A1000026 /* MainTabView.swift in Sources */,
+				A1000027 /* CheckTabView.swift in Sources */,
+				A1000028 /* JournalTabView.swift in Sources */,
+				A1000029 /* ProfileTabView.swift in Sources */,
+				A1000030 /* SettingsTabView.swift in Sources */,
+				C1000001 /* DesignSystem.swift in Sources */,
+				C1000002 /* Scan.swift in Sources */,
+				C1000003 /* JournalEntry.swift in Sources */,
+				C1000004 /* ScanStore.swift in Sources */,
+				C1000005 /* JournalStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -380,6 +434,8 @@
 				B1000004 /* ScanningPipelineTests.swift in Sources */,
 				B1000005 /* PipelineIntegrationTests.swift in Sources */,
 				B1000006 /* StoreIntegrationTests.swift in Sources */,
+				B1000007 /* ScanStoreTests.swift in Sources */,
+				B1000008 /* JournalStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

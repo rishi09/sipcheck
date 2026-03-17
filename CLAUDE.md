@@ -52,7 +52,7 @@ xcrun simctl launch "iPhone 16e" com.sipcheck.app
 ### Simulator Commands
 ```bash
 # Simulator UDID (iPhone 17 Pro)
-SIMULATOR_UDID="48FF0EDE-5280-4C70-AB5C-F06C750443DB"
+SIMULATOR_UDID="C3A2161C-2C4B-47A0-91F4-E4862B313365"
 
 # Screenshot the running app
 xcrun simctl io $SIMULATOR_UDID screenshot /tmp/sipcheck-screen.png
