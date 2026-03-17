@@ -1,71 +1,73 @@
 # SipCheck
 
-## Overview
-SipCheck is an iOS app for tracking beers you've tried and getting AI-powered recommendations. Take a photo of a beer label to automatically extract details, rate your beers, and use the "Check Beer" feature to see if you've tried something before with personalized AI recommendations based on your taste history.
+SipCheck is an iOS beer journal that helps you scan labels, remember what you've tried, and get AI-assisted recommendations based on your history.
 
-## Tech Stack
-- **UI:** SwiftUI (iOS 17+)
-- **Persistence:** JSON file storage (ObservableObject pattern)
-- **AI:** OpenAI GPT-4o (Vision API for label scanning, Chat API for recommendations)
-- **Architecture:** No Swift macros (for build compatibility)
+## Current Product State
 
-## Features
-- ✅ Add beers manually or via camera
-- ✅ Rate beers (Like / Neutral / Dislike)
-- ✅ Filter by rating or style
-- ✅ Check if you've tried a beer before
-- ✅ AI-powered personalized recommendations
-- ✅ Edit and delete entries
-- ✅ Data persistence across app restarts
+- SwiftUI app targeting iOS 17+
+- JSON persistence via `DrinkStore`
+- First-launch onboarding is implemented
+- Stats and export screens are implemented
+- Hybrid scan pipeline is in progress and wired into the camera flows:
+  - Apple Vision OCR on-device
+  - Gemini text extraction on the fast path
+  - OpenAI vision fallback when OCR is weak
+- Unit, integration, and UI test targets exist
 
-## Current Status
+## Core Features
 
-**Build:** ✅ Passing (0 errors, 0 warnings)
-**Git:** Pushed to `main` (commit `e971c5a`)
-**Simulator:** Tested on iPhone 16e
+- Add beers manually or from the camera
+- Save beer photos with entries
+- Rate beers as like / neutral / dislike
+- Track notes, style, type, and optional ABV
+- Check whether you've tried a beer before
+- Get AI recommendations based on your history
+- Browse recent beers, full history, and stats
+- Export your data as JSON or CSV
 
-## Todo List
+## What Still Needs Work
 
 | Task | Status |
 |------|--------|
-| Push to GitHub (secret removed) | ✅ Completed |
-| Add app icon | ⏳ Pending |
-| Add launch screen branding | ⏳ Pending |
-| Polish empty state onboarding | ⏳ Pending |
-| Test on physical device (camera) | ⏳ Pending |
-| Test OpenAI flows with real images | ⏳ Pending |
+| Physical-device camera validation | ⏳ Pending |
+| Real-label evaluation for OCR and AI quality | ⏳ Pending |
+| App icon asset | ⏳ Pending |
+| Launch screen branding/polish | ⏳ Pending |
+| Recommendation prompt/provider cleanup | ⏳ Pending |
+| README/docs alignment cleanup | ⏳ In progress |
+
+## Architecture
+
+- **UI:** SwiftUI with `ObservableObject`
+- **Persistence:** JSON file storage in the app Documents directory
+- **Scanning:** Apple Vision OCR + Gemini text parsing + OpenAI vision fallback
+- **Recommendations:** OpenAI today, with provider abstraction groundwork in place
+- **Testing:** XCTest + XCUITest with deterministic launch arguments
+
+## Test Modes
+
+The app supports launch arguments used by tests:
+
+- `--mock-ai` returns fixed AI responses with no network
+- `--seed-data` loads known test beers on launch
+- `--isolated-storage` stores data in a temp directory instead of real Documents
+
+See `scripts/run_tests.sh` for the current test entrypoint.
 
 ## Setup
 
-1. Clone the repo
-2. Copy `SipCheck/Secrets.swift.example` to `SipCheck/Secrets.swift`
-3. Add your OpenAI API key to `Secrets.swift`
-4. Open `SipCheck.xcodeproj` in Xcode
-5. Build and run on simulator or device
+1. Copy `SipCheck/Secrets.swift.example` to `SipCheck/Secrets.swift`.
+2. Add your `openAIAPIKey` and `geminiAPIKey`.
+3. Open `SipCheck.xcodeproj` in Xcode.
+4. Build and run on a simulator or device.
 
-## File Structure
+## Build
+
+```bash
+xcodebuild -project SipCheck.xcodeproj -scheme SipCheck -destination 'platform=iOS Simulator,name=iPhone 16e' -configuration Debug build
 ```
-SipCheck/
-├── SipCheckApp.swift          # App entry point
-├── Config.swift               # Configuration (loads from Secrets)
-├── Secrets.swift              # API keys (gitignored)
-├── Models/
-│   ├── Drink.swift            # Beer model
-│   └── DrinkEnums.swift       # Rating, DrinkType, BeerStyle
-├── Views/
-│   ├── HomeView.swift         # Main screen
-│   ├── AddBeerView.swift      # Add beer form
-│   ├── BeerListView.swift     # All beers list
-│   ├── BeerDetailView.swift   # View/edit beer
-│   ├── CheckBeerView.swift    # Check beer + AI
-│   └── Components/
-│       ├── RatingPicker.swift
-│       ├── StylePicker.swift
-│       └── CameraView.swift
-├── Services/
-│   ├── DrinkStore.swift       # Data persistence
-│   ├── OpenAIService.swift    # AI integration
-│   └── BeerMatcher.swift      # Fuzzy matching
-└── Resources/
-    └── Assets.xcassets
-```
+
+## Project Notes
+
+- `README.md` and `CLAUDE.md` should reflect current project state.
+- Files under `plans/` are planning artifacts and may describe work that has already landed or changed direction.

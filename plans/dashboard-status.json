@@ -1,0 +1,31 @@
+{
+  "sprint": "Sprint 4b: Remaining Items + Tests",
+  "phase": "Phase 2 / Polish",
+  "status": "in_progress",
+  "updated": "2026-03-10T16:05:00Z",
+  "tasks": [
+    {"name": "Sprint 1: Hybrid Scanning Pipeline", "status": "done"},
+    {"name": "Sprint 2: Model + Photo Enhancements", "status": "done"},
+    {"name": "Sprint 3: Recommendations + Taste Profile", "status": "done"},
+    {"name": "Sprint 4a: StatsView + Export", "status": "done"},
+    {"name": "Worker 1: OnboardingView", "status": "done"},
+    {"name": "Worker 2: BeerListView sort + search notes", "status": "done"},
+    {"name": "Worker 3: ScanningPipelineTests", "status": "done"},
+    {"name": "Judge: Build verification", "status": "done"},
+    {"name": "Judge: Test verification", "status": "done", "result": "Build PASS, 27 unit tests PASS, 18/18 E2E flows PASS via AXe"},
+    {"name": "Research: Separate judge architecture", "status": "done", "result": "Confirmed: separate Judge agent (3 researchers, strong evidence)"}
+  ],
+  "layers": [
+    {"id": "A", "name": "Unit Tests", "status": "done", "count": 27, "passed": 24, "failed": 0},
+    {"id": "B", "name": "Integration", "status": "pending", "count": 0, "passed": 0, "failed": 0},
+    {"id": "C", "name": "UI Smoke (AXe E2E)", "status": "done", "count": 18, "passed": 18, "failed": 0}
+  ],
+  "files": [
+    {"name": "OnboardingView.swift", "action": "added"},
+    {"name": "ScanningPipelineTests.swift", "action": "added"},
+    {"name": "BeerListView.swift", "action": "modified"},
+    {"name": "SipCheckApp.swift", "action": "modified"},
+    {"name": "project.pbxproj", "action": "modified"}
+  ],
+  "screenshots": []
+}

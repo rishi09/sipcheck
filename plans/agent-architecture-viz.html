@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base target="_blank">
+    <title>SipCheck Autonomous Agent Architecture</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f2f8;
+            --bg-deep: #e4e8f2;
+            --surface: #ffffff;
+            --surface-hover: #f8f9fc;
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+            --text-muted: #94a3b8;
+            --border: #d1d9e8;
+            --border-strong: #a8b5cc;
+            --accent: #2563eb;
+            --accent-glow: rgba(37, 99, 235, 0.15);
+            --cyan: #0891b2;
+            --cyan-glow: rgba(8, 145, 178, 0.15);
+            --green: #059669;
+            --green-glow: rgba(5, 150, 105, 0.12);
+            --amber: #d97706;
+            --amber-glow: rgba(217, 119, 6, 0.12);
+            --red: #dc2626;
+            --node-planner: #2563eb;
+            --node-worker: #059669;
+            --node-judge: #d97706;
+            --flow-line: #94a3b8;
+        }
+        body.dark-mode {
+            --bg: #0a0e1a;
+            --bg-deep: #060912;
+            --surface: #111827;
+            --surface-hover: #1e293b;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #1e293b;
+            --border-strong: #334155;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.2);
+            --cyan: #22d3ee;
+            --cyan-glow: rgba(34, 211, 238, 0.15);
+            --green: #34d399;
+            --green-glow: rgba(52, 211, 153, 0.15);
+            --amber: #fbbf24;
+            --amber-glow: rgba(251, 191, 36, 0.15);
+            --red: #f87171;
+            --node-planner: #3b82f6;
+            --node-worker: #34d399;
+            --node-judge: #fbbf24;
+            --flow-line: #334155;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 50% at 20% 20%, var(--accent-glow), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 80%, var(--cyan-glow), transparent),
+                radial-gradient(ellipse 40% 30% at 50% 50%, var(--green-glow), transparent);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .container { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 2rem 1.5rem; }
+        .header { text-align: center; margin-bottom: 2rem; animation: fadeInDown 0.6s ease-out; }
+        .header h1 {
+            font-size: 2rem; font-weight: 700; letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--accent), var(--cyan));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .header .subtitle { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+        .header .status-badge {
+            display: inline-flex; align-items: center; gap: 6px; margin-top: 0.75rem;
+            padding: 4px 14px; border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; transition: all 0.3s;
+        }
+        .status-badge.in_progress { background: var(--green-glow); border: 1px solid var(--green); color: var(--green); }
+        .status-badge.done { background: var(--accent-glow); border: 1px solid var(--accent); color: var(--accent); }
+        .status-badge.failed { background: rgba(220,38,38,0.12); border: 1px solid var(--red); color: var(--red); }
+        .status-badge .pulse { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+        .refresh-info { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.5rem; }
+        .main-grid { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; align-items: start; }
+        .arch-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; animation: fadeInUp 0.6s ease-out 0.1s both; }
+        .arch-panel h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 1.25rem; font-weight: 600; }
+        .arch-svg { width: 100%; height: 480px; }
+        .dashboard { display: flex; flex-direction: column; gap: 1rem; animation: fadeInUp 0.6s ease-out 0.2s both; }
+        .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; }
+        .dash-card h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: 600; }
+        .dash-card .value { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 600; color: var(--accent); }
+        .task-list { list-style: none; }
+        .task-list li { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border); transition: opacity 0.3s; }
+        .task-list li:last-child { border-bottom: none; }
+        .task-icon { font-size: 1rem; width: 20px; text-align: center; }
+        .task-label { color: var(--text-secondary); }
+        .layer-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 0.85rem; font-family: 'JetBrains Mono', monospace; border-bottom: 1px solid var(--border); }
+        .layer-row:last-child { border-bottom: none; }
+        .layer-badge { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; color: white; }
+        .layer-a { background: var(--node-planner); }
+        .layer-b { background: var(--node-worker); }
+        .layer-c { background: var(--node-judge); }
+        .layer-stats { margin-left: auto; font-size: 0.7rem; color: var(--text-muted); }
+        .agent-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem; animation: fadeInUp 0.6s ease-out 0.3s both; }
+        .agent-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.25rem; position: relative; overflow: hidden; }
+        .agent-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+        .agent-card.planner::before { background: var(--node-planner); }
+        .agent-card.worker::before { background: var(--node-worker); }
+        .agent-card.judge::before { background: var(--node-judge); }
+        .agent-card .agent-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.5rem; }
+        .agent-card .agent-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; }
+        .agent-card .agent-tools { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 4px; }
+        .tool-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--border); }
+        .worker .tool-tag { background: var(--green-glow); color: var(--green); }
+        .judge .tool-tag { background: var(--amber-glow); color: var(--amber); }
+        .flow-legend { display: flex; gap: 1.5rem; justify-content: center; margin-top: 1.5rem; animation: fadeInUp 0.6s ease-out 0.4s both; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-family: 'JetBrains Mono', monospace; color: var(--text-secondary); }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .footer { text-align: center; margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); font-size: 0.7rem; color: var(--text-muted); line-height: 1.8; }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+        @keyframes flowDown { 0% { stroke-dashoffset: 20; } 100% { stroke-dashoffset: 0; } }
+        @keyframes flowUp { 0% { stroke-dashoffset: -20; } 100% { stroke-dashoffset: 0; } }
+        @keyframes nodeGlow { 0%, 100% { filter: drop-shadow(0 0 4px currentColor); } 50% { filter: drop-shadow(0 0 12px currentColor); } }
+        .node-circle { stroke-width: 2; animation: nodeGlow 3s ease-in-out infinite; }
+        .node-label { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; fill: var(--text-primary); }
+        .node-sublabel { font-family: 'JetBrains Mono', monospace; font-size: 10px; fill: var(--text-secondary); }
+        .flow-arrow { stroke-dasharray: 6 4; animation: flowDown 1s linear infinite; }
+        .flow-arrow-up { stroke-dasharray: 6 4; animation: flowUp 1s linear infinite; }
+        .flow-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; fill: var(--text-muted); }
+        .self-loop { stroke-dasharray: 4 3; animation: flowDown 2s linear infinite; }
+        @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } .agent-cards { grid-template-columns: 1fr; } }
+        /* INFRA MENU CSS */
+        .viz-menu { position: fixed; top: 1rem; right: 1rem; z-index: 10000; font-family: inherit; }
+        .viz-menu-toggle { width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s, transform 0.15s; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .viz-menu-toggle:hover { background: var(--surface-hover); border-color: var(--border-strong); transform: scale(1.05); }
+        .viz-menu-panel { position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); opacity: 0; transform: translateY(-4px) scale(0.97); pointer-events: none; transition: opacity 0.15s, transform 0.15s; }
+        .viz-menu.open .viz-menu-panel { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .viz-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text-primary); font-size: 0.85rem; cursor: pointer; text-align: left; transition: background 0.1s; font-family: inherit; }
+        .viz-menu-item:hover { background: var(--surface-hover); }
+        .viz-menu-icon { width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+        @media print { .viz-menu { display: none !important; } body { background: white !important; color: black !important; } @page { margin: 1.5cm; } }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+    </style>
+</head>
+<body>
+<nav class="viz-menu" id="vizMenu" aria-label="Visualization controls">
+    <button class="viz-menu-toggle" onclick="toggleMenu()" aria-label="Toggle menu" aria-expanded="false">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="5" x2="15" y2="5"/><line x1="3" y1="9" x2="15" y2="9"/><line x1="3" y1="13" x2="15" y2="13"/></svg>
+    </button>
+    <div class="viz-menu-panel" id="vizMenuPanel">
+        <button onclick="toggleTheme()" class="viz-menu-item"><span class="viz-menu-icon" id="themeIcon">◐</span><span id="themeLabel">Dark mode</span></button>
+        <button onclick="window.print()" class="viz-menu-item"><span class="viz-menu-icon">⎙</span><span>Print / Save as PDF</span></button>
+        <button onclick="toggleFullscreen()" class="viz-menu-item"><span class="viz-menu-icon" id="fsIcon">⛶</span><span id="fsLabel">Fullscreen</span></button>
+        <hr style="border:none;border-top:1px solid var(--border);margin:2px 8px">
+        <button onclick="saveAsImage()" class="viz-menu-item" id="saveImgBtn"><span class="viz-menu-icon">📷</span><span>Save as image</span></button>
+    </div>
+</nav>
+<div class="container">
+    <div class="header">
+        <h1>SipCheck Autonomous Agent Architecture</h1>
+        <div class="subtitle">Planner → Workers → Judge // build-test-fix loop</div>
+        <div class="status-badge in_progress" id="statusBadge"><span class="pulse"></span><span id="statusText">BUILDING TEST FOUNDATION</span></div>
+        <div class="refresh-info" id="refreshInfo">Auto-refreshes every 5s from dashboard-status.json</div>
+    </div>
+    <div class="main-grid">
+        <div class="arch-panel">
+            <h2>Agent Flow Diagram</h2>
+            <svg class="arch-svg" viewBox="0 0 680 480" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="var(--border)" stroke-width="0.3" opacity="0.5"/></pattern>
+                    <marker id="arrowBlue" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--node-planner)"/></marker>
+                    <marker id="arrowGreen" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--node-worker)"/></marker>
+                    <marker id="arrowAmber" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="var(--node-judge)"/></marker>
+                    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                <rect width="680" height="480" fill="url(#grid)" rx="12"/>
+                <g transform="translate(340, 60)"><circle r="40" fill="var(--surface)" stroke="var(--node-planner)" class="node-circle" style="color:var(--node-planner)" filter="url(#glow)"/><text class="node-label" text-anchor="middle" dy="-4">Planner</text><text class="node-sublabel" text-anchor="middle" dy="12">Agent</text></g>
+                <line x1="280" y1="95" x2="140" y2="195" stroke="var(--node-planner)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowBlue)" opacity="0.7"/>
+                <line x1="340" y1="100" x2="340" y2="195" stroke="var(--node-planner)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowBlue)" opacity="0.7"/>
+                <line x1="400" y1="95" x2="540" y2="195" stroke="var(--node-planner)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowBlue)" opacity="0.7"/>
+                <text class="flow-label" x="185" y="140" transform="rotate(-30,185,140)">task assign</text>
+                <text class="flow-label" x="350" y="150">task assign</text>
+                <text class="flow-label" x="465" y="140" transform="rotate(30,465,140)">task assign</text>
+                <g transform="translate(140,235)"><rect x="-55" y="-35" width="110" height="70" rx="12" fill="var(--surface)" stroke="var(--node-worker)" stroke-width="2" filter="url(#glow)" style="color:var(--node-worker)"/><text class="node-label" text-anchor="middle" dy="-8">Worker 1</text><text class="node-sublabel" text-anchor="middle" dy="8">worktree:feat-a</text><path d="M 55 -10 C 85 -30, 85 30, 55 10" fill="none" stroke="var(--node-worker)" stroke-width="1.2" class="self-loop" marker-end="url(#arrowGreen)" opacity="0.6"/><text class="flow-label" x="92" y="2" fill="var(--node-worker)">fix</text></g>
+                <g transform="translate(340,235)"><rect x="-55" y="-35" width="110" height="70" rx="12" fill="var(--surface)" stroke="var(--node-worker)" stroke-width="2" filter="url(#glow)" style="color:var(--node-worker)"/><text class="node-label" text-anchor="middle" dy="-8">Worker 2</text><text class="node-sublabel" text-anchor="middle" dy="8">worktree:feat-b</text><path d="M 55 -10 C 85 -30, 85 30, 55 10" fill="none" stroke="var(--node-worker)" stroke-width="1.2" class="self-loop" marker-end="url(#arrowGreen)" opacity="0.6"/><text class="flow-label" x="92" y="2" fill="var(--node-worker)">fix</text></g>
+                <g transform="translate(540,235)"><rect x="-55" y="-35" width="110" height="70" rx="12" fill="var(--surface)" stroke="var(--node-worker)" stroke-width="2" filter="url(#glow)" style="color:var(--node-worker)"/><text class="node-label" text-anchor="middle" dy="-8">Worker 3</text><text class="node-sublabel" text-anchor="middle" dy="8">worktree:feat-c</text><path d="M 55 -10 C 85 -30, 85 30, 55 10" fill="none" stroke="var(--node-worker)" stroke-width="1.2" class="self-loop" marker-end="url(#arrowGreen)" opacity="0.6"/><text class="flow-label" x="92" y="2" fill="var(--node-worker)">fix</text></g>
+                <rect x="245" y="290" width="190" height="24" rx="6" fill="var(--green-glow)" stroke="var(--node-worker)" stroke-width="1" opacity="0.8"/>
+                <text class="flow-label" text-anchor="middle" x="340" y="306" fill="var(--node-worker)" font-size="10">code → build → test → fix → commit</text>
+                <line x1="140" y1="270" x2="260" y2="370" stroke="var(--node-worker)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowGreen)" opacity="0.7"/>
+                <line x1="340" y1="270" x2="340" y2="370" stroke="var(--node-worker)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowGreen)" opacity="0.7"/>
+                <line x1="540" y1="270" x2="420" y2="370" stroke="var(--node-worker)" stroke-width="1.5" class="flow-arrow" marker-end="url(#arrowGreen)" opacity="0.7"/>
+                <text class="flow-label" x="180" y="330">PR ready</text><text class="flow-label" x="350" y="330">PR ready</text><text class="flow-label" x="468" y="330">PR ready</text>
+                <g transform="translate(340,410)"><polygon points="0,-42 48,-14 48,14 0,42 -48,14 -48,-14" fill="var(--surface)" stroke="var(--node-judge)" stroke-width="2" filter="url(#glow)" style="color:var(--node-judge)"/><text class="node-label" text-anchor="middle" dy="-4">Judge</text><text class="node-sublabel" text-anchor="middle" dy="12">Agent</text></g>
+                <path d="M 290 400 C 50 380, 50 100, 295 65" fill="none" stroke="var(--node-judge)" stroke-width="1.5" class="flow-arrow-up" marker-end="url(#arrowAmber)" opacity="0.5"/>
+                <text class="flow-label" x="30" y="240" fill="var(--node-judge)" transform="rotate(-90,30,240)">test results (pass/fail)</text>
+            </svg>
+        </div>
+        <div class="dashboard">
+            <div class="dash-card"><h3>Current Sprint</h3><div class="value" id="sprintName">Test Foundation</div><div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;font-family:'JetBrains Mono',monospace" id="sprintPhase">Phase 0 / Prerequisites</div></div>
+            <div class="dash-card"><h3>Infrastructure Tasks</h3><ul class="task-list" id="taskList"></ul></div>
+            <div class="dash-card"><h3>Test Layers</h3><div id="layerList"></div></div>
+            <div class="dash-card"><h3>Files Created/Modified</h3><ul class="task-list" id="fileList" style="font-size:0.75rem"></ul></div>
+            <div class="dash-card" style="text-align:center"><h3>Last Updated</h3><div id="lastUpdated" style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--text-secondary)"></div><div id="lastUpdatedAgo" style="font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-muted);margin-top:4px"></div></div>
+            <div class="dash-card" id="screenshotCard" style="display:none"><h3>Screenshots</h3><div id="screenshotList" style="display:flex;flex-direction:column;gap:6px"></div></div>
+        </div>
+    </div>
+    <div class="agent-cards">
+        <div class="agent-card planner"><div class="agent-name" style="color:var(--node-planner)">Planner Agent</div><div class="agent-desc">Reads implementation plan, breaks work into sprint tasks, assigns to workers. Monitors progress and reassigns on failure.</div><div class="agent-tools"><span class="tool-tag">TaskCreate</span><span class="tool-tag">TaskUpdate</span><span class="tool-tag">Read</span><span class="tool-tag">SendMessage</span></div></div>
+        <div class="agent-card worker"><div class="agent-name" style="color:var(--node-worker)">Worker Agents (x3)</div><div class="agent-desc">Each runs in isolated git worktree. Implements features, runs build+test loop, fixes until green, commits. No manual intervention.</div><div class="agent-tools"><span class="tool-tag">Read</span><span class="tool-tag">Edit</span><span class="tool-tag">Write</span><span class="tool-tag">Bash</span><span class="tool-tag">xcodebuild</span></div></div>
+        <div class="agent-card judge"><div class="agent-name" style="color:var(--node-judge)">Judge Agent</div><div class="agent-desc">Validates PRs by running <code>scripts/run_tests.sh</code>. Reports pass/fail with parseable output. Gates merges to main.</div><div class="agent-tools"><span class="tool-tag">run_tests.sh</span><span class="tool-tag">xcodebuild</span><span class="tool-tag">grep</span><span class="tool-tag">SendMessage</span></div></div>
+    </div>
+    <div class="flow-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-planner)"></div>Task Assignment</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-worker)"></div>PR / Commit</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--node-judge)"></div>Test Results</div>
+        <div class="legend-item"><svg width="20" height="10"><path d="M0 5 C10 -5,10 15,20 5" fill="none" stroke="var(--node-worker)" stroke-width="1.5" stroke-dasharray="3 2"/></svg>Build-Fix Loop</div>
+    </div>
+    <div class="footer">rkshah20 · 2026-03-10<br>Generated by /visualize claude skill</div>
+</div>
+<script>
+function toggleMenu(){const m=document.getElementById('vizMenu'),t=m.querySelector('.viz-menu-toggle'),o=m.classList.toggle('open');t.setAttribute('aria-expanded',o)}
+document.addEventListener('click',e=>{const m=document.getElementById('vizMenu');if(m&&!m.contains(e.target))m.classList.remove('open')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){const m=document.getElementById('vizMenu');if(m)m.classList.remove('open')}});
+function toggleTheme(){const d=document.body.classList.toggle('dark-mode');localStorage.setItem('visualize-dark-mode',d);updateThemeLabel()}
+function updateThemeLabel(){const d=document.body.classList.contains('dark-mode');const i=document.getElementById('themeIcon'),l=document.getElementById('themeLabel');if(i)i.textContent=d?'☀':'◐';if(l)l.textContent=d?'Light mode':'Dark mode'}
+if(localStorage.getItem('visualize-dark-mode')==='true'||(!localStorage.getItem('visualize-dark-mode')&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.body.classList.add('dark-mode');
+updateThemeLabel();
+function toggleFullscreen(){if(!document.fullscreenElement)document.documentElement.requestFullscreen().catch(()=>{});else document.exitFullscreen()}
+function loadHtml2Canvas(){if(typeof html2canvas!=='undefined')return Promise.resolve();return new Promise((r,j)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.integrity='sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H';s.crossOrigin='anonymous';s.onload=r;s.onerror=()=>j(new Error('fail'));document.head.appendChild(s)})}
+function saveAsImage(){const b=document.getElementById('saveImgBtn'),l=b.querySelector('span:last-child'),o=l.textContent;l.textContent='Loading...';b.style.pointerEvents='none';loadHtml2Canvas().then(()=>{l.textContent='Capturing...';doCapture(b,l,o)}).catch(()=>{l.textContent=o;b.style.pointerEvents='';alert('Could not load screenshot library.')})}
+function doCapture(b,l,o){const m=document.getElementById('vizMenu');m.style.display='none';const t=document.querySelector('.container')||document.body;const s=document.createElement('style');s.textContent='*,*::before,*::after{animation-play-state:paused!important;animation-duration:0s!important;transition-duration:0s!important}';document.head.appendChild(s);const bg=t.style.background;t.style.background=getComputedStyle(document.body).backgroundColor||'#fff';window.scrollTo(0,0);const go=()=>{html2canvas(t,{scale:2,useCORS:true,logging:false}).then(c=>{const a=document.createElement('a');a.download='sipcheck-architecture.png';a.href=c.toDataURL('image/png');a.click()}).finally(()=>{s.remove();t.style.background=bg;m.style.display='';l.textContent=o;b.style.pointerEvents=''})};if(document.fonts?.ready)document.fonts.ready.then(()=>setTimeout(go,50));else setTimeout(go,500)}
+
+// === AUTO-REFRESH ENGINE ===
+const STATUS_ICONS={done:'\u2705',running:'\uD83D\uDD04',pending:'\u23F3',failed:'\u274C'};
+const FILE_ICONS={added:'+',modified:'~',deleted:'-'};
+const FILE_COLORS={added:'var(--green)',modified:'var(--amber)',deleted:'var(--red)'};
+let lastJson='';
+
+async function refreshDashboard(){
+    try{
+        const r=await fetch('dashboard-status.json?t='+Date.now());
+        if(!r.ok)return;
+        const t=await r.text();
+        if(t===lastJson)return;
+        lastJson=t;
+        applyData(JSON.parse(t));
+    }catch(e){}
+}
+
+function applyData(d){
+    document.getElementById('sprintName').textContent=d.sprint||'';
+    document.getElementById('sprintPhase').textContent=d.phase||'';
+    const badge=document.getElementById('statusBadge');
+    badge.className='status-badge '+(d.status||'in_progress');
+    document.getElementById('statusText').textContent=d.status==='done'?'COMPLETE':d.status==='failed'?'FAILED':('BUILDING '+(d.sprint||'').toUpperCase());
+
+    const tl=document.getElementById('taskList');tl.innerHTML='';
+    (d.tasks||[]).forEach(t=>{const li=document.createElement('li');li.innerHTML=`<span class="task-icon">${STATUS_ICONS[t.status]||'\u23F3'}</span><span class="task-label">${t.name}</span>`;tl.appendChild(li)});
+
+    const ll=document.getElementById('layerList');ll.innerHTML='';
+    (d.layers||[]).forEach(l=>{const cls=l.id==='A'?'layer-a':l.id==='B'?'layer-b':'layer-c';const stats=(l.status==='running'||l.status==='done')?`${l.passed}/${l.count}`:'';const div=document.createElement('div');div.className='layer-row';div.innerHTML=`<span class="layer-badge ${cls}">${l.id}</span><span class="task-label">${l.name}</span><span class="layer-stats">${stats}</span><span style="margin-left:8px;font-size:0.8rem">${STATUS_ICONS[l.status]||'\u23F3'}</span>`;ll.appendChild(div)});
+
+    const fl=document.getElementById('fileList');fl.innerHTML='';
+    (d.files||[]).forEach(f=>{const li=document.createElement('li');const c=FILE_COLORS[f.action]||'var(--text-muted)';li.innerHTML=`<span class="task-icon" style="font-size:0.7rem;color:${c}">${FILE_ICONS[f.action]||'?'}</span><span class="task-label">${f.name}</span>`;fl.appendChild(li)});
+
+    const ts=d.updated?new Date(d.updated):new Date();
+    document.getElementById('lastUpdated').textContent=ts.toLocaleString();
+    const ago=Math.round((Date.now()-ts.getTime())/1000);
+    const agoText=ago<60?`${ago}s ago`:ago<3600?`${Math.round(ago/60)}m ago`:`${Math.round(ago/3600)}h ago`;
+    document.getElementById('lastUpdatedAgo').textContent=agoText;
+
+    const sc=document.getElementById('screenshotCard');
+    const sl=document.getElementById('screenshotList');
+    if(d.screenshots&&d.screenshots.length>0){sc.style.display='';sl.innerHTML='';d.screenshots.forEach(s=>{const a=document.createElement('a');a.href=s.path;a.textContent=s.label||s.path.split('/').pop();a.style.cssText='font-family:JetBrains Mono,monospace;font-size:0.75rem;color:var(--accent);text-decoration:none;padding:4px 0;border-bottom:1px solid var(--border)';sl.appendChild(a)})}else{sc.style.display='none'}
+}
+
+refreshDashboard();
+setInterval(refreshDashboard,5000);
+</script>
+</body>
+</html>

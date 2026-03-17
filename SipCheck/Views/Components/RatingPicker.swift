@@ -28,6 +28,7 @@ struct RatingPicker: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("rating_\(ratingOption.rawValue)")
             }
         }
     }

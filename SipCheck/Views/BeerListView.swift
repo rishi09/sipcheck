@@ -1,18 +1,37 @@
 import SwiftUI
 
+enum SortOption: String, CaseIterable {
+    case dateAdded = "Date Added"
+    case name = "Name"
+    case rating = "Rating"
+    case style = "Style"
+
+    var systemImage: String {
+        switch self {
+        case .dateAdded: return "calendar"
+        case .name: return "textformat.abc"
+        case .rating: return "star"
+        case .style: return "tag"
+        }
+    }
+}
+
 struct BeerListView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
 
     @State private var searchText = ""
     @State private var selectedRatingFilter: Rating?
     @State private var selectedStyleFilter: BeerStyle?
+    @State private var selectedTypeFilter: DrinkType?
+    @State private var sortOption: SortOption = .dateAdded
 
     private var filteredDrinks: [Drink] {
-        drinkStore.drinks.filter { drink in
-            // Search filter
+        let filtered = drinkStore.drinks.filter { drink in
+            // Search filter (includes notes)
             let matchesSearch = searchText.isEmpty ||
                 drink.name.localizedCaseInsensitiveContains(searchText) ||
-                drink.brand.localizedCaseInsensitiveContains(searchText)
+                drink.brand.localizedCaseInsensitiveContains(searchText) ||
+                (drink.notes ?? "").localizedCaseInsensitiveContains(searchText)
 
             // Rating filter
             let matchesRating = selectedRatingFilter == nil || drink.rating == selectedRatingFilter
@@ -20,12 +39,27 @@ struct BeerListView: View {
             // Style filter
             let matchesStyle = selectedStyleFilter == nil || drink.style == selectedStyleFilter?.rawValue
 
-            return matchesSearch && matchesRating && matchesStyle
+            // Type filter
+            let matchesType = selectedTypeFilter == nil || drink.drinkType == selectedTypeFilter
+
+            return matchesSearch && matchesRating && matchesStyle && matchesType
+        }
+
+        // Apply sort after filtering
+        switch sortOption {
+        case .dateAdded:
+            return filtered.sorted { $0.dateAdded > $1.dateAdded }
+        case .name:
+            return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .rating:
+            return filtered.sorted { $0.ratingValue > $1.ratingValue }
+        case .style:
+            return filtered.sorted { $0.style.localizedCaseInsensitiveCompare($1.style) == .orderedAscending }
         }
     }
 
     private var hasActiveFilters: Bool {
-        selectedRatingFilter != nil || selectedStyleFilter != nil
+        selectedRatingFilter != nil || selectedStyleFilter != nil || selectedTypeFilter != nil
     }
 
     var body: some View {
@@ -47,6 +81,7 @@ struct BeerListView: View {
                     } label: {
                         BeerRowView(drink: drink)
                     }
+                    .accessibilityIdentifier("beer_\(drink.id.uuidString)")
                 }
                 .onDelete { offsets in
                     drinkStore.deleteDrinks(at: offsets, from: filteredDrinks)
@@ -56,6 +91,25 @@ struct BeerListView: View {
         .navigationTitle("All Beers")
         .searchable(text: $searchText, prompt: "Search beers...")
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(SortOption.allCases, id: \.self) { option in
+                        Button {
+                            sortOption = option
+                        } label: {
+                            if sortOption == option {
+                                Label(option.rawValue, systemImage: "checkmark")
+                            } else {
+                                Text(option.rawValue)
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down.circle")
+                }
+                .accessibilityLabel("Sort options")
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     // Rating filter
@@ -82,11 +136,24 @@ struct BeerListView: View {
                         }
                     }
 
+                    // Type filter
+                    Menu("Type") {
+                        Button("All Types") {
+                            selectedTypeFilter = nil
+                        }
+                        ForEach(DrinkType.allCases, id: \.self) { type in
+                            Button(type.displayName) {
+                                selectedTypeFilter = type
+                            }
+                        }
+                    }
+
                     if hasActiveFilters {
                         Divider()
                         Button("Clear Filters", role: .destructive) {
                             selectedRatingFilter = nil
                             selectedStyleFilter = nil
+                            selectedTypeFilter = nil
                         }
                     }
                 } label: {
@@ -98,18 +165,30 @@ struct BeerListView: View {
 }
 
 struct BeerRowView: View {
+    @EnvironmentObject private var drinkStore: DrinkStore
     let drink: Drink
 
     var body: some View {
         HStack {
-            // Placeholder thumbnail
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.2))
-                .frame(width: 50, height: 50)
-                .overlay {
-                    Image(systemName: "mug")
-                        .foregroundColor(.gray)
+            // Photo thumbnail or placeholder
+            Group {
+                if let fileName = drink.photoFileName,
+                   let image = drinkStore.loadPhoto(named: fileName) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 50, height: 50)
+                        .overlay {
+                            Image(systemName: "mug")
+                                .foregroundColor(.gray)
+                        }
                 }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(drink.name)
@@ -125,6 +204,11 @@ struct BeerRowView: View {
                     Text("• \(drink.style)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    if let abv = drink.abv {
+                        Text("• \(String(format: "%.1f", abv))%")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .lineLimit(1)
             }

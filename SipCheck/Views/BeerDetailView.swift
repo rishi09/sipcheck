@@ -19,6 +19,19 @@ struct BeerDetailView: View {
 
     var body: some View {
         Form {
+            // Photo section
+            if let fileName = drink.photoFileName,
+               let image = drinkStore.loadPhoto(named: fileName) {
+                Section {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxHeight: 250)
+                        .cornerRadius(12)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
             // Details section
             Section {
                 if isEditing {
@@ -37,6 +50,9 @@ struct BeerDetailView: View {
                     }
                     LabeledContent("Style", value: drink.style)
                     LabeledContent("Type", value: drink.drinkType.displayName)
+                    if let abv = drink.abv {
+                        LabeledContent("ABV", value: String(format: "%.1f%%", abv))
+                    }
                 }
             } header: {
                 Text("Details")

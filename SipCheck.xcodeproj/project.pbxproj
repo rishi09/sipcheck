@@ -24,7 +24,38 @@
 		A1000015 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015; };
 		A1000016 /* DrinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016; };
 		A1000017 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017; };
+		A1000018 /* LLMProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018; };
+		A1000019 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019; };
+		A1000020 /* VisionOCRService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020; };
+		A1000021 /* ImageCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021; };
+		A1000022 /* ScanningPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022; };
+		A1000023 /* TasteProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023; };
+		A1000024 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024; };
+		A1000025 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025; };
+		B1000001 /* BeerMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001; };
+		B1000002 /* DrinkStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002; };
+		B1000004 /* ScanningPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000004; };
+		B1000005 /* PipelineIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005; };
+		B1000006 /* StoreIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000006; };
+		B1000003 /* SipCheckUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B7000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A6000001;
+			remoteInfo = SipCheck;
+		};
+		B7000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A6000001;
+			remoteInfo = SipCheck;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A2000001 /* SipCheckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SipCheckApp.swift; sourceTree = "<group>"; };
@@ -44,11 +75,41 @@
 		A2000015 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		A2000016 /* DrinkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrinkStore.swift; sourceTree = "<group>"; };
 		A2000017 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
+		A2000018 /* LLMProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMProvider.swift; sourceTree = "<group>"; };
+		A2000019 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
+		A2000020 /* VisionOCRService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionOCRService.swift; sourceTree = "<group>"; };
+		A2000021 /* ImageCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressor.swift; sourceTree = "<group>"; };
+		A2000022 /* ScanningPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningPipeline.swift; sourceTree = "<group>"; };
+		A2000023 /* TasteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfile.swift; sourceTree = "<group>"; };
+		A2000024 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
+		A2000025 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A3000001 /* SipCheck.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SipCheck.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2000001 /* BeerMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatcherTests.swift; sourceTree = "<group>"; };
+		B2000002 /* DrinkStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrinkStoreTests.swift; sourceTree = "<group>"; };
+		B2000004 /* ScanningPipelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningPipelineTests.swift; sourceTree = "<group>"; };
+		B2000005 /* PipelineIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineIntegrationTests.swift; sourceTree = "<group>"; };
+		B2000006 /* StoreIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreIntegrationTests.swift; sourceTree = "<group>"; };
+		B2000003 /* SipCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SipCheckUITests.swift; sourceTree = "<group>"; };
+		B3000001 /* SipCheckTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B3000002 /* SipCheckUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A4000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B4000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B4000002 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -62,6 +123,8 @@
 			isa = PBXGroup;
 			children = (
 				A5000002 /* SipCheck */,
+				B5000001 /* SipCheckTests */,
+				B5000002 /* SipCheckUITests */,
 				A5000010 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -85,6 +148,7 @@
 			children = (
 				A2000002 /* Drink.swift */,
 				A2000003 /* DrinkEnums.swift */,
+				A2000023 /* TasteProfile.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -97,6 +161,8 @@
 				A2000006 /* BeerListView.swift */,
 				A2000007 /* BeerDetailView.swift */,
 				A2000013 /* CheckBeerView.swift */,
+				A2000024 /* StatsView.swift */,
+				A2000025 /* OnboardingView.swift */,
 				A5000005 /* Components */,
 			);
 			path = Views;
@@ -118,6 +184,11 @@
 				A2000011 /* OpenAIService.swift */,
 				A2000012 /* BeerMatcher.swift */,
 				A2000016 /* DrinkStore.swift */,
+				A2000018 /* LLMProvider.swift */,
+				A2000019 /* GeminiService.swift */,
+				A2000020 /* VisionOCRService.swift */,
+				A2000021 /* ImageCompressor.swift */,
+				A2000022 /* ScanningPipeline.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -134,8 +205,30 @@
 			isa = PBXGroup;
 			children = (
 				A3000001 /* SipCheck.app */,
+				B3000001 /* SipCheckTests.xctest */,
+				B3000002 /* SipCheckUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B5000001 /* SipCheckTests */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001 /* BeerMatcherTests.swift */,
+				B2000002 /* DrinkStoreTests.swift */,
+				B2000004 /* ScanningPipelineTests.swift */,
+				B2000005 /* PipelineIntegrationTests.swift */,
+				B2000006 /* StoreIntegrationTests.swift */,
+			);
+			path = SipCheckTests;
+			sourceTree = "<group>";
+		};
+		B5000002 /* SipCheckUITests */ = {
+			isa = PBXGroup;
+			children = (
+				B2000003 /* SipCheckUITests.swift */,
+			);
+			path = SipCheckUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -158,6 +251,40 @@
 			productReference = A3000001 /* SipCheck.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B6000001 /* SipCheckTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B9000001 /* Build configuration list for PBXNativeTarget "SipCheckTests" */;
+			buildPhases = (
+				B6000002 /* Sources */,
+				B4000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BA000001 /* PBXTargetDependency */,
+			);
+			name = SipCheckTests;
+			productName = SipCheckTests;
+			productReference = B3000001 /* SipCheckTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B6000003 /* SipCheckUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B9000002 /* Build configuration list for PBXNativeTarget "SipCheckUITests" */;
+			buildPhases = (
+				B6000004 /* Sources */,
+				B4000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BA000002 /* PBXTargetDependency */,
+			);
+			name = SipCheckUITests;
+			productName = SipCheckUITests;
+			productReference = B3000002 /* SipCheckUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -170,6 +297,14 @@
 				TargetAttributes = {
 					A6000001 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					B6000001 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A6000001;
+					};
+					B6000003 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = A6000001;
 					};
 				};
 			};
@@ -187,6 +322,8 @@
 			projectRoot = "";
 			targets = (
 				A6000001 /* SipCheck */,
+				B6000001 /* SipCheckTests */,
+				B6000003 /* SipCheckUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -223,10 +360,51 @@
 				A1000012 /* BeerMatcher.swift in Sources */,
 				A1000013 /* CheckBeerView.swift in Sources */,
 				A1000016 /* DrinkStore.swift in Sources */,
+				A1000018 /* LLMProvider.swift in Sources */,
+				A1000019 /* GeminiService.swift in Sources */,
+				A1000020 /* VisionOCRService.swift in Sources */,
+				A1000021 /* ImageCompressor.swift in Sources */,
+				A1000022 /* ScanningPipeline.swift in Sources */,
+				A1000023 /* TasteProfile.swift in Sources */,
+				A1000024 /* StatsView.swift in Sources */,
+				A1000025 /* OnboardingView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000001 /* BeerMatcherTests.swift in Sources */,
+				B1000002 /* DrinkStoreTests.swift in Sources */,
+				B1000004 /* ScanningPipelineTests.swift in Sources */,
+				B1000005 /* PipelineIntegrationTests.swift in Sources */,
+				B1000006 /* StoreIntegrationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000003 /* SipCheckUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BA000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A6000001 /* SipCheck */;
+			targetProxy = B7000001 /* PBXContainerItemProxy */;
+		};
+		BA000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A6000001 /* SipCheck */;
+			targetProxy = B7000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A8000101 /* Debug */ = {
@@ -355,13 +533,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = YG7C25J24J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SipCheck/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "SipCheck needs camera access to scan beer labels";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -384,13 +562,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = YG7C25J24J;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SipCheck/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "SipCheck needs camera access to scan beer labels";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -403,6 +581,76 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B8000101 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sipcheck.SipCheckTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SipCheck.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SipCheck";
+			};
+			name = Debug;
+		};
+		B8000102 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sipcheck.SipCheckTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SipCheck.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SipCheck";
+			};
+			name = Release;
+		};
+		B8000201 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sipcheck.SipCheckUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SipCheck;
+			};
+			name = Debug;
+		};
+		B8000202 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sipcheck.SipCheckUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = SipCheck;
 			};
 			name = Release;
 		};
@@ -423,6 +671,24 @@
 			buildConfigurations = (
 				A8000201 /* Debug */,
 				A8000202 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B9000001 /* Build configuration list for PBXNativeTarget "SipCheckTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8000101 /* Debug */,
+				B8000102 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B9000002 /* Build configuration list for PBXNativeTarget "SipCheckUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8000201 /* Debug */,
+				B8000202 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

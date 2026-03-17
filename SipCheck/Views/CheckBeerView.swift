@@ -9,6 +9,19 @@ struct CheckBeerView: View {
     @State private var isProcessing = false
     @State private var checkResult: CheckResult?
     @State private var errorMessage: String?
+    @AppStorage("recentSearches") private var recentSearchesData: Data = Data()
+
+    private var recentSearches: [String] {
+        (try? JSONDecoder().decode([String].self, from: recentSearchesData)) ?? []
+    }
+
+    private func saveSearch(_ query: String) {
+        var searches = recentSearches
+        searches.removeAll { $0.lowercased() == query.lowercased() }
+        searches.insert(query, at: 0)
+        if searches.count > 5 { searches = Array(searches.prefix(5)) }
+        recentSearchesData = (try? JSONEncoder().encode(searches)) ?? Data()
+    }
 
     enum CheckResult {
         case found(drink: Drink, recommendation: String)
@@ -58,19 +71,55 @@ struct CheckBeerView: View {
             HStack {
                 TextField("Search by name...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("searchField")
 
                 Button("Search") {
                     searchBeer()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(searchText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("searchButton")
             }
             .padding(.horizontal)
 
-            if let error = errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
-                    .font(.subheadline)
+            if !recentSearches.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recent")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(recentSearches, id: \.self) { search in
+                                Button(search) {
+                                    searchText = search
+                                    searchBeer()
+                                }
+                                .buttonStyle(.bordered)
+                                .font(.subheadline)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+
+            if errorMessage != nil {
+                VStack(spacing: 12) {
+                    Text("Couldn't get AI recommendation. Check your connection and try again.")
+                        .foregroundColor(.red)
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+
+                    Button("Try Again") {
+                        if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            searchBeer()
+                        } else if let image = capturedImage {
+                            processImage(image)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
 
             Spacer()
@@ -219,6 +268,7 @@ struct CheckBeerView: View {
         let query = searchText.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
 
+        saveSearch(query)
         isProcessing = true
         errorMessage = nil
 
@@ -257,9 +307,9 @@ struct CheckBeerView: View {
 
         Task {
             do {
-                // Extract beer info from image
-                let extracted = try await OpenAIService.shared.extractBeerInfo(from: image)
-                let beerName = extracted.name ?? "Unknown Beer"
+                // Extract beer info from image via hybrid pipeline
+                let scanResult = try await ScanningPipeline.shared.scan(image: image)
+                let beerName = scanResult.beerInfo.name ?? "Unknown Beer"
 
                 // Check local database
                 let matchedDrink = drinkStore.findMatch(for: beerName)

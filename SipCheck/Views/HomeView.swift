@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var showingAddBeer = false
     @State private var showingCheckBeer = false
     @State private var showingBeerList = false
+    @State private var showingStats = false
 
     var body: some View {
         NavigationStack {
@@ -33,6 +34,7 @@ struct HomeView: View {
                             .foregroundColor(.white)
                             .cornerRadius(12)
                     }
+                    .accessibilityIdentifier("addBeer")
 
                     // Check Beer button
                     Button {
@@ -46,14 +48,62 @@ struct HomeView: View {
                             .foregroundColor(.accentColor)
                             .cornerRadius(12)
                     }
+                    .accessibilityIdentifier("checkBeer")
                 }
                 .padding(.horizontal, 32)
 
                 Spacer()
 
+                // Empty state for fresh install
+                if drinkStore.drinks.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "mug")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("No beers yet!")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("Tap Add Beer to get started.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                }
+
                 // Recent beers section
                 if !drinkStore.drinks.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
+                        // Taste profile summary
+                        if drinkStore.drinks.count >= 3 {
+                            let profile = drinkStore.tasteProfile
+                            HStack(spacing: 16) {
+                                VStack {
+                                    Text("\(profile.totalDrinks)")
+                                        .font(.title2).fontWeight(.bold)
+                                    Text("Tried")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                VStack {
+                                    Text("\(profile.likedCount)")
+                                        .font(.title2).fontWeight(.bold).foregroundColor(.green)
+                                    Text("Liked")
+                                        .font(.caption).foregroundColor(.secondary)
+                                }
+                                if let topStyle = profile.favoriteStyles.first {
+                                    VStack {
+                                        Text(topStyle.style)
+                                            .font(.title3).fontWeight(.semibold)
+                                        Text("Top Style")
+                                            .font(.caption).foregroundColor(.secondary)
+                                    }
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentColor.opacity(0.08))
+                            .cornerRadius(12)
+                        }
+
                         Text("Recent:")
                             .font(.headline)
                             .foregroundColor(.secondary)
@@ -75,6 +125,14 @@ struct HomeView: View {
                                 .foregroundColor(.accentColor)
                         }
                         .padding(.top, 4)
+
+                        Button {
+                            showingStats = true
+                        } label: {
+                            Text("View Stats")
+                                .font(.subheadline)
+                                .foregroundColor(.accentColor)
+                        }
                     }
                     .padding(.horizontal, 32)
                 }
@@ -89,6 +147,9 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showingBeerList) {
                 BeerListView()
+            }
+            .navigationDestination(isPresented: $showingStats) {
+                StatsView()
             }
         }
     }

@@ -5,6 +5,9 @@ import UIKit
 actor OpenAIService {
     static let shared = OpenAIService()
 
+    /// When true, all API calls return fixed mock responses (no network)
+    static var useMockResponses = false
+
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
 
@@ -20,6 +23,10 @@ actor OpenAIService {
 
     /// Extract beer information from an image using Vision API
     func extractBeerInfo(from image: UIImage) async throws -> BeerExtractionResult {
+        if Self.useMockResponses {
+            return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa)
+        }
+
         guard !apiKey.isEmpty else {
             throw OpenAIError.noAPIKey
         }
@@ -68,6 +75,14 @@ actor OpenAIService {
 
     /// Get a personalized recommendation for a beer
     func getRecommendation(for beerName: String, existingDrink: Drink?, drinkHistory: [Drink]) async throws -> String {
+        if Self.useMockResponses {
+            if existingDrink != nil {
+                return "Based on your preferences, this looks like a great choice! You enjoyed it before."
+            } else {
+                return "This could be a great pick based on your taste profile. Give it a try!"
+            }
+        }
+
         guard !apiKey.isEmpty else {
             throw OpenAIError.noAPIKey
         }

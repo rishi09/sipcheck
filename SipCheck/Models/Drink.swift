@@ -10,6 +10,8 @@ struct Drink: Identifiable, Codable, Equatable {
     var typeValue: Int    // 0 = draft, 1 = regular
     var notes: String?
     var dateAdded: Date
+    var photoFileName: String?
+    var abv: Double?
 
     init(
         id: UUID = UUID(),
@@ -18,7 +20,9 @@ struct Drink: Identifiable, Codable, Equatable {
         style: String = "Other",
         rating: Rating = .neutral,
         type: DrinkType = .regular,
-        notes: String? = nil
+        notes: String? = nil,
+        photoFileName: String? = nil,
+        abv: Double? = nil
     ) {
         self.id = id
         self.name = name
@@ -28,6 +32,8 @@ struct Drink: Identifiable, Codable, Equatable {
         self.typeValue = type.intValue
         self.notes = notes
         self.dateAdded = Date()
+        self.photoFileName = photoFileName
+        self.abv = abv
     }
 
     var rating: Rating {

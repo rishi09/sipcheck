@@ -17,4 +17,22 @@ enum Config {
         return ""
         #endif
     }
+
+    static var manusAPIKey: String {
+        // Try to load from Secrets.swift (gitignored)
+        // If not available, return empty string
+        #if DEBUG
+        return Secrets.manusAPIKey
+        #else
+        return ""
+        #endif
+    }
+
+    static var geminiAPIKey: String {
+        #if DEBUG
+        return Secrets.geminiAPIKey
+        #else
+        return ""
+        #endif
+    }
 }

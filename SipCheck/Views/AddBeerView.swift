@@ -10,6 +10,7 @@ struct AddBeerView: View {
     @State private var rating: Rating = .neutral
     @State private var notes: String = ""
     @State private var drinkType: DrinkType = .regular
+    @State private var abvText: String = ""
     @State private var capturedImage: UIImage?
 
     @State private var isProcessingImage = false
@@ -52,13 +53,18 @@ struct AddBeerView: View {
                 // Beer details section
                 Section {
                     TextField("Beer Name", text: $name)
+                        .accessibilityIdentifier("beerName")
                     TextField("Brewery (Optional)", text: $brand)
+                        .accessibilityIdentifier("breweryName")
                     StylePicker(selectedStyle: $style)
                     Picker("Type", selection: $drinkType) {
                         ForEach(DrinkType.allCases, id: \.self) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
+                    TextField("ABV % (Optional)", text: $abvText)
+                        .keyboardType(.decimalPad)
+                        .accessibilityIdentifier("abvField")
                 } header: {
                     Text("Details")
                 }
@@ -79,10 +85,13 @@ struct AddBeerView: View {
                 }
 
                 // Error message
-                if let error = errorMessage {
+                if errorMessage != nil {
                     Section {
-                        Text(error)
-                            .foregroundColor(.red)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Scan failed -- fill in the details manually.")
+                                .foregroundColor(.red)
+                                .font(.subheadline)
+                        }
                     }
                 }
             }
@@ -99,6 +108,7 @@ struct AddBeerView: View {
                         saveBeer()
                     }
                     .disabled(!canSave)
+                    .accessibilityIdentifier("saveBeer")
                 }
             }
             .onChange(of: capturedImage) { oldValue, newValue in
@@ -115,16 +125,19 @@ struct AddBeerView: View {
 
         Task {
             do {
-                let result = try await OpenAIService.shared.extractBeerInfo(from: image)
+                let result = try await ScanningPipeline.shared.scan(image: image)
                 await MainActor.run {
-                    if let extractedName = result.name, !extractedName.isEmpty {
+                    if let extractedName = result.beerInfo.name, !extractedName.isEmpty {
                         name = extractedName
                     }
-                    if let extractedBrand = result.brand, !extractedBrand.isEmpty {
+                    if let extractedBrand = result.beerInfo.brand, !extractedBrand.isEmpty {
                         brand = extractedBrand
                     }
-                    if let extractedStyle = result.style {
+                    if let extractedStyle = result.beerInfo.style {
                         style = extractedStyle.rawValue
+                    }
+                    if let extractedAbv = result.beerInfo.abv {
+                        abvText = String(format: "%.1f", extractedAbv)
                     }
                     isProcessingImage = false
                 }
@@ -138,13 +151,24 @@ struct AddBeerView: View {
     }
 
     private func saveBeer() {
+        let drinkId = UUID()
+        var photoFileName: String?
+        if let image = capturedImage {
+            photoFileName = drinkStore.savePhoto(image, for: drinkId)
+        }
+
+        let abv = Double(abvText)
+
         let drink = Drink(
+            id: drinkId,
             name: name.trimmingCharacters(in: .whitespaces),
             brand: brand.trimmingCharacters(in: .whitespaces),
             style: style,
             rating: rating,
             type: drinkType,
-            notes: notes.isEmpty ? nil : notes
+            notes: notes.isEmpty ? nil : notes,
+            photoFileName: photoFileName,
+            abv: abv
         )
 
         drinkStore.addDrink(drink)
