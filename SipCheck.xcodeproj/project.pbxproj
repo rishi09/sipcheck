@@ -50,6 +50,11 @@
 		B1000005 /* PipelineIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000005; };
 		B1000006 /* StoreIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000006; };
 		B1000003 /* SipCheckUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003; };
+		D1000001 /* VerdictCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001; };
+		D1000002 /* JournalEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000002; };
+		D1000003 /* WantToTryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000003; };
+		D1000004 /* StyleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000004; };
+		D1000005 /* VerdictBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000005; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +121,11 @@
 		B2000003 /* SipCheckUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SipCheckUITests.swift; sourceTree = "<group>"; };
 		B3000001 /* SipCheckTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B3000002 /* SipCheckUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D2000001 /* VerdictCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictCardView.swift; sourceTree = "<group>"; };
+		D2000002 /* JournalEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryRow.swift; sourceTree = "<group>"; };
+		D2000003 /* WantToTryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WantToTryCard.swift; sourceTree = "<group>"; };
+		D2000004 /* StyleBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleBarView.swift; sourceTree = "<group>"; };
+		D2000005 /* VerdictBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictBadge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,6 +224,11 @@
 				A2000008 /* RatingPicker.swift */,
 				A2000009 /* StylePicker.swift */,
 				A2000010 /* CameraView.swift */,
+				D2000001 /* VerdictCardView.swift */,
+				D2000002 /* JournalEntryRow.swift */,
+				D2000003 /* WantToTryCard.swift */,
+				D2000004 /* StyleBarView.swift */,
+				D2000005 /* VerdictBadge.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -422,6 +437,11 @@
 				C1000003 /* JournalEntry.swift in Sources */,
 				C1000004 /* ScanStore.swift in Sources */,
 				C1000005 /* JournalStore.swift in Sources */,
+				D1000001 /* VerdictCardView.swift in Sources */,
+				D1000002 /* JournalEntryRow.swift in Sources */,
+				D1000003 /* WantToTryCard.swift in Sources */,
+				D1000004 /* StyleBarView.swift in Sources */,
+				D1000005 /* VerdictBadge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
