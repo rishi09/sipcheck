@@ -19,12 +19,13 @@ actor OpenAIService {
         var name: String?
         var brand: String?
         var style: BeerStyle?
+        var origin: String?
     }
 
     /// Extract beer information from an image using Vision API
     func extractBeerInfo(from image: UIImage) async throws -> BeerExtractionResult {
         if Self.useMockResponses {
-            return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa)
+            return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa, origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since.")
         }
 
         guard !apiKey.isEmpty else {
@@ -50,9 +51,10 @@ actor OpenAIService {
                             1. Beer name
                             2. Brewery/Brand name
                             3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
+                            4. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
 
                             Respond ONLY with a JSON object in this exact format:
-                            {"name": "beer name", "brand": "brewery name", "style": "style from list"}
+                            {"name": "beer name", "brand": "brewery name", "style": "style from list", "origin": "short story or null"}
 
                             If you cannot determine a field, use null for that field.
                             """
@@ -66,7 +68,7 @@ actor OpenAIService {
                     ]
                 ]
             ],
-            "max_tokens": 200
+            "max_tokens": 300
         ]
 
         let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
@@ -214,6 +216,8 @@ actor OpenAIService {
         if let styleString = parsed["style"] as? String {
             result.style = BeerStyle.allCases.first { $0.rawValue.lowercased() == styleString.lowercased() }
         }
+
+        result.origin = parsed["origin"] as? String
 
         return result
     }
