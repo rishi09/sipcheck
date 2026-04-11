@@ -27,7 +27,7 @@
     --theme-label: "Dark Teal (Current)";
   }
 
-  /* ── WARM AMBER ── */
+  /* ── WARM AMBER (dark) ── */
   body.amber {
     --bg:          #2C1A0E;
     --surface:     #3D2514;
@@ -46,6 +46,27 @@
     --spinner-trk: #3D2514;
     --notif-bg1:   #2C1A0E;
     --notif-bg2:   #3D2514;
+  }
+
+  /* ── LIGHT CREAM ── */
+  body.cream {
+    --bg:          #F5EFE4;
+    --surface:     #EDE4D4;
+    --primary:     #C4680A;
+    --primary-dk:  #A3560A;
+    --text:        #1A110A;
+    --text-sec:    #7A6350;
+    --try-it:      #2E7D32;
+    --skip-it:     #C62828;
+    --your-call:   #C07A00;
+    --destruct:    #C62828;
+    --body-bg:     #E8DED0;
+    --phone-bg:    #D4C8B8;
+    --tab-border:  #D8CEBC;
+    --tab-bg:      rgba(245,239,228,0.97);
+    --spinner-trk: #D8CEBC;
+    --notif-bg1:   #5C3D20;
+    --notif-bg2:   #3D2510;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -104,6 +125,7 @@
   }
   .theme-tab.teal.active  { background: #4ECDC4; color: #000; }
   .theme-tab.amber.active { background: #E8820C; color: #fff; }
+  .theme-tab.cream.active { background: #F5EFE4; color: #1A110A; }
 
   h1 {
     text-align: center;
@@ -338,8 +360,9 @@
 <div class="theme-bar">
   <span class="label">Theme</span>
   <div class="theme-tabs">
-    <button class="theme-tab teal active" onclick="setTheme('teal', this)">Dark Teal — Current</button>
-    <button class="theme-tab amber" onclick="setTheme('amber', this)">Warm Amber — New</button>
+    <button class="theme-tab teal active" onclick="setTheme('teal', this)">Dark Teal</button>
+    <button class="theme-tab amber" onclick="setTheme('amber', this)">Dark Amber</button>
+    <button class="theme-tab cream" onclick="setTheme('cream', this)">Light Cream</button>
   </div>
 </div>
 
@@ -680,7 +703,8 @@
 
 <script>
   function setTheme(theme, btn) {
-    document.body.classList.toggle('amber', theme === 'amber');
+    document.body.classList.remove('amber', 'cream');
+    if (theme !== 'teal') document.body.classList.add(theme);
     document.querySelectorAll('.theme-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
   }
