@@ -17,6 +17,7 @@ struct CheckTabView: View {
     @State private var scanError: String?
 
     // Result state
+    @State private var scanTask: Task<Void, Never>?
     @State private var currentScan: Scan?
     @State private var showingFollowUp = false
     @State private var showingAddBeer = false
@@ -37,16 +38,6 @@ struct CheckTabView: View {
                     scan: scan,
                     onSaveForLater: {
                         saveForLater(scan)
-                    },
-                    onScanAnother: {
-                        resetScanState()
-                    }
-                )
-            } else if let latestScan = scanStore.scans.first, !isScanning {
-                VerdictCardView(
-                    scan: latestScan,
-                    onSaveForLater: {
-                        saveForLater(latestScan)
                     },
                     onScanAnother: {
                         resetScanState()
@@ -283,11 +274,12 @@ struct CheckTabView: View {
     }
 
     private func runScan(image: UIImage) {
+        guard !isScanning else { return }
         isScanning = true
         scanError = nil
         currentScan = nil
 
-        Task {
+        scanTask = Task {
             do {
                 let result = try await ScanningPipeline.shared.scan(image: image)
                 let scan = buildScan(from: result)
@@ -306,12 +298,13 @@ struct CheckTabView: View {
     private func runScan(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        guard !isScanning else { return }
 
         isScanning = true
         scanError = nil
         currentScan = nil
 
-        Task {
+        scanTask = Task {
             do {
                 let result = try await ScanningPipeline.shared.scan(text: trimmed)
                 let scan = buildScan(from: result)
@@ -354,6 +347,8 @@ struct CheckTabView: View {
     }
 
     private func resetScanState() {
+        scanTask?.cancel()
+        scanTask = nil
         currentScan = nil
         capturedImage = nil
         scanError = nil
