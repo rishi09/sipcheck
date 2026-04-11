@@ -85,6 +85,8 @@ struct SettingsTabView: View {
                         Text(appVersion)
                             .foregroundColor(.secondary)
                     }
+                    Link("Privacy Policy", destination: URL(string: "https://rishi09.github.io/sipcheck/privacy")!)
+                    Link("Terms of Use", destination: URL(string: "https://rishi09.github.io/sipcheck/terms")!)
                 } header: {
                     Text("About")
                 }
