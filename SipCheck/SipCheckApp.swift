@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct SipCheckApp: App {
@@ -6,6 +7,9 @@ struct SipCheckApp: App {
     @StateObject private var scanStore: ScanStore
     @StateObject private var journalStore: JournalStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
+    /// Shared notification service — also acts as UNUserNotificationCenterDelegate
+    @StateObject private var notificationService = NotificationService.shared
 
     init() {
         let args = ProcessInfo.processInfo.arguments
@@ -43,25 +47,83 @@ struct SipCheckApp: App {
             _journalStore = StateObject(wrappedValue: JournalStore())
         }
 
-        print("🍺 SipCheck app launched successfully!")
-        if args.contains("--mock-ai") { print("🧪 Mock AI mode enabled") }
-        if args.contains("--seed-data") { print("🧪 Seed data mode enabled") }
-        if args.contains("--isolated-storage") { print("🧪 Isolated storage mode enabled") }
+        print("SipCheck app launched successfully!")
+        if args.contains("--mock-ai") { print("Mock AI mode enabled") }
+        if args.contains("--seed-data") { print("Seed data mode enabled") }
+        if args.contains("--isolated-storage") { print("Isolated storage mode enabled") }
     }
 
     var body: some Scene {
         WindowGroup {
+            RootView()
+                .environmentObject(drinkStore)
+                .environmentObject(scanStore)
+                .environmentObject(journalStore)
+                .environmentObject(notificationService)
+        }
+    }
+}
+
+// MARK: - RootView (handles notification-triggered FollowUpView)
+
+private struct RootView: View {
+    @EnvironmentObject private var scanStore: ScanStore
+    @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var notificationService: NotificationService
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
+    @State private var followUpScan: Scan?
+    @State private var showingFollowUp = false
+    @State private var showingAddBeer = false
+    @State private var addBeerPrefill: AddBeerPrefill?
+
+    var body: some View {
+        Group {
             if hasCompletedOnboarding {
                 MainTabView()
-                    .environmentObject(drinkStore)
-                    .environmentObject(scanStore)
-                    .environmentObject(journalStore)
             } else {
                 OnboardingView()
-                    .environmentObject(drinkStore)
-                    .environmentObject(scanStore)
-                    .environmentObject(journalStore)
             }
+        }
+        .sheet(isPresented: $showingFollowUp) {
+            if let scan = followUpScan {
+                FollowUpView(
+                    scan: scan,
+                    onTried: { prefill in
+                        showingFollowUp = false
+                        addBeerPrefill = prefill
+                        showingAddBeer = true
+                    },
+                    onNotYet: {
+                        showingFollowUp = false
+                    },
+                    onNotGoing: {
+                        showingFollowUp = false
+                        var updated = scan
+                        updated.wantToTry = false
+                        scanStore.updateScan(updated)
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showingAddBeer) {
+            if let prefill = addBeerPrefill {
+                AddBeerView(prefill: prefill)
+                    .environmentObject(drinkStore)
+            } else {
+                AddBeerView()
+                    .environmentObject(drinkStore)
+            }
+        }
+        .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
+            guard let scanID = scanID else { return }
+            // Find the scan in the store
+            if let scan = scanStore.scans.first(where: { $0.id == scanID }) {
+                followUpScan = scan
+                showingFollowUp = true
+            }
+            // Clear the pending ID
+            notificationService.pendingFollowUpScanID = nil
         }
     }
 }

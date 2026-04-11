@@ -98,7 +98,10 @@ struct FollowUpView: View {
 
             Spacer()
         }
-        .background(SipColors.background.ignoresSafeArea())
+        .background(
+            SipColors.background
+                .ignoresSafeArea()
+        )
         .accessibilityIdentifier("followUpView")
     }
 
