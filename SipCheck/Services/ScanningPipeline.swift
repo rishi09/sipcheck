@@ -21,6 +21,26 @@ class ScanningPipeline {
 
     private init() {}
 
+    /// Scan a beer by text description (name / label text) and return structured beer information.
+    func scan(text: String) async throws -> ScanResult {
+        let start = CFAbsoluteTimeGetCurrent()
+
+        if OpenAIService.useMockResponses {
+            let mockInfo = BeerInfo(
+                name: text.isEmpty ? "Mock IPA" : text,
+                brand: "Mock Brewery",
+                style: .ipa,
+                abv: 6.5
+            )
+            let elapsed = latencyMs(since: start)
+            return ScanResult(beerInfo: mockInfo, scanSource: .mock, latencyMs: elapsed)
+        }
+
+        let beerInfo = try await extractBeerInfoFromText(text)
+        let elapsed = latencyMs(since: start)
+        return ScanResult(beerInfo: beerInfo, scanSource: .ocrPlusText, latencyMs: elapsed)
+    }
+
     /// Scan a beer label image and return structured beer information.
     ///
     /// Pipeline order:
