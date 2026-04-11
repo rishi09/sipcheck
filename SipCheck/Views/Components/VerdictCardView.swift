@@ -62,6 +62,24 @@ struct VerdictCardView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
 
+                // MARK: - Origin Card
+                if let origin = scan.origin, !origin.isEmpty {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "mappin.circle.fill")
+                            .foregroundColor(SipColors.textSecondary)
+                            .font(.system(size: 16))
+                        Text(origin)
+                            .font(SipTypography.caption)
+                            .foregroundColor(SipColors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .background(SipColors.surface)
+                    .cornerRadius(12)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                }
+
                 // MARK: - Action Buttons
                 HStack(spacing: 16) {
                     // Save for Later — outline style

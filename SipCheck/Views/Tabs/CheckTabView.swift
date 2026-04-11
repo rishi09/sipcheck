@@ -337,7 +337,8 @@ struct CheckTabView: View {
             abv: result.beerInfo.abv,
             verdict: .yourCall,
             explanation: "Scanned via \(result.scanSource.rawValue) in \(result.latencyMs)ms.",
-            wantToTry: false
+            wantToTry: false,
+            origin: result.beerInfo.origin
         )
     }
 
