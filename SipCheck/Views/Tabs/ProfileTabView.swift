@@ -1,8 +1,25 @@
 import SwiftUI
 
 struct ProfileTabView: View {
+    @EnvironmentObject var drinkStore: DrinkStore
     @EnvironmentObject var journalStore: JournalStore
     @EnvironmentObject var scanStore: ScanStore
+
+    @State private var showingSettings = false
+
+    private var personaLabel: String {
+        let vibe = UserDefaults.standard.string(forKey: "tasteVibe") ?? ""
+        let adventure = UserDefaults.standard.string(forKey: "tasteAdventure") ?? ""
+        switch vibe {
+        case "Hoppy & Bitter": return "Hop Head"
+        case "Dark & Roasty": return "Dark Arts"
+        case "Crisp & Light": return "Easy Drinker"
+        case "Fruity & Easy": return "Flavor Chaser"
+        case "Sour & Weird":
+            return adventure == "Give Me the Weird Stuff" ? "Chaos Sipper" : "Sour Seeker"
+        default: return "Explorer"
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -56,12 +73,18 @@ struct ProfileTabView: View {
             Spacer()
         }
         .overlay(alignment: .trailing) {
-            Button(action: {}) {
+            Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 20))
                     .foregroundColor(SipColors.textPrimary)
             }
             .padding(.trailing, 20)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsTabView()
+                .environmentObject(drinkStore)
+                .environmentObject(scanStore)
+                .environmentObject(journalStore)
         }
     }
 
@@ -73,7 +96,7 @@ struct ProfileTabView: View {
                 .font(.system(size: 18))
                 .foregroundColor(SipColors.background)
 
-            Text("Hop Head")
+            Text(personaLabel)
                 .font(SipTypography.headline)
                 .foregroundColor(SipColors.background)
         }
@@ -254,6 +277,7 @@ struct ProfileTabView_Previews: PreviewProvider {
         let scanStore = ScanStore(storageDirectory: scanDir, useSeedData: true)
 
         return ProfileTabView()
+            .environmentObject(DrinkStore())
             .environmentObject(journalStore)
             .environmentObject(scanStore)
             .previewDisplayName("Profile Tab")
