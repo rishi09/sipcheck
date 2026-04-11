@@ -73,7 +73,10 @@ class GeminiService: LLMProvider {
             throw GeminiError.noAPIKey
         }
 
-        let responseData = try await makeRequest(prompt: prompt)
+        let tasteContext = TastePreferences.current.promptSummary
+        let fullPrompt = tasteContext.isEmpty ? prompt : "\(tasteContext)\n\n\(prompt)"
+
+        let responseData = try await makeRequest(prompt: fullPrompt)
         return try parseTextResponse(responseData)
     }
 

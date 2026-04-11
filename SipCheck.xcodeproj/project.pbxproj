@@ -55,6 +55,9 @@
 		D1000003 /* WantToTryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000003; };
 		D1000004 /* StyleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000004; };
 		D1000005 /* VerdictBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000005; };
+		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
+		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
+		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -126,6 +129,9 @@
 		D2000003 /* WantToTryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WantToTryCard.swift; sourceTree = "<group>"; };
 		D2000004 /* StyleBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleBarView.swift; sourceTree = "<group>"; };
 		D2000005 /* VerdictBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictBadge.swift; sourceTree = "<group>"; };
+		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
+		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -201,6 +207,7 @@
 				A2000024 /* StatsView.swift */,
 				A2000025 /* OnboardingView.swift */,
 				C2000001 /* DesignSystem.swift */,
+				E2000002 /* FollowUpView.swift */,
 				A5000008 /* Tabs */,
 				A5000005 /* Components */,
 			);
@@ -246,6 +253,8 @@
 				A2000022 /* ScanningPipeline.swift */,
 				C2000004 /* ScanStore.swift */,
 				C2000005 /* JournalStore.swift */,
+				E2000001 /* NotificationService.swift */,
+				F2000001 /* TastePreferences.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -442,6 +451,9 @@
 				D1000003 /* WantToTryCard.swift in Sources */,
 				D1000004 /* StyleBarView.swift in Sources */,
 				D1000005 /* VerdictBadge.swift in Sources */,
+				E1000001 /* NotificationService.swift in Sources */,
+				E1000002 /* FollowUpView.swift in Sources */,
+				F1000001 /* TastePreferences.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
