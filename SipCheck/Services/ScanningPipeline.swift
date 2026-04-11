@@ -71,7 +71,7 @@ class ScanningPipeline {
         let ocrResult = await VisionOCRService.extractText(from: image)
 
         // ------- Step 2: Decide fast-path vs fallback -------
-        if ocrResult.confidence >= 0.5 && ocrResult.text.count > 10 {
+        if ocrResult.confidence >= 0.5 && ocrResult.text.count > 3 {
             // Fast path: send extracted text to a text LLM
             let beerInfo = try await extractBeerInfoFromText(ocrResult.text)
             let (verdict, explanation) = await getVerdictAndExplanation(for: beerInfo)

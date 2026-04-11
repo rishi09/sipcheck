@@ -162,7 +162,7 @@ class GeminiService: LLMProvider {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 5
+        request.timeoutInterval = 15
 
         let requestBody: [String: Any] = [
             "contents": [
@@ -219,8 +219,9 @@ class GeminiService: LLMProvider {
 
         if let abvNumber = parsed["abv"] as? Double {
             result.abv = abvNumber
-        } else if let abvString = parsed["abv"] as? String, let abvValue = Double(abvString) {
-            result.abv = abvValue
+        } else if let abvString = parsed["abv"] as? String {
+            let normalizedABV = abvString.replacingOccurrences(of: ",", with: ".")
+            result.abv = Double(normalizedABV)
         }
 
         result.origin = parsed["origin"] as? String
@@ -234,9 +235,15 @@ class GeminiService: LLMProvider {
     }
 
     private func extractTextFromResponse(_ data: Data) throws -> String {
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let candidates = json["candidates"] as? [[String: Any]],
-              let firstCandidate = candidates.first,
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw GeminiError.parseError
+        }
+
+        guard let candidates = json["candidates"] as? [[String: Any]], !candidates.isEmpty else {
+            throw GeminiError.apiError("Response was filtered or empty")
+        }
+
+        guard let firstCandidate = candidates.first,
               let content = firstCandidate["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]],
               let firstPart = parts.first,
