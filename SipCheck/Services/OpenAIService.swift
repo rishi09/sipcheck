@@ -107,10 +107,12 @@ actor OpenAIService {
             }
         }
 
+        let tasteContext = TastePreferences.current.promptSummary
+
         let prompt: String
         if let existing = existingDrink {
             prompt = """
-            The user is looking at "\(beerName)" which they have tried before.
+            \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")The user is looking at "\(beerName)" which they have tried before.
             They rated it: \(existing.rating.displayName)
             \(existing.notes.map { "Their notes: \"\($0)\"" } ?? "")
 
@@ -121,7 +123,7 @@ actor OpenAIService {
             """
         } else {
             prompt = """
-            The user is considering "\(beerName)" which they have NOT tried before.
+            \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")The user is considering "\(beerName)" which they have NOT tried before.
 
             \(historyContext)
 
