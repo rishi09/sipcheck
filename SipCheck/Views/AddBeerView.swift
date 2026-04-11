@@ -1,8 +1,17 @@
 import SwiftUI
 
+/// Pre-populated data for AddBeerView, typically sourced from a prior scan
+struct AddBeerPrefill {
+    var name: String = ""
+    var style: String = BeerStyle.other.rawValue
+    var abv: Double? = nil
+}
+
 struct AddBeerView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
     @Environment(\.dismiss) private var dismiss
+
+    var prefill: AddBeerPrefill?
 
     @State private var name: String = ""
     @State private var brand: String = ""
@@ -15,6 +24,10 @@ struct AddBeerView: View {
 
     @State private var isProcessingImage = false
     @State private var errorMessage: String?
+
+    init(prefill: AddBeerPrefill? = nil) {
+        self.prefill = prefill
+    }
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
@@ -114,6 +127,13 @@ struct AddBeerView: View {
             .onChange(of: capturedImage) { oldValue, newValue in
                 if let image = newValue, oldValue == nil {
                     processImageWithAI(image)
+                }
+            }
+            .onAppear {
+                if let prefill = prefill {
+                    if !prefill.name.isEmpty { name = prefill.name }
+                    if prefill.style != BeerStyle.other.rawValue { style = prefill.style }
+                    if let abv = prefill.abv { abvText = String(format: "%.1f", abv) }
                 }
             }
         }
