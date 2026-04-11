@@ -58,6 +58,7 @@
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
 		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
+		A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 88C34708ADF14D72B7A94D0E; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +133,7 @@
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
 		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
+		88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -263,6 +265,7 @@
 			isa = PBXGroup;
 			children = (
 				A2000014 /* Assets.xcassets */,
+				88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -402,6 +405,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000014 /* Assets.xcassets in Resources */,
+				A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
