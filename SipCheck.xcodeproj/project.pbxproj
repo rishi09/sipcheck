@@ -57,6 +57,7 @@
 		D1000005 /* VerdictBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000005; };
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
+		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -130,6 +131,7 @@
 		D2000005 /* VerdictBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictBadge.swift; sourceTree = "<group>"; };
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
+		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -252,6 +254,7 @@
 				C2000004 /* ScanStore.swift */,
 				C2000005 /* JournalStore.swift */,
 				E2000001 /* NotificationService.swift */,
+				F2000001 /* TastePreferences.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -450,6 +453,7 @@
 				D1000005 /* VerdictBadge.swift in Sources */,
 				E1000001 /* NotificationService.swift in Sources */,
 				E1000002 /* FollowUpView.swift in Sources */,
+				F1000001 /* TastePreferences.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
