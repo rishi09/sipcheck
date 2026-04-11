@@ -30,7 +30,8 @@ class ScanningPipeline {
                 name: text.isEmpty ? "Mock IPA" : text,
                 brand: "Mock Brewery",
                 style: .ipa,
-                abv: 6.5
+                abv: 6.5,
+                origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since."
             )
             let elapsed = latencyMs(since: start)
             return ScanResult(beerInfo: mockInfo, scanSource: .mock, latencyMs: elapsed)
@@ -56,7 +57,8 @@ class ScanningPipeline {
                 name: "Mock IPA",
                 brand: "Mock Brewery",
                 style: .ipa,
-                abv: 6.5
+                abv: 6.5,
+                origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since."
             )
             let elapsed = latencyMs(since: start)
             return ScanResult(beerInfo: mockInfo, scanSource: .mock, latencyMs: elapsed)
@@ -79,7 +81,8 @@ class ScanningPipeline {
             name: extractionResult.name ?? "Unknown",
             brand: extractionResult.brand ?? "Unknown",
             style: extractionResult.style,
-            abv: nil
+            abv: nil,
+            origin: extractionResult.origin
         )
         let elapsed = latencyMs(since: start)
         return ScanResult(beerInfo: beerInfo, scanSource: .visionFallback, latencyMs: elapsed)
