@@ -46,6 +46,26 @@ struct Drink: Identifiable, Codable, Equatable {
         set { typeValue = newValue.intValue }
     }
 
+    // MARK: - CodingKeys & Safe Decoder
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, brand, style, ratingValue, typeValue, notes, dateAdded, photoFileName, abv
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Unknown Beer"
+        brand = try c.decodeIfPresent(String.self, forKey: .brand) ?? ""
+        style = try c.decodeIfPresent(String.self, forKey: .style) ?? "Other"
+        ratingValue = try c.decodeIfPresent(Int.self, forKey: .ratingValue) ?? 1
+        typeValue = try c.decodeIfPresent(Int.self, forKey: .typeValue) ?? 1
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        dateAdded = try c.decodeIfPresent(Date.self, forKey: .dateAdded) ?? Date()
+        photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
+        abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+    }
+
     static var preview: Drink {
         Drink(
             name: "Sierra Nevada Pale Ale",

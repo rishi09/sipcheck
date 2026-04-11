@@ -61,11 +61,18 @@ class ScanStore: ObservableObject {
     }
 
     private func loadScans() {
+        guard let data = try? Data(contentsOf: fileURL) else {
+            scans = []
+            return
+        }
+        // Write backup before decoding — protects against decode failure wiping the file on next save
+        let backupURL = storageDir.appendingPathComponent("scans_backup.json")
+        try? data.write(to: backupURL, options: .atomic)
+
         do {
-            let data = try Data(contentsOf: fileURL)
             scans = try JSONDecoder().decode([Scan].self, from: data)
         } catch {
-            // File doesn't exist or is invalid - start with empty array
+            print("ScanStore: failed to decode scans.json — keeping empty. Error: \(error)")
             scans = []
         }
     }

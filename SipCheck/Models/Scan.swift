@@ -43,4 +43,24 @@ struct Scan: Identifiable, Codable, Equatable {
         self.linkedJournalId = linkedJournalId
         self.origin = origin
     }
+
+    // MARK: - CodingKeys & Safe Decoder
+
+    enum CodingKeys: String, CodingKey {
+        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        beerName = try c.decodeIfPresent(String.self, forKey: .beerName) ?? "Unknown Beer"
+        style = try c.decodeIfPresent(String.self, forKey: .style)
+        abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+        verdict = try c.decodeIfPresent(Verdict.self, forKey: .verdict) ?? .yourCall
+        explanation = try c.decodeIfPresent(String.self, forKey: .explanation) ?? ""
+        timestamp = try c.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()
+        wantToTry = try c.decodeIfPresent(Bool.self, forKey: .wantToTry) ?? false
+        linkedJournalId = try c.decodeIfPresent(UUID.self, forKey: .linkedJournalId)
+        origin = try c.decodeIfPresent(String.self, forKey: .origin)
+    }
 }
