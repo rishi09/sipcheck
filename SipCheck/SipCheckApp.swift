@@ -7,6 +7,7 @@ struct SipCheckApp: App {
     @StateObject private var scanStore: ScanStore
     @StateObject private var journalStore: JournalStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     /// Shared notification service — also acts as UNUserNotificationCenterDelegate
     @StateObject private var notificationService = NotificationService.shared
@@ -24,8 +25,9 @@ struct SipCheckApp: App {
         let useIsolatedStorage = args.contains("--isolated-storage")
         let useSeedData = args.contains("--seed-data")
 
-        // Skip onboarding in isolated-storage test mode
+        // Skip age gate and onboarding in isolated-storage test mode
         if useIsolatedStorage {
+            UserDefaults.standard.set(true, forKey: "hasConfirmedAge")
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         }
 
@@ -71,6 +73,7 @@ private struct RootView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
     @EnvironmentObject private var notificationService: NotificationService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     @State private var followUpScan: Scan?
     @State private var showingFollowUp = false
@@ -79,7 +82,9 @@ private struct RootView: View {
 
     var body: some View {
         Group {
-            if hasCompletedOnboarding {
+            if !hasConfirmedAge {
+                AgeGateView()
+            } else if hasCompletedOnboarding {
                 MainTabView()
             } else {
                 OnboardingView()

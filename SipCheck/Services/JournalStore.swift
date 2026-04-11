@@ -44,6 +44,11 @@ class JournalStore: ObservableObject {
         saveEntries()
     }
 
+    func deleteAllEntries() {
+        entries.removeAll()
+        saveEntries()
+    }
+
     // MARK: - Persistence
 
     private var fileURL: URL {

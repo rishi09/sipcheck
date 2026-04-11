@@ -45,6 +45,15 @@ class ScanStore: ObservableObject {
         NotificationService.shared.cancelFollowUp(for: scan)
     }
 
+    func deleteAllScans() {
+        let allScans = scans
+        scans.removeAll()
+        saveScans()
+        for scan in allScans {
+            NotificationService.shared.cancelFollowUp(for: scan)
+        }
+    }
+
     // MARK: - Persistence
 
     private var fileURL: URL {
