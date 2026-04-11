@@ -24,7 +24,8 @@ struct OnboardingView: View {
                 description: "Every beer you rate teaches SipCheck your taste. Recommendations get sharper every week.",
                 tag: 2
             )
-            tasteQuizPage(tag: 3)
+            beerPickerPage(tag: 3)
+            tasteQuizPage(tag: 4)
         }
         .tabViewStyle(.page(indexDisplayMode: .always))
         .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -51,8 +52,163 @@ struct OnboardingView: View {
         .tag(tag)
     }
 
+    private func beerPickerPage(tag: Int) -> some View {
+        BeerPickerPage(tag: tag, currentPage: $currentPage)
+    }
+
     private func tasteQuizPage(tag: Int) -> some View {
         TasteQuizPage(tag: tag, hasCompletedOnboarding: $hasCompletedOnboarding)
+    }
+}
+
+// MARK: - Beer Picker Page
+
+private struct BeerPickerPage: View {
+    let tag: Int
+    @Binding var currentPage: Int
+
+    @State private var selectedBeers: Set<String> = []
+    @State private var showCoronaEgg = false
+
+    private let beerOptions = [
+        "Modelo", "Corona", "Heineken", "Blue Moon",
+        "Sam Adams", "Guinness", "Sierra Nevada", "Lagunitas",
+        "Hazy Little Thing", "Coors Light", "Bud Light", "Stella Artois",
+        "Allagash White", "Dogfish Head", "Stone IPA", "Goose Island"
+    ]
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Beers you've had before?")
+                            .font(.title)
+                            .fontWeight(.bold)
+                        Text("Tap any you've tried. We'll use it to calibrate your taste.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 24)
+
+                    // Beer chip grid
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 100), spacing: 10)],
+                        alignment: .leading,
+                        spacing: 10
+                    ) {
+                        ForEach(beerOptions, id: \.self) { beer in
+                            ChipButton(
+                                label: beer,
+                                isSelected: selectedBeers.contains(beer)
+                            ) {
+                                toggleBeer(beer)
+                            }
+                        }
+                    }
+
+                    // Spacer so content clears the fixed buttons
+                    Spacer(minLength: 120)
+                }
+                .padding(.horizontal, 24)
+            }
+
+            // Fixed bottom area: toast + CTA + Skip
+            VStack(spacing: 0) {
+                // Corona easter egg toast
+                if showCoronaEgg {
+                    HStack(spacing: 10) {
+                        Text("🏎️")
+                            .font(.title2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\"One quarter mile at a time.\"")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(SipColors.textPrimary)
+                            Text("— Dominic Toretto")
+                                .font(.caption)
+                                .foregroundColor(SipColors.textSecondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(SipColors.surface)
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                    )
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 20)),
+                            removal: .opacity.combined(with: .offset(y: 20))
+                        )
+                    )
+                }
+
+                // CTA
+                VStack(spacing: 10) {
+                    Button(action: advance) {
+                        Text("Next →")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentColor)
+                            .cornerRadius(14)
+                    }
+
+                    Button(action: advance) {
+                        Text("Skip")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.bottom, 8)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .background(
+                    // Subtle gradient to blend with scroll content
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(UIColor.systemBackground).opacity(0), Color(UIColor.systemBackground)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea(edges: .bottom)
+                )
+            }
+        }
+        .tag(tag)
+    }
+
+    private func toggleBeer(_ beer: String) {
+        let wasSelected = selectedBeers.contains(beer)
+        if wasSelected {
+            selectedBeers.remove(beer)
+        } else {
+            selectedBeers.insert(beer)
+            if beer == "Corona" {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showCoronaEgg = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation(.easeIn(duration: 0.3)) {
+                        showCoronaEgg = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func advance() {
+        let joined = selectedBeers.sorted().joined(separator: ",")
+        UserDefaults.standard.set(joined, forKey: "knownBeers")
+        withAnimation {
+            currentPage = 4
+        }
     }
 }
 
