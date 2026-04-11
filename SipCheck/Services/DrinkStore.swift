@@ -73,11 +73,18 @@ class DrinkStore: ObservableObject {
     }
 
     private func loadDrinks() {
+        guard let data = try? Data(contentsOf: fileURL) else {
+            drinks = []
+            return
+        }
+        // Write backup before decoding — protects against decode failure wiping the file on next save
+        let backupURL = storageDir.appendingPathComponent("drinks_backup.json")
+        try? data.write(to: backupURL, options: .atomic)
+
         do {
-            let data = try Data(contentsOf: fileURL)
             drinks = try JSONDecoder().decode([Drink].self, from: data)
         } catch {
-            // File doesn't exist or is invalid - start with empty array
+            print("DrinkStore: failed to decode drinks.json — keeping empty. Error: \(error)")
             drinks = []
         }
     }
