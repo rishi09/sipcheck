@@ -7,6 +7,7 @@ struct SipCheckApp: App {
     @StateObject private var scanStore: ScanStore
     @StateObject private var journalStore: JournalStore
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     /// Shared notification service — also acts as UNUserNotificationCenterDelegate
     @StateObject private var notificationService = NotificationService.shared
@@ -24,8 +25,9 @@ struct SipCheckApp: App {
         let useIsolatedStorage = args.contains("--isolated-storage")
         let useSeedData = args.contains("--seed-data")
 
-        // Skip onboarding in isolated-storage test mode
+        // Skip age gate and onboarding in isolated-storage test mode
         if useIsolatedStorage {
+            UserDefaults.standard.set(true, forKey: "hasConfirmedAge")
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         }
 
@@ -69,8 +71,10 @@ struct SipCheckApp: App {
 private struct RootView: View {
     @EnvironmentObject private var scanStore: ScanStore
     @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var journalStore: JournalStore
     @EnvironmentObject private var notificationService: NotificationService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     @State private var followUpScan: Scan?
     @State private var showingFollowUp = false
@@ -79,7 +83,9 @@ private struct RootView: View {
 
     var body: some View {
         Group {
-            if hasCompletedOnboarding {
+            if !hasConfirmedAge {
+                AgeGateView()
+            } else if hasCompletedOnboarding {
                 MainTabView()
             } else {
                 OnboardingView()
@@ -110,13 +116,23 @@ private struct RootView: View {
             if let prefill = addBeerPrefill {
                 AddBeerView(prefill: prefill)
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
             } else {
                 AddBeerView()
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
             }
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
             guard let scanID = scanID else { return }
+            // Only show FollowUpView for plain taps (or when no action yet).
+            // Quick-action responses (.lovedIt/.meh/.skippedIt) are handled
+            // entirely by the pendingFollowUpAction handler below.
+            let actionResponse = notificationService.pendingFollowUpAction?.response
+            guard actionResponse == nil || actionResponse == .tapped else {
+                notificationService.pendingFollowUpScanID = nil
+                return
+            }
             // Find the scan in the store
             if let scan = scanStore.scans.first(where: { $0.id == scanID }) {
                 followUpScan = scan
@@ -136,15 +152,10 @@ private struct RootView: View {
                 // will be triggered by the sibling onChange above. Nothing extra needed.
                 break
 
-            case .lovedIt, .meh, .skippedIt:
+            case .lovedIt, .meh:
                 guard let scan = scanStore.scans.first(where: { $0.id == action.scanID }) else { return }
-                let rating: Rating
-                switch action.response {
-                case .lovedIt:   rating = .like
-                case .meh:       rating = .neutral
-                case .skippedIt: rating = .dislike
-                default:         rating = .neutral
-                }
+                let isLoved = action.response == .lovedIt
+                let rating: Rating = isLoved ? .like : .neutral
                 let drink = Drink(
                     name: scan.beerName,
                     style: scan.style ?? "Other",
@@ -152,6 +163,31 @@ private struct RootView: View {
                     abv: scan.abv
                 )
                 drinkStore.addDrink(drink)
+                // Also create a JournalEntry so it appears in the Journal tab
+                let journalEntry = JournalEntry(
+                    beerName: scan.beerName,
+                    brand: "",
+                    style: scan.style ?? "",
+                    abv: scan.abv,
+                    rating: isLoved ? 5 : 3,
+                    linkedScanId: scan.id
+                )
+                journalStore.addEntry(journalEntry)
+                // Clear wantToTry since user has now responded
+                if var updatedScan = scanStore.scans.first(where: { $0.id == action.scanID }) {
+                    updatedScan.wantToTry = false
+                    scanStore.updateScan(updatedScan)
+                }
+                // Prevent the pendingFollowUpScanID handler from also showing FollowUpView
+                notificationService.pendingFollowUpScanID = nil
+
+            case .skippedIt:
+                // User didn't try the beer — just clear the want-to-try flag
+                if var scan = scanStore.scans.first(where: { $0.id == action.scanID }) {
+                    scan.wantToTry = false
+                    scanStore.updateScan(scan)
+                }
+                notificationService.pendingFollowUpScanID = nil
             }
         }
     }

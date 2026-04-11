@@ -22,12 +22,6 @@ struct MainTabView: View {
                     Label("Profile", systemImage: "person.crop.circle")
                 }
                 .tag(2)
-
-            SettingsTabView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .tag(3)
         }
         .tint(SipColors.primary)
     }

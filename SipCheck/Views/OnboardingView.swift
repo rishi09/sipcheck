@@ -9,7 +9,7 @@ struct OnboardingView: View {
             onboardingPage(
                 icon: "mug.fill",
                 title: "Never Waste a Sip Again",
-                description: "Stood in the beer aisle not sure what to grab? SipCheck tells you in seconds.",
+                description: "Stuck in the beer aisle? Snap a label. SipCheck makes the call so you don't have to.",
                 tag: 0
             )
             onboardingPage(
@@ -20,8 +20,8 @@ struct OnboardingView: View {
             )
             onboardingPage(
                 icon: "sparkles",
-                title: "The More You Log, the Better It Gets",
-                description: "Every beer you rate teaches SipCheck your taste. Recommendations get sharper every week.",
+                title: "Your Taste, Your Verdicts",
+                description: "Every beer you scan fine-tunes your verdicts. SipCheck gets you faster than your bartender does.",
                 tag: 2
             )
             tasteQuizPage(tag: 3)
@@ -31,28 +31,191 @@ struct OnboardingView: View {
     }
 
     private func onboardingPage(icon: String, title: String, description: String, tag: Int) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 80))
-                .foregroundColor(.accentColor)
-            Text(title)
-                .font(.title)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.center)
-            Text(description)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Spacer()
-            Spacer()
+        ZStack {
+            // Subtle radial glow for warmth
+            RadialGradient(
+                colors: [SipColors.primary.opacity(0.08), SipColors.background],
+                center: .center,
+                startRadius: 40,
+                endRadius: 280
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 24) {
+                Spacer()
+                Image(systemName: icon)
+                    .font(.system(size: 80))
+                    .foregroundColor(SipColors.primary)
+                    .shadow(color: SipColors.primary.opacity(0.3), radius: 16)
+                Text(title)
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(SipColors.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text(description)
+                    .font(SipTypography.body)
+                    .foregroundColor(SipColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                Spacer()
+                Spacer()
+            }
         }
         .tag(tag)
     }
 
     private func tasteQuizPage(tag: Int) -> some View {
         TasteQuizPage(tag: tag, hasCompletedOnboarding: $hasCompletedOnboarding)
+    }
+}
+
+// MARK: - Beer Picker Page (retained for backwards compat if needed)
+
+private struct BeerPickerPage: View {
+    let tag: Int
+    @Binding var currentPage: Int
+
+    @State private var selectedBeers: Set<String> = []
+    @State private var showCoronaEgg = false
+
+    private let beerOptions = [
+        "Modelo", "Corona", "Heineken", "Blue Moon",
+        "Sam Adams", "Guinness", "Sierra Nevada", "Lagunitas",
+        "Hazy Little Thing", "Coors Light", "Bud Light", "Stella Artois",
+        "Allagash White", "Dogfish Head", "Stone IPA", "Goose Island"
+    ]
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Beers you've had before?")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(SipColors.textPrimary)
+                        Text("Tap any you've tried — helps us figure out what you're into.")
+                            .font(.subheadline)
+                            .foregroundColor(SipColors.textSecondary)
+                    }
+                    .padding(.top, 24)
+
+                    // Beer chip grid
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 100), spacing: 10)],
+                        alignment: .leading,
+                        spacing: 10
+                    ) {
+                        ForEach(beerOptions, id: \.self) { beer in
+                            ChipButton(
+                                label: beer,
+                                isSelected: selectedBeers.contains(beer)
+                            ) {
+                                toggleBeer(beer)
+                            }
+                        }
+                    }
+
+                    // Spacer so content clears the fixed buttons
+                    Spacer(minLength: 120)
+                }
+                .padding(.horizontal, 24)
+            }
+
+            // Fixed bottom area: toast + CTA + Skip
+            VStack(spacing: 0) {
+                // Corona easter egg toast
+                if showCoronaEgg {
+                    HStack(spacing: 10) {
+                        Text("🏎️")
+                            .font(.title2)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\"One quarter mile at a time.\"")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(SipColors.textPrimary)
+                            Text("— Dominic Toretto")
+                                .font(.caption)
+                                .foregroundColor(SipColors.textSecondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(SipColors.surface)
+                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                    )
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 12)
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 20)),
+                            removal: .opacity.combined(with: .offset(y: 20))
+                        )
+                    )
+                }
+
+                // CTA
+                VStack(spacing: 10) {
+                    Button(action: advance) {
+                        Text("Next →")
+                            .font(.headline)
+                            .foregroundColor(SipColors.background)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(SipColors.primary)
+                            .cornerRadius(14)
+                    }
+
+                    Button(action: advance) {
+                        Text("Skip")
+                            .font(.subheadline)
+                            .foregroundColor(SipColors.textSecondary)
+                    }
+                    .padding(.bottom, 8)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .background(
+                    // Subtle gradient to blend with scroll content
+                    LinearGradient(
+                        gradient: Gradient(colors: [Color(UIColor.systemBackground).opacity(0), Color(UIColor.systemBackground)]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea(edges: .bottom)
+                )
+            }
+        }
+        .tag(tag)
+    }
+
+    private func toggleBeer(_ beer: String) {
+        let wasSelected = selectedBeers.contains(beer)
+        if wasSelected {
+            selectedBeers.remove(beer)
+        } else {
+            selectedBeers.insert(beer)
+            if beer == "Corona" {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showCoronaEgg = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation(.easeIn(duration: 0.3)) {
+                        showCoronaEgg = false
+                    }
+                }
+            }
+        }
+    }
+
+    private func advance() {
+        let joined = selectedBeers.sorted().joined(separator: ",")
+        UserDefaults.standard.set(joined, forKey: "knownBeers")
+        withAnimation {
+            currentPage = 4
+        }
     }
 }
 
@@ -75,7 +238,7 @@ private struct TasteQuizPage: View {
     }
 
     private var ctaLabel: String {
-        hasRequiredSelections ? "See My First Picks" : "Skip for now"
+        hasRequiredSelections ? "Start Scanning" : "Skip for now"
     }
 
     var body: some View {
@@ -84,11 +247,11 @@ private struct TasteQuizPage: View {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Quick — what do you like?")
-                        .font(.title)
-                        .fontWeight(.bold)
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .foregroundColor(SipColors.textPrimary)
                     Text("Takes 10 seconds. Makes recommendations way better.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
                 }
                 .padding(.top, 24)
 
@@ -123,11 +286,11 @@ private struct TasteQuizPage: View {
                 // CTA
                 Button(action: saveAndContinue) {
                     Text(ctaLabel)
-                        .font(.headline)
-                        .foregroundColor(.white)
+                        .font(SipTypography.headline)
+                        .foregroundColor(SipColors.background)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.accentColor)
+                        .background(SipColors.primary)
                         .cornerRadius(14)
                 }
                 .padding(.top, 8)
@@ -160,11 +323,12 @@ private struct QuizQuestion: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 Text(question)
-                    .font(.headline)
+                    .font(SipTypography.headline)
+                    .foregroundColor(SipColors.textPrimary)
                 if let suffix = questionSuffix {
                     Text(suffix)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
                 }
             }
             ChipGrid(
@@ -223,18 +387,18 @@ private struct ChipButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.subheadline)
+                .font(SipTypography.subhead)
                 .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .white : .secondary)
+                .foregroundColor(isSelected ? SipColors.background : SipColors.textSecondary)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(isSelected ? Color.accentColor : Color.clear)
+                        .fill(isSelected ? SipColors.primary : Color.clear)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.5), lineWidth: 1.5)
+                        .stroke(isSelected ? SipColors.primary : SipColors.textSecondary.opacity(0.5), lineWidth: 1.5)
                 )
         }
         .buttonStyle(.plain)

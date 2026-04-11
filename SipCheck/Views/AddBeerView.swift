@@ -9,6 +9,7 @@ struct AddBeerPrefill {
 
 struct AddBeerView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var journalStore: JournalStore
     @Environment(\.dismiss) private var dismiss
 
     var prefill: AddBeerPrefill?
@@ -49,7 +50,7 @@ struct AddBeerView: View {
                             HStack {
                                 ProgressView()
                                     .padding(.trailing, 8)
-                                Text("Analyzing label...")
+                                Text("Reading label...")
                             }
                         }
 
@@ -101,7 +102,7 @@ struct AddBeerView: View {
                 if errorMessage != nil {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Scan failed -- fill in the details manually.")
+                            Text("Scan failed — fill in the details manually.")
                                 .foregroundColor(.red)
                                 .font(.subheadline)
                         }
@@ -172,27 +173,54 @@ struct AddBeerView: View {
 
     private func saveBeer() {
         let drinkId = UUID()
-        var photoFileName: String?
-        if let image = capturedImage {
-            photoFileName = drinkStore.savePhoto(image, for: drinkId)
-        }
-
         let abv = Double(abvText)
+        let imageCopy = capturedImage
+        let beerName = name.trimmingCharacters(in: .whitespaces)
+        let beerBrand = brand.trimmingCharacters(in: .whitespaces)
+        let beerNotes = notes.isEmpty ? nil : notes
 
-        let drink = Drink(
-            id: drinkId,
-            name: name.trimmingCharacters(in: .whitespaces),
-            brand: brand.trimmingCharacters(in: .whitespaces),
-            style: style,
-            rating: rating,
-            type: drinkType,
-            notes: notes.isEmpty ? nil : notes,
-            photoFileName: photoFileName,
-            abv: abv
-        )
+        Task {
+            var photoFileName: String?
+            if let image = imageCopy {
+                photoFileName = await drinkStore.savePhoto(image, for: drinkId)
+            }
 
-        drinkStore.addDrink(drink)
-        dismiss()
+            let drink = Drink(
+                id: drinkId,
+                name: beerName,
+                brand: beerBrand,
+                style: style,
+                rating: rating,
+                type: drinkType,
+                notes: beerNotes,
+                photoFileName: photoFileName,
+                abv: abv
+            )
+
+            // Map Rating enum → 1-5 int for JournalEntry
+            let journalRating: Int
+            switch rating {
+            case .like:    journalRating = 5
+            case .neutral: journalRating = 3
+            case .dislike: journalRating = 1
+            }
+
+            let entry = JournalEntry(
+                beerName: beerName,
+                brand: beerBrand,
+                style: style,
+                abv: abv,
+                rating: journalRating,
+                notes: beerNotes,
+                photoFileName: photoFileName
+            )
+
+            await MainActor.run {
+                drinkStore.addDrink(drink)
+                journalStore.addEntry(entry)
+                dismiss()
+            }
+        }
     }
 }
 
@@ -200,5 +228,6 @@ struct AddBeerView_Previews: PreviewProvider {
     static var previews: some View {
         AddBeerView()
             .environmentObject(DrinkStore())
+            .environmentObject(JournalStore())
     }
 }

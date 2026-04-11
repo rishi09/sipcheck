@@ -10,8 +10,11 @@ enum JournalFilter: String, CaseIterable {
 struct JournalTabView: View {
     @EnvironmentObject var journalStore: JournalStore
     @EnvironmentObject var scanStore: ScanStore
+    @EnvironmentObject var drinkStore: DrinkStore
     @State private var searchText = ""
     @State private var selectedFilter: JournalFilter = .all
+    @State private var selectedWantToTryScan: Scan?
+    @State private var showingAddBeer = false
 
     private var filteredEntries: [JournalEntry] {
         var result = journalStore.entries
@@ -72,6 +75,17 @@ struct JournalTabView: View {
             }
         }
         .accessibilityIdentifier("journalTab")
+        .sheet(isPresented: $showingAddBeer) {
+            if let scan = selectedWantToTryScan {
+                AddBeerView(prefill: AddBeerPrefill(
+                    name: scan.beerName,
+                    style: scan.style ?? BeerStyle.other.rawValue,
+                    abv: scan.abv
+                ))
+                .environmentObject(drinkStore)
+                .environmentObject(journalStore)
+            }
+        }
     }
 
     // MARK: - Search Bar
@@ -143,7 +157,10 @@ struct JournalTabView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(scanStore.wantToTryScans) { scan in
-                        WantToTryCard(scan: scan)
+                        WantToTryCard(scan: scan) {
+                            selectedWantToTryScan = scan
+                            showingAddBeer = true
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
@@ -203,6 +220,7 @@ struct JournalTabView_Previews: PreviewProvider {
         JournalTabView()
             .environmentObject(journalStore)
             .environmentObject(scanStore)
+            .environmentObject(DrinkStore())
             .previewDisplayName("Journal Tab")
     }
 }
