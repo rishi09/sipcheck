@@ -81,6 +81,69 @@ class GeminiService: LLMProvider {
         return try parseTextResponse(responseData)
     }
 
+    func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
+        if OpenAIService.useMockResponses {
+            return (.tryIt, "Based on your taste profile, this looks like a solid match. Give it a shot!")
+        }
+
+        guard !apiKey.isEmpty else {
+            return (.yourCall, "No API key configured — give it a try and see what you think.")
+        }
+
+        let tasteContext = TastePreferences.current.promptSummary
+
+        var beerParts: [String] = []
+        if let name = beerInfo.name { beerParts.append("Name: \(name)") }
+        if let brand = beerInfo.brand { beerParts.append("Brewery: \(brand)") }
+        if let style = beerInfo.style { beerParts.append("Style: \(style.rawValue)") }
+        if let abv = beerInfo.abv { beerParts.append("ABV: \(abv)%") }
+        let beerDescription = beerParts.joined(separator: "\n")
+
+        let prompt = """
+        You are a personalized beer sommelier. Based on the user's taste profile and the beer details below, give a verdict.
+
+        \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")Beer:
+        \(beerDescription)
+
+        Choose exactly one verdict:
+        - TRY_IT: This beer aligns well with the user's preferences
+        - SKIP_IT: This beer is likely not to the user's taste
+        - YOUR_CALL: It's a toss-up or not enough info to be confident
+
+        Respond ONLY with a JSON object:
+        {"verdict": "TRY_IT", "explanation": "1-2 sentences explaining why, written directly to the user in a friendly tone."}
+        """
+
+        do {
+            let responseData = try await makeRequest(prompt: prompt)
+            let text = try extractTextFromResponse(responseData)
+
+            guard let jsonStart = text.firstIndex(of: "{"),
+                  let jsonEnd = text.lastIndex(of: "}") else {
+                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
+            }
+
+            let jsonString = String(text[jsonStart...jsonEnd])
+            guard let jsonData = jsonString.data(using: .utf8),
+                  let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let verdictString = parsed["verdict"] as? String,
+                  let explanation = parsed["explanation"] as? String else {
+                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
+            }
+
+            let verdict: Verdict
+            switch verdictString.uppercased() {
+            case "TRY_IT": verdict = .tryIt
+            case "SKIP_IT": verdict = .skipIt
+            default: verdict = .yourCall
+            }
+
+            return (verdict, explanation)
+        } catch {
+            return (.yourCall, "Couldn't reach our recommendation engine — give it a try and decide for yourself!")
+        }
+    }
+
     // MARK: - Private Methods
 
     private func makeRequest(prompt: String) async throws -> Data {

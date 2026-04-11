@@ -4,6 +4,8 @@ import UIKit
 
 struct ScanResult {
     let beerInfo: BeerInfo
+    let verdict: Verdict
+    let explanation: String
     let scanSource: ScanSource
     let latencyMs: Int
 
@@ -34,12 +36,13 @@ class ScanningPipeline {
                 origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since."
             )
             let elapsed = latencyMs(since: start)
-            return ScanResult(beerInfo: mockInfo, scanSource: .mock, latencyMs: elapsed)
+            return ScanResult(beerInfo: mockInfo, verdict: .tryIt, explanation: "Based on your taste profile, this looks like a solid match. Give it a shot!", scanSource: .mock, latencyMs: elapsed)
         }
 
         let beerInfo = try await extractBeerInfoFromText(text)
+        let (verdict, explanation) = await getVerdictAndExplanation(for: beerInfo)
         let elapsed = latencyMs(since: start)
-        return ScanResult(beerInfo: beerInfo, scanSource: .ocrPlusText, latencyMs: elapsed)
+        return ScanResult(beerInfo: beerInfo, verdict: verdict, explanation: explanation, scanSource: .ocrPlusText, latencyMs: elapsed)
     }
 
     /// Scan a beer label image and return structured beer information.
@@ -61,7 +64,7 @@ class ScanningPipeline {
                 origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since."
             )
             let elapsed = latencyMs(since: start)
-            return ScanResult(beerInfo: mockInfo, scanSource: .mock, latencyMs: elapsed)
+            return ScanResult(beerInfo: mockInfo, verdict: .tryIt, explanation: "Based on your taste profile, this looks like a solid match. Give it a shot!", scanSource: .mock, latencyMs: elapsed)
         }
 
         // ------- Step 1: On-device OCR -------
@@ -71,8 +74,9 @@ class ScanningPipeline {
         if ocrResult.confidence >= 0.5 && ocrResult.text.count > 10 {
             // Fast path: send extracted text to a text LLM
             let beerInfo = try await extractBeerInfoFromText(ocrResult.text)
+            let (verdict, explanation) = await getVerdictAndExplanation(for: beerInfo)
             let elapsed = latencyMs(since: start)
-            return ScanResult(beerInfo: beerInfo, scanSource: .ocrPlusText, latencyMs: elapsed)
+            return ScanResult(beerInfo: beerInfo, verdict: verdict, explanation: explanation, scanSource: .ocrPlusText, latencyMs: elapsed)
         }
 
         // ------- Step 3: Vision fallback (low confidence / short text) -------
@@ -84,8 +88,9 @@ class ScanningPipeline {
             abv: nil,
             origin: extractionResult.origin
         )
+        let (verdict, explanation) = await getVerdictAndExplanation(for: beerInfo)
         let elapsed = latencyMs(since: start)
-        return ScanResult(beerInfo: beerInfo, scanSource: .visionFallback, latencyMs: elapsed)
+        return ScanResult(beerInfo: beerInfo, verdict: verdict, explanation: explanation, scanSource: .visionFallback, latencyMs: elapsed)
     }
 
     // MARK: - Private Helpers
@@ -99,5 +104,9 @@ class ScanningPipeline {
     /// Milliseconds elapsed since a `CFAbsoluteTimeGetCurrent()` timestamp.
     private func latencyMs(since start: CFAbsoluteTime) -> Int {
         Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+    }
+
+    private func getVerdictAndExplanation(for beerInfo: BeerInfo) async -> (Verdict, String) {
+        return (try? await GeminiService.shared.getVerdictAndExplanation(for: beerInfo)) ?? (.yourCall, "Give it a try and see what you think!")
     }
 }

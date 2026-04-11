@@ -172,27 +172,32 @@ struct AddBeerView: View {
 
     private func saveBeer() {
         let drinkId = UUID()
-        var photoFileName: String?
-        if let image = capturedImage {
-            photoFileName = drinkStore.savePhoto(image, for: drinkId)
-        }
-
         let abv = Double(abvText)
+        let imageCopy = capturedImage
 
-        let drink = Drink(
-            id: drinkId,
-            name: name.trimmingCharacters(in: .whitespaces),
-            brand: brand.trimmingCharacters(in: .whitespaces),
-            style: style,
-            rating: rating,
-            type: drinkType,
-            notes: notes.isEmpty ? nil : notes,
-            photoFileName: photoFileName,
-            abv: abv
-        )
+        Task {
+            var photoFileName: String?
+            if let image = imageCopy {
+                photoFileName = await drinkStore.savePhoto(image, for: drinkId)
+            }
 
-        drinkStore.addDrink(drink)
-        dismiss()
+            let drink = Drink(
+                id: drinkId,
+                name: name.trimmingCharacters(in: .whitespaces),
+                brand: brand.trimmingCharacters(in: .whitespaces),
+                style: style,
+                rating: rating,
+                type: drinkType,
+                notes: notes.isEmpty ? nil : notes,
+                photoFileName: photoFileName,
+                abv: abv
+            )
+
+            await MainActor.run {
+                drinkStore.addDrink(drink)
+                dismiss()
+            }
+        }
     }
 }
 

@@ -327,16 +327,13 @@ struct CheckTabView: View {
         }
     }
 
-    /// Build a Scan model from ScanResult.
-    /// Verdict defaults to .yourCall since ScanResult doesn't include one —
-    /// the pipeline extracts beer info; downstream recommendation logic would add a verdict.
     private func buildScan(from result: ScanResult) -> Scan {
         Scan(
             beerName: result.beerInfo.name ?? "Unknown Beer",
             style: result.beerInfo.style?.rawValue,
             abv: result.beerInfo.abv,
-            verdict: .yourCall,
-            explanation: "Scanned via \(result.scanSource.rawValue) in \(result.latencyMs)ms.",
+            verdict: result.verdict,
+            explanation: result.explanation,
             wantToTry: false,
             origin: result.beerInfo.origin
         )

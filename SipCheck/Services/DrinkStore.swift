@@ -85,26 +85,37 @@ class DrinkStore: ObservableObject {
 
     // MARK: - Photo Management
 
-    func savePhoto(_ image: UIImage, for drinkId: UUID) -> String? {
-        guard let data = ImageCompressor.compress(image, maxDimension: 1024, quality: 0.8) else { return nil }
-        let fileName = "\(drinkId.uuidString).jpg"
-        let fileURL = photosDir.appendingPathComponent(fileName)
-        do {
-            try data.write(to: fileURL, options: .atomic)
-            return fileName
-        } catch {
-            print("Failed to save photo: \(error)")
-            return nil
-        }
+    private let photoCache = NSCache<NSString, UIImage>()
+
+    func savePhoto(_ image: UIImage, for drinkId: UUID) async -> String? {
+        return await Task.detached(priority: .userInitiated) {
+            guard let data = ImageCompressor.compress(image, maxDimension: 1024, quality: 0.8) else { return nil }
+            let fileName = "\(drinkId.uuidString).jpg"
+            let fileURL = self.photosDir.appendingPathComponent(fileName)
+            do {
+                try data.write(to: fileURL, options: .atomic)
+                return fileName
+            } catch {
+                print("Failed to save photo: \(error)")
+                return nil
+            }
+        }.value
     }
 
     func loadPhoto(named fileName: String) -> UIImage? {
+        let cacheKey = fileName as NSString
+        if let cached = photoCache.object(forKey: cacheKey) {
+            return cached
+        }
         let fileURL = photosDir.appendingPathComponent(fileName)
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        return UIImage(data: data)
+        guard let data = try? Data(contentsOf: fileURL),
+              let image = UIImage(data: data) else { return nil }
+        photoCache.setObject(image, forKey: cacheKey)
+        return image
     }
 
     func deletePhoto(named fileName: String) {
+        photoCache.removeObject(forKey: fileName as NSString)
         let fileURL = photosDir.appendingPathComponent(fileName)
         try? FileManager.default.removeItem(at: fileURL)
     }
