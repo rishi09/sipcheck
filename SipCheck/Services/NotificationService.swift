@@ -8,14 +8,34 @@ class NotificationService: NSObject, ObservableObject {
     /// The scan UUID that was tapped via a notification; set by the UNUserNotificationCenterDelegate
     @Published var pendingFollowUpScanID: UUID?
 
-    private let center = UNUserNotificationCenter.current()
+    /// Action response from a notification button tap
+    @Published var pendingFollowUpAction: FollowUpAction?
 
-    /// Follow-up delay: 3 hours after scan
-    private let followUpDelay: TimeInterval = 3 * 60 * 60
+    struct FollowUpAction {
+        let scanID: UUID
+        let response: Response
+
+        enum Response {
+            case lovedIt, meh, skippedIt, tapped
+        }
+    }
+
+    private let center = UNUserNotificationCenter.current()
 
     override init() {
         super.init()
         center.delegate = self
+
+        let lovedIt = UNNotificationAction(identifier: "LOVED_IT", title: "Loved it", options: .foreground)
+        let meh = UNNotificationAction(identifier: "MEH", title: "Meh", options: .foreground)
+        let skipped = UNNotificationAction(identifier: "SKIPPED_IT", title: "Skipped it", options: [])
+        let category = UNNotificationCategory(
+            identifier: "BEER_FOLLOWUP",
+            actions: [lovedIt, meh, skipped],
+            intentIdentifiers: [],
+            options: []
+        )
+        center.setNotificationCategories([category])
     }
 
     // MARK: - Authorization
@@ -31,18 +51,29 @@ class NotificationService: NSObject, ObservableObject {
 
     // MARK: - Schedule / Cancel
 
-    /// Schedule a follow-up notification ~3 hours after a scan
+    /// Schedule a follow-up notification after a scan.
+    /// Skips SKIP IT verdicts. Uses 48h for TRY IT, 72h for YOUR CALL.
     func scheduleFollowUp(for scan: Scan) {
+        guard scan.verdict != .skipIt else { return }
+
         requestAuthorization()
 
+        let delay: TimeInterval = scan.verdict == .tryIt ? 48 * 3600 : 72 * 3600
+
         let content = UNMutableNotificationContent()
-        content.title = "Did you try \(scan.beerName)?"
-        content.body = "Tap to log your thoughts on this beer."
+        if scan.verdict == .tryIt {
+            content.title = "Did you try \(scan.beerName)? 🍺"
+            content.body = "We said go for it. Tap to log how it actually went."
+        } else {
+            content.title = "Ever get around to \(scan.beerName)?"
+            content.body = "You were on the fence — curious what you thought."
+        }
         content.sound = .default
         content.userInfo = ["scanID": scan.id.uuidString]
+        content.categoryIdentifier = "BEER_FOLLOWUP"
 
         let trigger = UNTimeIntervalNotificationTrigger(
-            timeInterval: followUpDelay,
+            timeInterval: delay,
             repeats: false
         )
 
@@ -77,7 +108,7 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound])
     }
 
-    /// Handle the user tapping a notification
+    /// Handle the user tapping a notification or selecting an action
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
@@ -86,8 +117,24 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let userInfo = response.notification.request.content.userInfo
         if let scanIDString = userInfo["scanID"] as? String,
            let scanID = UUID(uuidString: scanIDString) {
+
+            let actionID = response.actionIdentifier
+            let followUpResponse: FollowUpAction.Response
+            switch actionID {
+            case "LOVED_IT":
+                followUpResponse = .lovedIt
+            case "MEH":
+                followUpResponse = .meh
+            case "SKIPPED_IT":
+                followUpResponse = .skippedIt
+            default:
+                // UNNotificationDefaultActionIdentifier — plain tap
+                followUpResponse = .tapped
+            }
+
             DispatchQueue.main.async {
                 self.pendingFollowUpScanID = scanID
+                self.pendingFollowUpAction = FollowUpAction(scanID: scanID, response: followUpResponse)
             }
         }
         completionHandler()
