@@ -37,7 +37,7 @@ class GeminiService: LLMProvider {
 
     func extractBeerInfo(fromText labelText: String) async throws -> BeerInfo {
         if OpenAIService.useMockResponses {
-            return BeerInfo(name: "Mock Lager", brand: "Mock Brewing Co", style: .lager, abv: 5.0)
+            return BeerInfo(name: "Mock Lager", brand: "Mock Brewing Co", style: .lager, abv: 5.0, origin: "Mock Brewing Co started in a garage in 2010. They've been crafting session lagers ever since.")
         }
 
         guard !apiKey.isEmpty else {
@@ -50,12 +50,13 @@ class GeminiService: LLMProvider {
         2. Brewery/Brand name
         3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
         4. ABV (alcohol by volume as a number, e.g. 5.5)
+        5. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
 
         Label text:
         \(labelText)
 
         Respond ONLY with a JSON object in this exact format:
-        {"name": "beer name", "brand": "brewery name", "style": "style from list", "abv": 5.5}
+        {"name": "beer name", "brand": "brewery name", "style": "style from list", "abv": 5.5, "origin": "short story or null"}
 
         If you cannot determine a field, use null for that field.
         """
@@ -158,6 +159,8 @@ class GeminiService: LLMProvider {
         } else if let abvString = parsed["abv"] as? String, let abvValue = Double(abvString) {
             result.abv = abvValue
         }
+
+        result.origin = parsed["origin"] as? String
 
         return result
     }

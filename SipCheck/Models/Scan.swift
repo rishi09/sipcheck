@@ -18,6 +18,7 @@ struct Scan: Identifiable, Codable, Equatable {
     var timestamp: Date
     var wantToTry: Bool
     var linkedJournalId: UUID?
+    var origin: String?
 
     init(
         id: UUID = UUID(),
@@ -28,7 +29,8 @@ struct Scan: Identifiable, Codable, Equatable {
         explanation: String = "",
         timestamp: Date = Date(),
         wantToTry: Bool = false,
-        linkedJournalId: UUID? = nil
+        linkedJournalId: UUID? = nil,
+        origin: String? = nil
     ) {
         self.id = id
         self.beerName = beerName
@@ -39,5 +41,6 @@ struct Scan: Identifiable, Codable, Equatable {
         self.timestamp = timestamp
         self.wantToTry = wantToTry
         self.linkedJournalId = linkedJournalId
+        self.origin = origin
     }
 }
