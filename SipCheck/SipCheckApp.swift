@@ -117,6 +117,14 @@ private struct RootView: View {
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
             guard let scanID = scanID else { return }
+            // Only show FollowUpView for plain taps (or when no action yet).
+            // Quick-action responses (.lovedIt/.meh/.skippedIt) are handled
+            // entirely by the pendingFollowUpAction handler below.
+            let actionResponse = notificationService.pendingFollowUpAction?.response
+            guard actionResponse == nil || actionResponse == .tapped else {
+                notificationService.pendingFollowUpScanID = nil
+                return
+            }
             // Find the scan in the store
             if let scan = scanStore.scans.first(where: { $0.id == scanID }) {
                 followUpScan = scan
@@ -136,15 +144,9 @@ private struct RootView: View {
                 // will be triggered by the sibling onChange above. Nothing extra needed.
                 break
 
-            case .lovedIt, .meh, .skippedIt:
+            case .lovedIt, .meh:
                 guard let scan = scanStore.scans.first(where: { $0.id == action.scanID }) else { return }
-                let rating: Rating
-                switch action.response {
-                case .lovedIt:   rating = .like
-                case .meh:       rating = .neutral
-                case .skippedIt: rating = .dislike
-                default:         rating = .neutral
-                }
+                let rating: Rating = action.response == .lovedIt ? .like : .neutral
                 let drink = Drink(
                     name: scan.beerName,
                     style: scan.style ?? "Other",
@@ -152,6 +154,22 @@ private struct RootView: View {
                     abv: scan.abv
                 )
                 drinkStore.addDrink(drink)
+                // Clear wantToTry since user has now responded
+                if var updatedScan = scanStore.scans.first(where: { $0.id == action.scanID }) {
+                    updatedScan.wantToTry = false
+                    scanStore.updateScan(updatedScan)
+                }
+                // Prevent the pendingFollowUpScanID handler from also showing FollowUpView
+                notificationService.pendingFollowUpScanID = nil
+
+            case .skippedIt:
+                // Clear wantToTry since user skipped
+                if var scan = scanStore.scans.first(where: { $0.id == action.scanID }) {
+                    scan.wantToTry = false
+                    scanStore.updateScan(scan)
+                }
+                // Prevent the pendingFollowUpScanID handler from also showing FollowUpView
+                notificationService.pendingFollowUpScanID = nil
             }
         }
     }

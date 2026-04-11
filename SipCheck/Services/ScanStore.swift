@@ -42,6 +42,7 @@ class ScanStore: ObservableObject {
     func deleteScan(_ scan: Scan) {
         scans.removeAll { $0.id == scan.id }
         saveScans()
+        NotificationService.shared.cancelFollowUp(for: scan)
     }
 
     // MARK: - Persistence

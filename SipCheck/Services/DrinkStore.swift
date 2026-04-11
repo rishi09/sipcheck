@@ -46,10 +46,9 @@ class DrinkStore: ObservableObject {
     }
 
     func deleteDrinks(at offsets: IndexSet, from filteredDrinks: [Drink]) {
-        for index in offsets {
-            let drink = filteredDrinks[index]
-            deleteDrink(drink)
-        }
+        let idsToDelete = Set(offsets.map { filteredDrinks[$0].id })
+        drinks.removeAll { idsToDelete.contains($0.id) }
+        saveDrinks()
     }
 
     // MARK: - Persistence
