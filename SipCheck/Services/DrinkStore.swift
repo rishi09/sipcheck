@@ -29,20 +29,27 @@ class DrinkStore: ObservableObject {
     // MARK: - CRUD Operations
 
     func addDrink(_ drink: Drink) {
-        drinks.insert(drink, at: 0)
+        var d = drink
+        d.lastModifiedLocal = Date()
+        drinks.insert(d, at: 0)
         saveDrinks()
+        CloudKitSyncService.shared.save(d)
     }
 
     func updateDrink(_ drink: Drink) {
-        if let index = drinks.firstIndex(where: { $0.id == drink.id }) {
-            drinks[index] = drink
+        var d = drink
+        d.lastModifiedLocal = Date()
+        if let index = drinks.firstIndex(where: { $0.id == d.id }) {
+            drinks[index] = d
             saveDrinks()
+            CloudKitSyncService.shared.save(d)
         }
     }
 
     func deleteDrink(_ drink: Drink) {
         drinks.removeAll { $0.id == drink.id }
         saveDrinks()
+        CloudKitSyncService.shared.delete(drink)
     }
 
     func deleteDrinks(at offsets: IndexSet, from filteredDrinks: [Drink]) {
@@ -50,6 +57,26 @@ class DrinkStore: ObservableObject {
             let drink = filteredDrinks[index]
             deleteDrink(drink)
         }
+    }
+
+    /// Apply remote drinks from CloudKit — bypasses CloudKit upload to avoid loops.
+    @MainActor func applyRemoteDrinks(_ remoteDrinks: [Drink]) {
+        var localByID = Dictionary(uniqueKeysWithValues: drinks.enumerated().map { ($0.element.id, $0.offset) })
+        var result = drinks
+
+        for remote in remoteDrinks {
+            if let localIndex = localByID[remote.id] {
+                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
+                    result[localIndex] = remote
+                }
+            } else {
+                result.append(remote)
+                localByID[remote.id] = result.count - 1
+            }
+        }
+        result.sort { $0.dateAdded > $1.dateAdded }
+        drinks = result
+        saveDrinks()
     }
 
     // MARK: - Persistence
@@ -78,7 +105,6 @@ class DrinkStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             drinks = try JSONDecoder().decode([Drink].self, from: data)
         } catch {
-            // File doesn't exist or is invalid - start with empty array
             drinks = []
         }
     }

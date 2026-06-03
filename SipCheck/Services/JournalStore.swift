@@ -28,19 +28,46 @@ class JournalStore: ObservableObject {
     // MARK: - CRUD Operations
 
     func addEntry(_ entry: JournalEntry) {
-        entries.insert(entry, at: 0)
+        var e = entry
+        e.lastModifiedLocal = Date()
+        entries.insert(e, at: 0)
         saveEntries()
+        CloudKitSyncService.shared.save(e)
     }
 
     func updateEntry(_ entry: JournalEntry) {
-        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
-            entries[index] = entry
+        var e = entry
+        e.lastModifiedLocal = Date()
+        if let index = entries.firstIndex(where: { $0.id == e.id }) {
+            entries[index] = e
             saveEntries()
+            CloudKitSyncService.shared.save(e)
         }
     }
 
     func deleteEntry(_ entry: JournalEntry) {
         entries.removeAll { $0.id == entry.id }
+        saveEntries()
+        CloudKitSyncService.shared.delete(entry)
+    }
+
+    /// Apply remote journal entries from CloudKit — bypasses CloudKit upload to avoid loops.
+    @MainActor func applyRemoteEntries(_ remoteEntries: [JournalEntry]) {
+        var localByID = Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.id, $0.offset) })
+        var result = entries
+
+        for remote in remoteEntries {
+            if let localIndex = localByID[remote.id] {
+                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
+                    result[localIndex] = remote
+                }
+            } else {
+                result.append(remote)
+                localByID[remote.id] = result.count - 1
+            }
+        }
+        result.sort { $0.dateLogged > $1.dateLogged }
+        entries = result
         saveEntries()
     }
 
@@ -64,7 +91,6 @@ class JournalStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             entries = try JSONDecoder().decode([JournalEntry].self, from: data)
         } catch {
-            // File doesn't exist or is invalid - start with empty array
             entries = []
         }
     }
@@ -92,12 +118,10 @@ class JournalStore: ObservableObject {
     func findMatch(for query: String) -> JournalEntry? {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespaces)
 
-        // Exact match
         if let exact = entries.first(where: { $0.beerName.lowercased().trimmingCharacters(in: .whitespaces) == normalizedQuery }) {
             return exact
         }
 
-        // Contains match
         if let contains = entries.first(where: {
             let normalized = $0.beerName.lowercased().trimmingCharacters(in: .whitespaces)
             return normalized.contains(normalizedQuery) || normalizedQuery.contains(normalized)

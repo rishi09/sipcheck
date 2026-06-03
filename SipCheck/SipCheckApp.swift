@@ -66,7 +66,7 @@ struct SipCheckApp: App {
     }
 }
 
-// MARK: - RootView (handles notification-triggered FollowUpView)
+// MARK: - RootView (handles notification-triggered FollowUpView + CloudKit launch sync)
 
 private struct RootView: View {
     @EnvironmentObject private var scanStore: ScanStore
@@ -90,6 +90,9 @@ private struct RootView: View {
             } else {
                 OnboardingView()
             }
+        }
+        .task {
+            await performLaunchSync()
         }
         .sheet(isPresented: $showingFollowUp) {
             if let scan = followUpScan {
@@ -190,5 +193,18 @@ private struct RootView: View {
                 notificationService.pendingFollowUpScanID = nil
             }
         }
+    }
+
+    // MARK: - CloudKit Launch Sync
+
+    private func performLaunchSync() async {
+        let result = await CloudKitSyncService.shared.fullSync(
+            localDrinks: drinkStore.drinks,
+            localScans: scanStore.scans,
+            localJournals: journalStore.entries
+        )
+        await drinkStore.applyRemoteDrinks(result.drinks)
+        await scanStore.applyRemoteScans(result.scans)
+        await journalStore.applyRemoteEntries(result.journals)
     }
 }

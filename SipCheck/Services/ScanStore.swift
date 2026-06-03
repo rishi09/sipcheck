@@ -28,19 +28,46 @@ class ScanStore: ObservableObject {
     // MARK: - CRUD Operations
 
     func addScan(_ scan: Scan) {
-        scans.insert(scan, at: 0)
+        var s = scan
+        s.lastModifiedLocal = Date()
+        scans.insert(s, at: 0)
         saveScans()
+        CloudKitSyncService.shared.save(s)
     }
 
     func updateScan(_ scan: Scan) {
-        if let index = scans.firstIndex(where: { $0.id == scan.id }) {
-            scans[index] = scan
+        var s = scan
+        s.lastModifiedLocal = Date()
+        if let index = scans.firstIndex(where: { $0.id == s.id }) {
+            scans[index] = s
             saveScans()
+            CloudKitSyncService.shared.save(s)
         }
     }
 
     func deleteScan(_ scan: Scan) {
         scans.removeAll { $0.id == scan.id }
+        saveScans()
+        CloudKitSyncService.shared.delete(scan)
+    }
+
+    /// Apply remote scans from CloudKit — bypasses CloudKit upload to avoid loops.
+    @MainActor func applyRemoteScans(_ remoteScans: [Scan]) {
+        var localByID = Dictionary(uniqueKeysWithValues: scans.enumerated().map { ($0.element.id, $0.offset) })
+        var result = scans
+
+        for remote in remoteScans {
+            if let localIndex = localByID[remote.id] {
+                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
+                    result[localIndex] = remote
+                }
+            } else {
+                result.append(remote)
+                localByID[remote.id] = result.count - 1
+            }
+        }
+        result.sort { $0.timestamp > $1.timestamp }
+        scans = result
         saveScans()
     }
 
@@ -64,7 +91,6 @@ class ScanStore: ObservableObject {
             let data = try Data(contentsOf: fileURL)
             scans = try JSONDecoder().decode([Scan].self, from: data)
         } catch {
-            // File doesn't exist or is invalid - start with empty array
             scans = []
         }
     }
@@ -85,12 +111,10 @@ class ScanStore: ObservableObject {
     func findMatch(for query: String) -> Scan? {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespaces)
 
-        // Exact match
         if let exact = scans.first(where: { $0.beerName.lowercased().trimmingCharacters(in: .whitespaces) == normalizedQuery }) {
             return exact
         }
 
-        // Contains match
         if let contains = scans.first(where: {
             let normalized = $0.beerName.lowercased().trimmingCharacters(in: .whitespaces)
             return normalized.contains(normalizedQuery) || normalizedQuery.contains(normalized)

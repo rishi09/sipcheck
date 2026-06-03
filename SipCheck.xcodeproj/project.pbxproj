@@ -58,6 +58,8 @@
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
 		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
+		G1000001 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001; };
+		G1000003 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = G2000003; settings = {ATTRIBUTES = (Required, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +134,9 @@
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
 		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
+		G2000001 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
+		G2000002 /* SipCheck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SipCheck.entitlements; sourceTree = "<group>"; };
+		G2000003 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -139,6 +144,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				G1000003 /* CloudKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +172,7 @@
 				B5000001 /* SipCheckTests */,
 				B5000002 /* SipCheckUITests */,
 				A5000010 /* Products */,
+				A5000011 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -175,6 +182,7 @@
 				A2000001 /* SipCheckApp.swift */,
 				A2000015 /* Config.swift */,
 				A2000017 /* Secrets.swift */,
+				G2000002 /* SipCheck.entitlements */,
 				A5000003 /* Models */,
 				A5000004 /* Views */,
 				A5000006 /* Services */,
@@ -255,6 +263,7 @@
 				C2000005 /* JournalStore.swift */,
 				E2000001 /* NotificationService.swift */,
 				F2000001 /* TastePreferences.swift */,
+				G2000001 /* CloudKitSyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,6 +284,14 @@
 				B3000002 /* SipCheckUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A5000011 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				G2000003 /* CloudKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 		B5000001 /* SipCheckTests */ = {
@@ -454,6 +471,7 @@
 				E1000001 /* NotificationService.swift in Sources */,
 				E1000002 /* FollowUpView.swift in Sources */,
 				F1000001 /* TastePreferences.swift in Sources */,
+				G1000001 /* CloudKitSyncService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -619,6 +637,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SipCheck/SipCheck.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = YG7C25J24J;
@@ -648,6 +667,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SipCheck/SipCheck.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = YG7C25J24J;
