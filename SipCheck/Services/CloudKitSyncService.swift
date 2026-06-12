@@ -6,7 +6,7 @@ import CloudKit
 final class CloudKitSyncService {
     static let shared = CloudKitSyncService()
 
-    private let container = CKContainer(identifier: "iCloud.com.sipcheck.app")
+    private let container = CKContainer(identifier: "iCloud.com.rishishah.sipcheck")
     private var db: CKDatabase { container.privateCloudDatabase }
 
     private init() {}

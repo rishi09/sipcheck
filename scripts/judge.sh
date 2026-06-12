@@ -197,7 +197,7 @@ echo ""
 echo "--- Taking screenshots ---"
 
 SCREENSHOT_DIR="$WORKERS_DIR/screenshots"
-xcrun simctl launch --terminate-running-process "$SIMULATOR_UDID" com.sipcheck.app \
+xcrun simctl launch --terminate-running-process "$SIMULATOR_UDID" com.rishishah.sipcheck \
   --mock-ai --seed-data --isolated-storage 2>/dev/null || true
 sleep 2
 

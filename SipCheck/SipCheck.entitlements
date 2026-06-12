@@ -4,13 +4,13 @@
 <dict>
 	<key>com.apple.developer.icloud-container-identifiers</key>
 	<array>
-		<string>iCloud.com.sipcheck.app</string>
+		<string>iCloud.com.rishishah.sipcheck</string>
 	</array>
 	<key>com.apple.developer.icloud-services</key>
 	<array>
 		<string>CloudKit</string>
 	</array>
 	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
-	<string>$(TeamIdentifierPrefix)com.sipcheck.app</string>
+	<string>$(TeamIdentifierPrefix)com.rishishah.sipcheck</string>
 </dict>
 </plist>

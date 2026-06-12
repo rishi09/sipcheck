@@ -23,7 +23,7 @@ set -uo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT="$PROJECT_DIR/SipCheck.xcodeproj"
 SCHEME="SipCheck"
-BUNDLE_ID="com.sipcheck.app"
+BUNDLE_ID="com.rishishah.sipcheck"
 
 # Device identifiers (Rishi's iPhone 16)
 DEVICE_UDID="00008140-000D74323E07001C"

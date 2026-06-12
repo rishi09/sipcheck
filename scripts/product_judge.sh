@@ -18,7 +18,7 @@
 set -uo pipefail
 
 SIMULATOR_UDID="C3A2161C-2C4B-47A0-91F4-E4862B313365"
-BUNDLE_ID="com.sipcheck.app"
+BUNDLE_ID="com.rishishah.sipcheck"
 JUDGE_DIR="/tmp/sipcheck-workers/judge"
 SCREENSHOT_DIR="$JUDGE_DIR/screenshots"
 REPORT="$JUDGE_DIR/product-judge-report.md"
