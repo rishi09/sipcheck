@@ -81,6 +81,126 @@ actor OpenAIService {
         return try parseExtractionResponse(responseData)
     }
 
+    /// Extract beer information from OCR'd label text — fallback when Gemini is unavailable
+    func extractBeerInfo(fromText labelText: String) async throws -> BeerInfo {
+        if Self.useMockResponses {
+            return BeerInfo(name: "Mock Lager", brand: "Mock Brewing Co", style: .lager, abv: 5.0, origin: "Mock Brewing Co started in a garage in 2010. They've been crafting session lagers ever since.")
+        }
+
+        guard !apiKey.isEmpty else {
+            throw OpenAIError.noAPIKey
+        }
+
+        let prompt = """
+        Analyze the following beer label text. Extract the following information:
+        1. Beer name
+        2. Brewery/Brand name
+        3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
+        4. ABV (alcohol by volume as a number, e.g. 5.5)
+        5. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
+
+        Label text:
+        \(labelText)
+
+        Respond ONLY with a JSON object in this exact format:
+        {"name": "beer name", "brand": "brewery name", "style": "style from list", "abv": 5.5, "origin": "short story or null"}
+
+        If you cannot determine a field, use null for that field.
+        """
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "max_tokens": 300
+        ]
+
+        let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
+        let content = try parseRecommendationResponse(responseData)
+
+        guard let jsonStart = content.firstIndex(of: "{"),
+              let jsonEnd = content.lastIndex(of: "}"),
+              let jsonData = String(content[jsonStart...jsonEnd]).data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any?] else {
+            throw OpenAIError.parseError
+        }
+
+        var result = BeerInfo()
+        result.name = parsed["name"] as? String
+        result.brand = parsed["brand"] as? String
+        if let styleString = parsed["style"] as? String {
+            result.style = BeerStyle.allCases.first { $0.rawValue.lowercased() == styleString.lowercased() }
+        }
+        if let abvNumber = parsed["abv"] as? Double {
+            result.abv = abvNumber
+        } else if let abvString = parsed["abv"] as? String {
+            result.abv = Double(abvString.replacingOccurrences(of: ",", with: "."))
+        }
+        result.origin = parsed["origin"] as? String
+        return result
+    }
+
+    /// Personalized TRY IT / SKIP IT / YOUR CALL verdict — fallback when Gemini is unavailable
+    func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
+        if Self.useMockResponses {
+            return (.tryIt, "Based on your taste profile, this looks like a solid match. Give it a shot!")
+        }
+
+        guard !apiKey.isEmpty else {
+            throw OpenAIError.noAPIKey
+        }
+
+        let tasteContext = TastePreferences.current.promptSummary
+
+        var beerParts: [String] = []
+        if let name = beerInfo.name { beerParts.append("Name: \(name)") }
+        if let brand = beerInfo.brand { beerParts.append("Brewery: \(brand)") }
+        if let style = beerInfo.style { beerParts.append("Style: \(style.rawValue)") }
+        if let abv = beerInfo.abv { beerParts.append("ABV: \(abv)%") }
+        let beerDescription = beerParts.joined(separator: "\n")
+
+        let prompt = """
+        You are a personalized beer sommelier. Based on the user's taste profile and the beer details below, give a verdict.
+
+        \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")Beer:
+        \(beerDescription)
+
+        Choose exactly one verdict:
+        - TRY_IT: This beer aligns well with the user's preferences
+        - SKIP_IT: This beer is likely not to the user's taste
+        - YOUR_CALL: It's a toss-up or not enough info to be confident
+
+        Respond ONLY with a JSON object:
+        {"verdict": "TRY_IT", "explanation": "1-2 sentences explaining why, written directly to the user in a friendly tone."}
+        """
+
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "max_tokens": 200
+        ]
+
+        let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
+        let content = try parseRecommendationResponse(responseData)
+
+        guard let jsonStart = content.firstIndex(of: "{"),
+              let jsonEnd = content.lastIndex(of: "}"),
+              let jsonData = String(content[jsonStart...jsonEnd]).data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let verdictString = parsed["verdict"] as? String,
+              let explanation = parsed["explanation"] as? String else {
+            throw OpenAIError.parseError
+        }
+
+        let verdict: Verdict
+        switch verdictString.uppercased() {
+        case "TRY_IT": verdict = .tryIt
+        case "SKIP_IT": verdict = .skipIt
+        default: verdict = .yourCall
+        }
+
+        return (verdict, explanation)
+    }
+
     /// Get a personalized recommendation for a beer
     func getRecommendation(for beerName: String, existingDrink: Drink?, drinkHistory: [Drink]) async throws -> String {
         if Self.useMockResponses {

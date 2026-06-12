@@ -97,8 +97,13 @@ class ScanningPipeline {
 
     /// Use Gemini if a key is configured; otherwise fall back to OpenAI for text-based extraction.
     private func extractBeerInfoFromText(_ text: String) async throws -> BeerInfo {
-        let gemini = GeminiService()
-        return try await gemini.extractBeerInfo(fromText: text)
+        if !Config.geminiAPIKey.isEmpty {
+            if let info = try? await GeminiService.shared.extractBeerInfo(fromText: text) {
+                return info
+            }
+            // Gemini failed mid-flight — fall through to OpenAI
+        }
+        return try await OpenAIService.shared.extractBeerInfo(fromText: text)
     }
 
     /// Milliseconds elapsed since a `CFAbsoluteTimeGetCurrent()` timestamp.
@@ -106,7 +111,15 @@ class ScanningPipeline {
         Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
     }
 
+    /// Use Gemini if a key is configured; otherwise fall back to OpenAI for the verdict.
     private func getVerdictAndExplanation(for beerInfo: BeerInfo) async -> (Verdict, String) {
-        return (try? await GeminiService.shared.getVerdictAndExplanation(for: beerInfo)) ?? (.yourCall, "Give it a try and see what you think!")
+        if !Config.geminiAPIKey.isEmpty,
+           let result = try? await GeminiService.shared.getVerdictAndExplanation(for: beerInfo) {
+            return result
+        }
+        if let result = try? await OpenAIService.shared.getVerdictAndExplanation(for: beerInfo) {
+            return result
+        }
+        return (.yourCall, "Give it a try and see what you think!")
     }
 }
