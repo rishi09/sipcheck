@@ -16,9 +16,12 @@ struct SipCheckApp: App {
         let args = ProcessInfo.processInfo.arguments
 
         // --mock-ai: All AI service calls return fixed responses (no network)
+        // useMockResponses is only assignable in Debug builds
+        #if DEBUG
         if args.contains("--mock-ai") {
             OpenAIService.useMockResponses = true
         }
+        #endif
 
         // --isolated-storage: Use temp directory instead of Documents
         // --seed-data: Load known test drinks on launch
