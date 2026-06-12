@@ -37,7 +37,7 @@ class GeminiService: LLMProvider {
 
     func extractBeerInfo(fromText labelText: String) async throws -> BeerInfo {
         if OpenAIService.useMockResponses {
-            return BeerInfo(name: "Mock Lager", brand: "Mock Brewing Co", style: .lager, abv: 5.0)
+            return BeerInfo(name: "Mock Lager", brand: "Mock Brewing Co", style: .lager, abv: 5.0, origin: "Mock Brewing Co started in a garage in 2010. They've been crafting session lagers ever since.")
         }
 
         guard !apiKey.isEmpty else {
@@ -50,12 +50,13 @@ class GeminiService: LLMProvider {
         2. Brewery/Brand name
         3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
         4. ABV (alcohol by volume as a number, e.g. 5.5)
+        5. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
 
         Label text:
         \(labelText)
 
         Respond ONLY with a JSON object in this exact format:
-        {"name": "beer name", "brand": "brewery name", "style": "style from list", "abv": 5.5}
+        {"name": "beer name", "brand": "brewery name", "style": "style from list", "abv": 5.5, "origin": "short story or null"}
 
         If you cannot determine a field, use null for that field.
         """
@@ -80,6 +81,69 @@ class GeminiService: LLMProvider {
         return try parseTextResponse(responseData)
     }
 
+    func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
+        if OpenAIService.useMockResponses {
+            return (.tryIt, "Based on your taste profile, this looks like a solid match. Give it a shot!")
+        }
+
+        guard !apiKey.isEmpty else {
+            return (.yourCall, "No API key configured — give it a try and see what you think.")
+        }
+
+        let tasteContext = TastePreferences.current.promptSummary
+
+        var beerParts: [String] = []
+        if let name = beerInfo.name { beerParts.append("Name: \(name)") }
+        if let brand = beerInfo.brand { beerParts.append("Brewery: \(brand)") }
+        if let style = beerInfo.style { beerParts.append("Style: \(style.rawValue)") }
+        if let abv = beerInfo.abv { beerParts.append("ABV: \(abv)%") }
+        let beerDescription = beerParts.joined(separator: "\n")
+
+        let prompt = """
+        You are a personalized beer sommelier. Based on the user's taste profile and the beer details below, give a verdict.
+
+        \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")Beer:
+        \(beerDescription)
+
+        Choose exactly one verdict:
+        - TRY_IT: This beer aligns well with the user's preferences
+        - SKIP_IT: This beer is likely not to the user's taste
+        - YOUR_CALL: It's a toss-up or not enough info to be confident
+
+        Respond ONLY with a JSON object:
+        {"verdict": "TRY_IT", "explanation": "1-2 sentences explaining why, written directly to the user in a friendly tone."}
+        """
+
+        do {
+            let responseData = try await makeRequest(prompt: prompt)
+            let text = try extractTextFromResponse(responseData)
+
+            guard let jsonStart = text.firstIndex(of: "{"),
+                  let jsonEnd = text.lastIndex(of: "}") else {
+                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
+            }
+
+            let jsonString = String(text[jsonStart...jsonEnd])
+            guard let jsonData = jsonString.data(using: .utf8),
+                  let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                  let verdictString = parsed["verdict"] as? String,
+                  let explanation = parsed["explanation"] as? String else {
+                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
+            }
+
+            let verdict: Verdict
+            switch verdictString.uppercased() {
+            case "TRY_IT": verdict = .tryIt
+            case "SKIP_IT": verdict = .skipIt
+            default: verdict = .yourCall
+            }
+
+            return (verdict, explanation)
+        } catch {
+            return (.yourCall, "Couldn't reach our recommendation engine — give it a try and decide for yourself!")
+        }
+    }
+
     // MARK: - Private Methods
 
     private func makeRequest(prompt: String) async throws -> Data {
@@ -98,7 +162,7 @@ class GeminiService: LLMProvider {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 5
+        request.timeoutInterval = 15
 
         let requestBody: [String: Any] = [
             "contents": [
@@ -155,9 +219,12 @@ class GeminiService: LLMProvider {
 
         if let abvNumber = parsed["abv"] as? Double {
             result.abv = abvNumber
-        } else if let abvString = parsed["abv"] as? String, let abvValue = Double(abvString) {
-            result.abv = abvValue
+        } else if let abvString = parsed["abv"] as? String {
+            let normalizedABV = abvString.replacingOccurrences(of: ",", with: ".")
+            result.abv = Double(normalizedABV)
         }
+
+        result.origin = parsed["origin"] as? String
 
         return result
     }
@@ -168,9 +235,15 @@ class GeminiService: LLMProvider {
     }
 
     private func extractTextFromResponse(_ data: Data) throws -> String {
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let candidates = json["candidates"] as? [[String: Any]],
-              let firstCandidate = candidates.first,
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw GeminiError.parseError
+        }
+
+        guard let candidates = json["candidates"] as? [[String: Any]], !candidates.isEmpty else {
+            throw GeminiError.apiError("Response was filtered or empty")
+        }
+
+        guard let firstCandidate = candidates.first,
               let content = firstCandidate["content"] as? [String: Any],
               let parts = content["parts"] as? [[String: Any]],
               let firstPart = parts.first,

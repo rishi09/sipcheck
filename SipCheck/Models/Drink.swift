@@ -14,10 +14,6 @@ struct Drink: Identifiable, Codable, Equatable, HasModifiedDate {
     var abv: Double?
     var lastModifiedLocal: Date
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, brand, style, ratingValue, typeValue, notes, dateAdded, photoFileName, abv, lastModifiedLocal
-    }
-
     init(
         id: UUID = UUID(),
         name: String,
@@ -42,21 +38,6 @@ struct Drink: Identifiable, Codable, Equatable, HasModifiedDate {
         self.lastModifiedLocal = Date()
     }
 
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        name = try c.decode(String.self, forKey: .name)
-        brand = (try? c.decode(String.self, forKey: .brand)) ?? ""
-        style = (try? c.decode(String.self, forKey: .style)) ?? "Other"
-        ratingValue = (try? c.decode(Int.self, forKey: .ratingValue)) ?? 1
-        typeValue = (try? c.decode(Int.self, forKey: .typeValue)) ?? 1
-        notes = try? c.decode(String.self, forKey: .notes)
-        dateAdded = (try? c.decode(Date.self, forKey: .dateAdded)) ?? Date()
-        photoFileName = try? c.decode(String.self, forKey: .photoFileName)
-        abv = try? c.decode(Double.self, forKey: .abv)
-        lastModifiedLocal = (try? c.decode(Date.self, forKey: .lastModifiedLocal)) ?? dateAdded
-    }
-
     var rating: Rating {
         get { Rating.from(intValue: ratingValue) }
         set { ratingValue = newValue.intValue }
@@ -65,6 +46,27 @@ struct Drink: Identifiable, Codable, Equatable, HasModifiedDate {
     var drinkType: DrinkType {
         get { DrinkType.from(intValue: typeValue) }
         set { typeValue = newValue.intValue }
+    }
+
+    // MARK: - CodingKeys & Safe Decoder
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, brand, style, ratingValue, typeValue, notes, dateAdded, photoFileName, abv, lastModifiedLocal
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? "Unknown Beer"
+        brand = try c.decodeIfPresent(String.self, forKey: .brand) ?? ""
+        style = try c.decodeIfPresent(String.self, forKey: .style) ?? "Other"
+        ratingValue = try c.decodeIfPresent(Int.self, forKey: .ratingValue) ?? 1
+        typeValue = try c.decodeIfPresent(Int.self, forKey: .typeValue) ?? 1
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        dateAdded = try c.decodeIfPresent(Date.self, forKey: .dateAdded) ?? Date()
+        photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
+        abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? dateAdded
     }
 
     static var preview: Drink {

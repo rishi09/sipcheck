@@ -71,6 +71,15 @@ class JournalStore: ObservableObject {
         saveEntries()
     }
 
+    func deleteAllEntries() {
+        let allEntries = entries
+        entries.removeAll()
+        saveEntries()
+        for entry in allEntries {
+            CloudKitSyncService.shared.delete(entry)
+        }
+    }
+
     // MARK: - Persistence
 
     private var fileURL: URL {
@@ -87,10 +96,18 @@ class JournalStore: ObservableObject {
     }
 
     private func loadEntries() {
+        guard let data = try? Data(contentsOf: fileURL) else {
+            entries = []
+            return
+        }
+        // Write backup before decoding — protects against decode failure wiping the file on next save
+        let backupURL = storageDir.appendingPathComponent("journal_backup.json")
+        try? data.write(to: backupURL, options: .atomic)
+
         do {
-            let data = try Data(contentsOf: fileURL)
             entries = try JSONDecoder().decode([JournalEntry].self, from: data)
         } catch {
+            print("JournalStore: failed to decode journal.json — keeping empty. Error: \(error)")
             entries = []
         }
     }

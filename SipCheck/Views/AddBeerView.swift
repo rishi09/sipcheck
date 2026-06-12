@@ -50,7 +50,7 @@ struct AddBeerView: View {
                             HStack {
                                 ProgressView()
                                     .padding(.trailing, 8)
-                                Text("Reading label...")
+                                Text("Analyzing label...")
                             }
                         }
 
@@ -102,7 +102,7 @@ struct AddBeerView: View {
                 if errorMessage != nil {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Scan failed — fill in the details manually.")
+                            Text("Scan failed -- fill in the details manually.")
                                 .foregroundColor(.red)
                                 .font(.subheadline)
                         }
@@ -175,9 +175,6 @@ struct AddBeerView: View {
         let drinkId = UUID()
         let abv = Double(abvText)
         let imageCopy = capturedImage
-        let beerName = name.trimmingCharacters(in: .whitespaces)
-        let beerBrand = brand.trimmingCharacters(in: .whitespaces)
-        let beerNotes = notes.isEmpty ? nil : notes
 
         Task {
             var photoFileName: String?
@@ -187,31 +184,30 @@ struct AddBeerView: View {
 
             let drink = Drink(
                 id: drinkId,
-                name: beerName,
-                brand: beerBrand,
+                name: name.trimmingCharacters(in: .whitespaces),
+                brand: brand.trimmingCharacters(in: .whitespaces),
                 style: style,
                 rating: rating,
                 type: drinkType,
-                notes: beerNotes,
+                notes: notes.isEmpty ? nil : notes,
                 photoFileName: photoFileName,
                 abv: abv
             )
 
-            // Map Rating enum → 1-5 int for JournalEntry
+            // Mirror into the journal so it appears in the Journal tab's "Tried" list
             let journalRating: Int
             switch rating {
             case .like:    journalRating = 5
             case .neutral: journalRating = 3
             case .dislike: journalRating = 1
             }
-
             let entry = JournalEntry(
-                beerName: beerName,
-                brand: beerBrand,
+                beerName: name.trimmingCharacters(in: .whitespaces),
+                brand: brand.trimmingCharacters(in: .whitespaces),
                 style: style,
                 abv: abv,
                 rating: journalRating,
-                notes: beerNotes,
+                notes: notes.isEmpty ? nil : notes,
                 photoFileName: photoFileName
             )
 

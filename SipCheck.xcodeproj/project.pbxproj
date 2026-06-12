@@ -58,8 +58,10 @@
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
 		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
-		G1000001 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001; };
-		G1000003 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = G2000003; settings = {ATTRIBUTES = (Required, ); }; };
+		A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 88C34708ADF14D72B7A94D0E; };
+		G1000001 /* AgeGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001; };
+		H1000001 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000001; };
+		H1000003 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = H2000003; settings = {ATTRIBUTES = (Required, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -134,9 +136,11 @@
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
 		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
-		G2000001 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
-		G2000002 /* SipCheck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SipCheck.entitlements; sourceTree = "<group>"; };
-		G2000003 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
+		88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		G2000001 /* AgeGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgeGateView.swift; sourceTree = "<group>"; };
+		H2000001 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
+		H2000002 /* SipCheck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SipCheck.entitlements; sourceTree = "<group>"; };
+		H2000003 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,7 +148,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				G1000003 /* CloudKit.framework in Frameworks */,
+				H1000003 /* CloudKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -182,7 +186,7 @@
 				A2000001 /* SipCheckApp.swift */,
 				A2000015 /* Config.swift */,
 				A2000017 /* Secrets.swift */,
-				G2000002 /* SipCheck.entitlements */,
+				H2000002 /* SipCheck.entitlements */,
 				A5000003 /* Models */,
 				A5000004 /* Views */,
 				A5000006 /* Services */,
@@ -206,6 +210,7 @@
 		A5000004 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				G2000001 /* AgeGateView.swift */,
 				A2000004 /* HomeView.swift */,
 				A2000026 /* MainTabView.swift */,
 				A2000005 /* AddBeerView.swift */,
@@ -263,7 +268,7 @@
 				C2000005 /* JournalStore.swift */,
 				E2000001 /* NotificationService.swift */,
 				F2000001 /* TastePreferences.swift */,
-				G2000001 /* CloudKitSyncService.swift */,
+				H2000001 /* CloudKitSyncService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -272,6 +277,7 @@
 			isa = PBXGroup;
 			children = (
 				A2000014 /* Assets.xcassets */,
+				88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -289,7 +295,7 @@
 		A5000011 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				G2000003 /* CloudKit.framework */,
+				H2000003 /* CloudKit.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -419,6 +425,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000014 /* Assets.xcassets in Resources */,
+				A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -452,6 +459,7 @@
 				A1000022 /* ScanningPipeline.swift in Sources */,
 				A1000023 /* TasteProfile.swift in Sources */,
 				A1000024 /* StatsView.swift in Sources */,
+				G1000001 /* AgeGateView.swift in Sources */,
 				A1000025 /* OnboardingView.swift in Sources */,
 				A1000026 /* MainTabView.swift in Sources */,
 				A1000027 /* CheckTabView.swift in Sources */,
@@ -471,7 +479,7 @@
 				E1000001 /* NotificationService.swift in Sources */,
 				E1000002 /* FollowUpView.swift in Sources */,
 				F1000001 /* TastePreferences.swift in Sources */,
-				G1000001 /* CloudKitSyncService.swift in Sources */,
+				H1000001 /* CloudKitSyncService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

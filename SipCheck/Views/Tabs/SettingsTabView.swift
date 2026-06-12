@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsTabView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var scanStore: ScanStore
+    @EnvironmentObject private var journalStore: JournalStore
 
     @AppStorage("preferredScanProvider") private var preferredScanProvider: String = "auto"
     @AppStorage("followUpNotificationsEnabled") private var followUpNotificationsEnabled: Bool = true
@@ -68,6 +70,8 @@ struct SettingsTabView: View {
                         Button("Delete Everything", role: .destructive) {
                             let allIndices = IndexSet(drinkStore.drinks.indices)
                             drinkStore.deleteDrinks(at: allIndices, from: drinkStore.drinks)
+                            scanStore.deleteAllScans()
+                            journalStore.deleteAllEntries()
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
@@ -85,6 +89,8 @@ struct SettingsTabView: View {
                         Text(appVersion)
                             .foregroundColor(.secondary)
                     }
+                    Link("Privacy Policy", destination: URL(string: "https://rishi09.github.io/sipcheck/privacy")!)
+                    Link("Terms of Use", destination: URL(string: "https://rishi09.github.io/sipcheck/terms")!)
                 } header: {
                     Text("About")
                 }
@@ -99,5 +105,7 @@ struct SettingsTabView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsTabView()
             .environmentObject(DrinkStore())
+            .environmentObject(ScanStore())
+            .environmentObject(JournalStore())
     }
 }

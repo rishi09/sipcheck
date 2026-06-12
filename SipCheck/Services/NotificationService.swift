@@ -11,7 +11,7 @@ class NotificationService: NSObject, ObservableObject {
     /// Action response from a notification button tap
     @Published var pendingFollowUpAction: FollowUpAction?
 
-    struct FollowUpAction {
+    struct FollowUpAction: Equatable {
         let scanID: UUID
         let response: Response
 

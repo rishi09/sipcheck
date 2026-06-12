@@ -221,6 +221,7 @@ final class CloudKitSyncService {
         if let style = scan.style { record["style"] = style as CKRecordValue }
         if let abv = scan.abv { record["abv"] = abv as CKRecordValue }
         if let linked = scan.linkedJournalId { record["linkedJournalId"] = linked.uuidString as CKRecordValue }
+        if let origin = scan.origin { record["origin"] = origin as CKRecordValue }
     }
 
     private func scanFrom(_ record: CKRecord) -> Scan? {
@@ -248,7 +249,8 @@ final class CloudKitSyncService {
             explanation: record["explanation"] as? String ?? "",
             timestamp: record["timestamp"] as? Date ?? Date(),
             wantToTry: (record["wantToTry"] as? Int ?? 0) == 1,
-            linkedJournalId: linkedJournalId
+            linkedJournalId: linkedJournalId,
+            origin: record["origin"] as? String
         )
         scan.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? scan.timestamp
         return scan

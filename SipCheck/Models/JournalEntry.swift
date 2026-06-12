@@ -15,10 +15,6 @@ struct JournalEntry: Identifiable, Codable, Equatable, HasModifiedDate {
     var linkedScanId: UUID?
     var lastModifiedLocal: Date
 
-    enum CodingKeys: String, CodingKey {
-        case id, beerName, brand, style, abv, rating, notes, photoFileName, dateLogged, dateTried, linkedScanId, lastModifiedLocal
-    }
-
     init(
         id: UUID = UUID(),
         beerName: String,
@@ -46,20 +42,25 @@ struct JournalEntry: Identifiable, Codable, Equatable, HasModifiedDate {
         self.lastModifiedLocal = Date()
     }
 
+    // MARK: - CodingKeys & Safe Decoder
+
+    enum CodingKeys: String, CodingKey {
+        case id, beerName, brand, style, abv, rating, notes, photoFileName, dateLogged, dateTried, linkedScanId, lastModifiedLocal
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        beerName = try c.decode(String.self, forKey: .beerName)
-        brand = (try? c.decode(String.self, forKey: .brand)) ?? ""
-        style = (try? c.decode(String.self, forKey: .style)) ?? ""
-        abv = try? c.decode(Double.self, forKey: .abv)
-        let rawRating = (try? c.decode(Int.self, forKey: .rating)) ?? 3
-        rating = min(max(rawRating, 1), 5)
-        notes = try? c.decode(String.self, forKey: .notes)
-        photoFileName = try? c.decode(String.self, forKey: .photoFileName)
-        dateLogged = (try? c.decode(Date.self, forKey: .dateLogged)) ?? Date()
-        dateTried = try? c.decode(Date.self, forKey: .dateTried)
-        linkedScanId = try? c.decode(UUID.self, forKey: .linkedScanId)
-        lastModifiedLocal = (try? c.decode(Date.self, forKey: .lastModifiedLocal)) ?? dateLogged
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        beerName = try c.decodeIfPresent(String.self, forKey: .beerName) ?? "Unknown Beer"
+        brand = try c.decodeIfPresent(String.self, forKey: .brand) ?? ""
+        style = try c.decodeIfPresent(String.self, forKey: .style) ?? ""
+        abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+        rating = min(max(try c.decodeIfPresent(Int.self, forKey: .rating) ?? 3, 1), 5)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
+        dateLogged = try c.decodeIfPresent(Date.self, forKey: .dateLogged) ?? Date()
+        dateTried = try c.decodeIfPresent(Date.self, forKey: .dateTried)
+        linkedScanId = try c.decodeIfPresent(UUID.self, forKey: .linkedScanId)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? dateLogged
     }
 }

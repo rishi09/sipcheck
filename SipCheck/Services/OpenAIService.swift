@@ -6,7 +6,11 @@ actor OpenAIService {
     static let shared = OpenAIService()
 
     /// When true, all API calls return fixed mock responses (no network)
+    #if DEBUG
     static var useMockResponses = false
+    #else
+    static let useMockResponses: Bool = false
+    #endif
 
     private let apiKey: String
     private let baseURL = "https://api.openai.com/v1"
@@ -19,19 +23,22 @@ actor OpenAIService {
         var name: String?
         var brand: String?
         var style: BeerStyle?
+        var origin: String?
     }
 
     /// Extract beer information from an image using Vision API
     func extractBeerInfo(from image: UIImage) async throws -> BeerExtractionResult {
         if Self.useMockResponses {
-            return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa)
+            return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa, origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since.")
         }
 
         guard !apiKey.isEmpty else {
             throw OpenAIError.noAPIKey
         }
 
-        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+        let resizedImage = resizeImage(image, maxDimension: 1024)
+
+        guard let imageData = resizedImage.jpegData(compressionQuality: 0.8) else {
             throw OpenAIError.invalidImage
         }
 
@@ -50,9 +57,10 @@ actor OpenAIService {
                             1. Beer name
                             2. Brewery/Brand name
                             3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
+                            4. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
 
                             Respond ONLY with a JSON object in this exact format:
-                            {"name": "beer name", "brand": "brewery name", "style": "style from list"}
+                            {"name": "beer name", "brand": "brewery name", "style": "style from list", "origin": "short story or null"}
 
                             If you cannot determine a field, use null for that field.
                             """
@@ -66,7 +74,7 @@ actor OpenAIService {
                     ]
                 ]
             ],
-            "max_tokens": 200
+            "max_tokens": 300
         ]
 
         let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
@@ -163,6 +171,7 @@ actor OpenAIService {
         }
 
         var request = URLRequest(url: url)
+        request.timeoutInterval = 15
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         request.addValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -215,7 +224,19 @@ actor OpenAIService {
             result.style = BeerStyle.allCases.first { $0.rawValue.lowercased() == styleString.lowercased() }
         }
 
+        result.origin = parsed["origin"] as? String
+
         return result
+    }
+
+    private func resizeImage(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        let size = image.size
+        let maxSide = max(size.width, size.height)
+        guard maxSide > maxDimension else { return image }
+        let scale = maxDimension / maxSide
+        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 
     private func parseRecommendationResponse(_ data: Data) throws -> String {

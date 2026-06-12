@@ -5,14 +5,21 @@ struct StatsView: View {
     @State private var showingExportSheet = false
     @State private var exportURL: URL?
 
+    // NOTE: profile, ratingBreakdown, styleBreakdown, and timelineSection are computed
+    // properties that do full array passes. In a future refactor, these should be cached
+    // in a @StateObject StatsViewModel that only recomputes when drinks actually changes.
+
     private var profile: TasteProfile {
         drinkStore.tasteProfile
     }
 
     var body: some View {
+        // Cache snapshot of drinks so each section reads from the same array reference
+        let drinks = drinkStore.drinks
+
         ScrollView {
             VStack(spacing: 20) {
-                if drinkStore.drinks.isEmpty {
+                if drinks.isEmpty {
                     ContentUnavailableView {
                         Label("No Stats Yet", systemImage: "chart.bar")
                     } description: {

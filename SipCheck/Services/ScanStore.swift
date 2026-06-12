@@ -48,7 +48,18 @@ class ScanStore: ObservableObject {
     func deleteScan(_ scan: Scan) {
         scans.removeAll { $0.id == scan.id }
         saveScans()
+        NotificationService.shared.cancelFollowUp(for: scan)
         CloudKitSyncService.shared.delete(scan)
+    }
+
+    func deleteAllScans() {
+        let allScans = scans
+        scans.removeAll()
+        saveScans()
+        for scan in allScans {
+            NotificationService.shared.cancelFollowUp(for: scan)
+            CloudKitSyncService.shared.delete(scan)
+        }
     }
 
     /// Apply remote scans from CloudKit — bypasses CloudKit upload to avoid loops.
@@ -87,10 +98,18 @@ class ScanStore: ObservableObject {
     }
 
     private func loadScans() {
+        guard let data = try? Data(contentsOf: fileURL) else {
+            scans = []
+            return
+        }
+        // Write backup before decoding — protects against decode failure wiping the file on next save
+        let backupURL = storageDir.appendingPathComponent("scans_backup.json")
+        try? data.write(to: backupURL, options: .atomic)
+
         do {
-            let data = try Data(contentsOf: fileURL)
             scans = try JSONDecoder().decode([Scan].self, from: data)
         } catch {
+            print("ScanStore: failed to decode scans.json — keeping empty. Error: \(error)")
             scans = []
         }
     }

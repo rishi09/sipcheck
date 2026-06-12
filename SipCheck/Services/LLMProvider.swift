@@ -6,6 +6,7 @@ struct BeerInfo {
     var brand: String?
     var style: BeerStyle?
     var abv: Double?
+    var origin: String?
 }
 
 /// Protocol for LLM-based beer info extraction and recommendations

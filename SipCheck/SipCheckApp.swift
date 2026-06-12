@@ -190,6 +190,7 @@ private struct RootView: View {
                     scan.wantToTry = false
                     scanStore.updateScan(scan)
                 }
+                // Prevent the pendingFollowUpScanID handler from also showing FollowUpView
                 notificationService.pendingFollowUpScanID = nil
             }
         }

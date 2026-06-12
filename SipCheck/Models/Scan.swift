@@ -18,11 +18,8 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var timestamp: Date
     var wantToTry: Bool
     var linkedJournalId: UUID?
+    var origin: String?
     var lastModifiedLocal: Date
-
-    enum CodingKeys: String, CodingKey {
-        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, lastModifiedLocal
-    }
 
     init(
         id: UUID = UUID(),
@@ -33,7 +30,8 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         explanation: String = "",
         timestamp: Date = Date(),
         wantToTry: Bool = false,
-        linkedJournalId: UUID? = nil
+        linkedJournalId: UUID? = nil,
+        origin: String? = nil
     ) {
         self.id = id
         self.beerName = beerName
@@ -44,20 +42,28 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         self.timestamp = timestamp
         self.wantToTry = wantToTry
         self.linkedJournalId = linkedJournalId
+        self.origin = origin
         self.lastModifiedLocal = Date()
+    }
+
+    // MARK: - CodingKeys & Safe Decoder
+
+    enum CodingKeys: String, CodingKey {
+        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, lastModifiedLocal
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(UUID.self, forKey: .id)
-        beerName = try c.decode(String.self, forKey: .beerName)
-        style = try? c.decode(String.self, forKey: .style)
-        abv = try? c.decode(Double.self, forKey: .abv)
-        verdict = (try? c.decode(Verdict.self, forKey: .verdict)) ?? .yourCall
-        explanation = (try? c.decode(String.self, forKey: .explanation)) ?? ""
-        timestamp = (try? c.decode(Date.self, forKey: .timestamp)) ?? Date()
-        wantToTry = (try? c.decode(Bool.self, forKey: .wantToTry)) ?? false
-        linkedJournalId = try? c.decode(UUID.self, forKey: .linkedJournalId)
-        lastModifiedLocal = (try? c.decode(Date.self, forKey: .lastModifiedLocal)) ?? timestamp
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        beerName = try c.decodeIfPresent(String.self, forKey: .beerName) ?? "Unknown Beer"
+        style = try c.decodeIfPresent(String.self, forKey: .style)
+        abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+        verdict = try c.decodeIfPresent(Verdict.self, forKey: .verdict) ?? .yourCall
+        explanation = try c.decodeIfPresent(String.self, forKey: .explanation) ?? ""
+        timestamp = try c.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()
+        wantToTry = try c.decodeIfPresent(Bool.self, forKey: .wantToTry) ?? false
+        linkedJournalId = try c.decodeIfPresent(UUID.self, forKey: .linkedJournalId)
+        origin = try c.decodeIfPresent(String.self, forKey: .origin)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? timestamp
     }
 }
