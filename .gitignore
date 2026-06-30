@@ -9,3 +9,6 @@ DerivedData/
 
 # Secrets (API keys)
 SipCheck/Secrets.swift
+
+# CI-generated App Store Connect key (never commit)
+fastlane/asc_api_key.p8
