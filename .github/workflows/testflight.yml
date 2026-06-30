@@ -35,6 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Apple rejects uploads built with an SDK older than iOS 26 (Xcode 26+).
+      # The runner defaults to an older Xcode, so select the newest installed.
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify iOS SDK >= 26 (fail fast before the long build)
+        run: |
+          xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK version: $SDK"
+          if [ "${SDK%%.*}" -lt 26 ]; then
+            echo "::error::Runner's newest Xcode provides iOS SDK $SDK (<26). App Store uploads require the iOS 26 SDK. Need a runner image with Xcode 26."
+            exit 1
+          fi
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
