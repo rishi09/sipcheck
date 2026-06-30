@@ -9,6 +9,27 @@
 
 ---
 
+## 0. Goal & locked decisions (read this first)
+
+**Goal:** ship a camera scan that is **fast** and **free**, reads a **label, a menu, or a typed
+name** (never assuming a clean barcode), and returns an **instant 👍/👎** based on the user's taste
+library — and **validate the risky parts with prototypes before committing to a full build.**
+
+Product direction locked with the user:
+
+| Decision | Choice |
+|---|---|
+| Scan feel | **Live, no shutter** — point and it reads, verdict pops automatically |
+| Menu result | **One clear winner** — "Order this" highlighted, tap for runner-up |
+| Verdict priority | **Instant & always works offline** — short reliable reason over a slow rich one |
+| Cold-start | **Quick taste quiz** at first launch — personalized from scan #1 |
+| Barcode | **Bonus only, never assumed.** Primary path is label/menu/typed text. If a barcode happens to be in frame we use it; we never wait for or require one. |
+| Stack | **OK to replace** the current `UIImagePickerController` + always-network-verdict stack |
+
+Validation is part of the goal — see **§10** for the prototype already run.
+
+---
+
 ## 1. The use case (what "fast" actually means)
 
 Two real moments define the bar:
@@ -172,15 +193,17 @@ taps. The screen already shows a Tier-1 verdict by the time this returns.
 
 ## 5. The three input modes, concretely
 
-### 5a. Label (bottle/can) — fastest wins first
-1. `DataScanner` live: if a **barcode** appears → Open Food Facts lookup (free, keyless,
-   `GET world.openfoodfacts.org/api/v2/product/{barcode}.json`, send a descriptive `User-Agent`).
-   Exact product, no guessing. ([Open Food Facts API](https://openfoodfacts.github.io/openfoodfacts-server/api/), [data/SDKs](https://world.openfoodfacts.org/data))
-2. Else read **label text** live → best-guess beer name/style → Tier-1 verdict.
-3. Tier-2 enrich only if name/style still unknown.
+### 5a. Label (bottle/can) — text first, barcode is a bonus
+**Primary:** `DataScanner` reads the **label text** live → best-guess beer name/style → Tier-1
+verdict. This is the path we design and tune for, because users won't reliably present a barcode
+(label facing out, 4-pack, shelf angle, glare).
+**Bonus, opportunistic:** if a barcode *happens* to land in frame, do a keyless Open Food Facts
+lookup (`GET world.openfoodfacts.org/api/v2/product/{barcode}.json`, descriptive `User-Agent`) for
+an exact product hit. We **never wait for or require** one — it's a free upgrade when it appears.
+([Open Food Facts API](https://openfoodfacts.github.io/openfoodfacts-server/api/), [data/SDKs](https://world.openfoodfacts.org/data))
 
-> User said "not always the barcode" — correct. Barcode is the *cheap exact win when present*;
-> OCR text is the fallback, and both feed the same verdict tier.
+> Per the user: **do not assume a clean barcode, and keep it fast.** Text/OCR is the contract; the
+> barcode is icing. The §10 prototype runs entirely on the no-barcode text path.
 
 ### 5b. Menu — the genuinely new capability
 A menu is **N beers, decide across them**. Flow:
@@ -264,6 +287,37 @@ At 10k scans/month this is **~$0–1** versus ~$30–50 for the old vision-only 
    real store captures, as `notes-next-steps.md` already suggested.
 4. **Privacy copy.** On-device-first is a genuine privacy selling point ("your scans never leave
    your phone" for the default path) — worth surfacing in onboarding/marketing.
+
+---
+
+## 10. Validation prototype (run, not hypothetical)
+
+To de-risk the single biggest unknown — *can we turn a messy photographed menu into one good pick,
+on-device, with no barcode and no network?* — `plans/prototypes/menu_verdict_prototype.py`
+implements the **exact logic the Swift app would run** (menu-text parsing → style inference from
+name keywords → taste-library scoring → single-winner selection). No barcode, no network, no LLM —
+just string parsing + arithmetic, i.e. the sub-millisecond on-device path. Run it with
+`python3 plans/prototypes/menu_verdict_prototype.py`.
+
+**Results across three realistic OCR-style inputs (restaurant menu, chalkboard, grocery cooler):**
+- ✅ Parsed noisy lines (brewery + ABV + `$price` + dashes/bullets) into clean candidate beers.
+- ✅ Inferred style from the **name alone** — no database, no network (`Pliny… Double IPA` → ipa,
+  `Old Rasputin Imperial Stout` → stout, `Sumpin Sour Ale` → sour).
+- ✅ Picked **one clear winner** every time, with a one-line reason — the locked "one clear winner"
+  + "instant reason" UX.
+- ✅ **Personalizes from the same menu:** hop-forward profile → *Pliny the Elder*; malty/safe
+  profile → *Guinness*. Proves the verdict reflects the taste library, not a hard-coded favorite.
+- ✅ Degrades on a sparse grocery shelf (names only, no ABV/price) and still ranks correctly.
+
+**Two honest flaws the prototype surfaced (now backlog items, cheap to fix in Swift):**
+1. **Junk-line leakage.** A non-beer line slipped through as a candidate. → Need a parse-confidence
+   floor: drop lines with no inferable style *and* no ABV/price signal, or that look like headers.
+2. **Top-score ties.** Two IPAs tied at the top and list order broke the tie. → Add a deterministic
+   tiebreaker (closer-to-ideal ABV, then higher liked-style weight) so "the winner" is stable.
+
+**Takeaway:** the fast/free/no-barcode/instant-verdict path is **viable** — the core algorithm works
+on realistic input today. Remaining risk is iOS-device-only and belongs in a Phase 0 device spike
+(Foundation Models availability + `DataScanner` live multi-item on a real menu), not in the logic.
 
 ---
 
