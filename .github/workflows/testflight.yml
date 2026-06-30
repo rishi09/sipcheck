@@ -2,7 +2,7 @@ name: TestFlight
 
 on:
   push:
-    branches: [claude/review-project-status-5ihff]
+    branches: [main, claude/review-project-status-5ihff]
   workflow_dispatch:
 
 concurrency:
@@ -42,6 +42,26 @@ jobs:
 
       - name: Install fastlane
         run: bundle install
+
+      # Secrets.swift is gitignored and absent from a clean checkout, but it is a
+      # required compile input. Generate it from GitHub secrets (empty string when
+      # a key isn't set — the app still builds and degrades gracefully).
+      - name: Generate Secrets.swift
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MANUS_API_KEY: ${{ secrets.MANUS_API_KEY }}
+        run: |
+          cat > SipCheck/Secrets.swift <<EOF
+          import Foundation
+
+          enum Secrets {
+              static let openAIAPIKey = "${OPENAI_API_KEY}"
+              static let manusAPIKey = "${MANUS_API_KEY}"
+              static let geminiAPIKey = "${GEMINI_API_KEY}"
+          }
+          EOF
+          echo "Wrote SipCheck/Secrets.swift (openAI set: $([ -n "$OPENAI_API_KEY" ] && echo yes || echo no), gemini set: $([ -n "$GEMINI_API_KEY" ] && echo yes || echo no))"
 
       - name: Build and upload to TestFlight
         env:
