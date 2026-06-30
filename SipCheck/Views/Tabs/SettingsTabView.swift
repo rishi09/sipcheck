@@ -87,13 +87,14 @@ struct SettingsTabView: View {
                     } message: {
                         Text("This will permanently delete all your beers and scans. This cannot be undone.")
                     }
-                    #if DEBUG
+                    // Available in TestFlight builds too so testers can populate
+                    // sample data (which then syncs to iCloud). Remove before the
+                    // public App Store release.
                     Button("Seed Sample Data") {
                         drinkStore.seedSampleData()
                         scanStore.seedSampleData()
                         journalStore.seedSampleData()
                     }
-                    #endif
                 } header: {
                     Text("Account / Data")
                 }
