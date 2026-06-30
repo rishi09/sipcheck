@@ -73,6 +73,13 @@ platform :ios do
       keychain_name: keychain, keychain_password: "ci"
     )
 
+    # Authorize codesign to use the imported private key without an interactive
+    # prompt (the classic CI "no signing certificate with a private key" cause).
+    %w[ci.keychain-db ci.keychain].each do |kc|
+      path = File.expand_path("~/Library/Keychains/#{kc}")
+      sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci #{path} 2>/dev/null || true")
+    end
+
     # ----- App Store provisioning profile, created directly and tied to our cert -----
     # sigh can't discover the freshly-made cert, so build the profile via the API
     # ourselves, referencing the certificate id we just created.
