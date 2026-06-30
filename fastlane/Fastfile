@@ -59,7 +59,10 @@ platform :ios do
       output_directory: "build",
       output_name: "SipCheck.ipa",
       xcargs: "#{auth} DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number}",
-      export_xcargs: auth,
+      # gym auto-injects the API-key auth flags into the export step (from
+      # app_store_connect_api_key), so only add -allowProvisioningUpdates here.
+      # Passing the auth flags again duplicates them and xcodebuild exits 64.
+      export_xcargs: "-allowProvisioningUpdates",
       export_options: export_plist
     )
 
