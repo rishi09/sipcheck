@@ -80,14 +80,21 @@ class ScanningPipeline {
         }
 
         // ------- Step 3: Vision fallback (low confidence / short text) -------
-        let extractionResult = try await OpenAIService.shared.extractBeerInfo(from: image)
-        let beerInfo = BeerInfo(
-            name: extractionResult.name ?? "Unknown",
-            brand: extractionResult.brand ?? "Unknown",
-            style: extractionResult.style,
-            abv: nil,
-            origin: extractionResult.origin
-        )
+        let beerInfo: BeerInfo
+        if let extractionResult = try? await OpenAIService.shared.extractBeerInfo(from: image) {
+            beerInfo = BeerInfo(
+                name: extractionResult.name ?? "Unknown",
+                brand: extractionResult.brand ?? "Unknown",
+                style: extractionResult.style,
+                abv: nil,
+                origin: extractionResult.origin
+            )
+        } else {
+            // No vision provider available — stub from whatever OCR found so the
+            // flow completes and the user can fill in details manually.
+            let ocrText = ocrResult.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            beerInfo = BeerInfo(name: ocrText.isEmpty ? "Unknown Beer" : ocrText, brand: nil, style: nil, abv: nil, origin: nil)
+        }
         let (verdict, explanation) = await getVerdictAndExplanation(for: beerInfo)
         let elapsed = latencyMs(since: start)
         return ScanResult(beerInfo: beerInfo, verdict: verdict, explanation: explanation, scanSource: .visionFallback, latencyMs: elapsed)
@@ -95,15 +102,21 @@ class ScanningPipeline {
 
     // MARK: - Private Helpers
 
-    /// Use Gemini if a key is configured; otherwise fall back to OpenAI for text-based extraction.
+    /// Use Gemini if a key is configured; otherwise fall back to OpenAI; if no
+    /// provider is available, return stub info so the flow still completes.
     private func extractBeerInfoFromText(_ text: String) async throws -> BeerInfo {
-        if !Config.geminiAPIKey.isEmpty {
-            if let info = try? await GeminiService.shared.extractBeerInfo(fromText: text) {
-                return info
-            }
-            // Gemini failed mid-flight — fall through to OpenAI
+        if !Config.geminiAPIKey.isEmpty,
+           let info = try? await GeminiService.shared.extractBeerInfo(fromText: text) {
+            return info
         }
-        return try await OpenAIService.shared.extractBeerInfo(fromText: text)
+        if let info = try? await OpenAIService.shared.extractBeerInfo(fromText: text) {
+            return info
+        }
+        // No AI provider available (e.g. API keys not configured) — return stub
+        // info built from the input so the scan flow still completes end-to-end
+        // and the user can edit the details manually.
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return BeerInfo(name: trimmed.isEmpty ? "Unknown Beer" : trimmed, brand: nil, style: nil, abv: nil, origin: nil)
     }
 
     /// Milliseconds elapsed since a `CFAbsoluteTimeGetCurrent()` timestamp.
