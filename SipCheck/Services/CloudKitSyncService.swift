@@ -182,9 +182,12 @@ final class CloudKitSyncService {
         record["typeValue"] = drink.typeValue as CKRecordValue
         record["dateAdded"] = drink.dateAdded as CKRecordValue
         record["lastModifiedLocal"] = drink.lastModifiedLocal as CKRecordValue
-        if let notes = drink.notes { record["notes"] = notes as CKRecordValue }
-        if let abv = drink.abv { record["abv"] = abv as CKRecordValue }
-        if let photo = drink.photoFileName { record["photoFileName"] = photo as CKRecordValue }
+        // Assign every optional unconditionally (nil clears the field). Writing only
+        // when non-nil leaves the prior value on the fetched record, so clearing a
+        // field never propagates and gets resurrected on the next sync.
+        record["notes"] = drink.notes.map { $0 as CKRecordValue }
+        record["abv"] = drink.abv.map { $0 as CKRecordValue }
+        record["photoFileName"] = drink.photoFileName.map { $0 as CKRecordValue }
     }
 
     private func drinkFrom(_ record: CKRecord) -> Drink? {
@@ -218,10 +221,10 @@ final class CloudKitSyncService {
         record["timestamp"] = scan.timestamp as CKRecordValue
         record["wantToTry"] = (scan.wantToTry ? 1 : 0) as CKRecordValue
         record["lastModifiedLocal"] = scan.lastModifiedLocal as CKRecordValue
-        if let style = scan.style { record["style"] = style as CKRecordValue }
-        if let abv = scan.abv { record["abv"] = abv as CKRecordValue }
-        if let linked = scan.linkedJournalId { record["linkedJournalId"] = linked.uuidString as CKRecordValue }
-        if let origin = scan.origin { record["origin"] = origin as CKRecordValue }
+        record["style"] = scan.style.map { $0 as CKRecordValue }
+        record["abv"] = scan.abv.map { $0 as CKRecordValue }
+        record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
+        record["origin"] = scan.origin.map { $0 as CKRecordValue }
     }
 
     private func scanFrom(_ record: CKRecord) -> Scan? {
@@ -263,11 +266,11 @@ final class CloudKitSyncService {
         record["rating"] = entry.rating as CKRecordValue
         record["dateLogged"] = entry.dateLogged as CKRecordValue
         record["lastModifiedLocal"] = entry.lastModifiedLocal as CKRecordValue
-        if let abv = entry.abv { record["abv"] = abv as CKRecordValue }
-        if let notes = entry.notes { record["notes"] = notes as CKRecordValue }
-        if let photo = entry.photoFileName { record["photoFileName"] = photo as CKRecordValue }
-        if let dateTried = entry.dateTried { record["dateTried"] = dateTried as CKRecordValue }
-        if let linked = entry.linkedScanId { record["linkedScanId"] = linked.uuidString as CKRecordValue }
+        record["abv"] = entry.abv.map { $0 as CKRecordValue }
+        record["notes"] = entry.notes.map { $0 as CKRecordValue }
+        record["photoFileName"] = entry.photoFileName.map { $0 as CKRecordValue }
+        record["dateTried"] = entry.dateTried.map { $0 as CKRecordValue }
+        record["linkedScanId"] = entry.linkedScanId.map { $0.uuidString as CKRecordValue }
     }
 
     private func journalEntryFrom(_ record: CKRecord) -> JournalEntry? {
