@@ -4,7 +4,14 @@ import Combine
 
 /// Observable store for managing scans with JSON file persistence
 class ScanStore: ObservableObject {
+    /// Visible (non-deleted) scans — what the UI binds to.
     @Published var scans: [Scan] = []
+
+    /// Soft-deleted records kept only so the deletion can sync to other devices.
+    private var tombstones: [Scan] = []
+
+    /// All records (visible + tombstones) for CloudKit sync.
+    var syncRecords: [Scan] { scans + tombstones }
 
     private let storageDir: URL
 
@@ -30,6 +37,8 @@ class ScanStore: ObservableObject {
     func addScan(_ scan: Scan) {
         var s = scan
         s.lastModifiedLocal = Date()
+        s.isDeleted = false
+        tombstones.removeAll { $0.id == s.id }  // un-tombstone if re-added
         scans.insert(s, at: 0)
         saveScans()
         CloudKitSyncService.shared.save(s)
@@ -46,39 +55,46 @@ class ScanStore: ObservableObject {
     }
 
     func deleteScan(_ scan: Scan) {
-        scans.removeAll { $0.id == scan.id }
-        saveScans()
-        NotificationService.shared.cancelFollowUp(for: scan)
-        CloudKitSyncService.shared.delete(scan)
+        tombstone(ids: [scan.id])
     }
 
     func deleteAllScans() {
-        let allScans = scans
-        scans.removeAll()
-        saveScans()
-        for scan in allScans {
-            NotificationService.shared.cancelFollowUp(for: scan)
-            CloudKitSyncService.shared.delete(scan)
+        tombstone(ids: scans.map { $0.id })
+    }
+
+    /// Soft-delete: hide locally, cancel any follow-up, and upload a tombstone so
+    /// the deletion syncs to other devices.
+    private func tombstone(ids: [UUID]) {
+        let idSet = Set(ids)
+        let removed = scans.filter { idSet.contains($0.id) }
+        guard !removed.isEmpty else { return }
+        scans.removeAll { idSet.contains($0.id) }
+        for var rec in removed {
+            NotificationService.shared.cancelFollowUp(for: rec)
+            rec.isDeleted = true
+            rec.lastModifiedLocal = Date()
+            tombstones.removeAll { $0.id == rec.id }
+            tombstones.append(rec)
+            CloudKitSyncService.shared.save(rec)
         }
+        saveScans()
     }
 
     /// Apply remote scans from CloudKit — bypasses CloudKit upload to avoid loops.
     @MainActor func applyRemoteScans(_ remoteScans: [Scan]) {
-        var localByID = Dictionary(uniqueKeysWithValues: scans.enumerated().map { ($0.element.id, $0.offset) })
-        var result = scans
-
+        var byID: [UUID: Scan] = [:]
+        for s in scans { byID[s.id] = s }
+        for t in tombstones { byID[t.id] = t }
         for remote in remoteScans {
-            if let localIndex = localByID[remote.id] {
-                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
-                    result[localIndex] = remote
-                }
+            if let local = byID[remote.id] {
+                if remote.lastModifiedLocal > local.lastModifiedLocal { byID[remote.id] = remote }
             } else {
-                result.append(remote)
-                localByID[remote.id] = result.count - 1
+                byID[remote.id] = remote
             }
         }
-        result.sort { $0.timestamp > $1.timestamp }
-        scans = result
+        let all = Array(byID.values)
+        tombstones = all.filter { $0.isDeleted }
+        scans = all.filter { !$0.isDeleted }.sorted { $0.timestamp > $1.timestamp }
         saveScans()
     }
 
@@ -90,7 +106,7 @@ class ScanStore: ObservableObject {
 
     private func saveScans() {
         do {
-            let data = try JSONEncoder().encode(scans)
+            let data = try JSONEncoder().encode(scans + tombstones)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             print("Failed to save scans: \(error)")
@@ -100,6 +116,7 @@ class ScanStore: ObservableObject {
     private func loadScans() {
         guard let data = try? Data(contentsOf: fileURL) else {
             scans = []
+            tombstones = []
             return
         }
         // Write backup before decoding — protects against decode failure wiping the file on next save
@@ -107,10 +124,13 @@ class ScanStore: ObservableObject {
         try? data.write(to: backupURL, options: .atomic)
 
         do {
-            scans = try JSONDecoder().decode([Scan].self, from: data)
+            let all = try JSONDecoder().decode([Scan].self, from: data)
+            tombstones = all.filter { $0.isDeleted }
+            scans = all.filter { !$0.isDeleted }
         } catch {
             print("ScanStore: failed to decode scans.json — keeping empty. Error: \(error)")
             scans = []
+            tombstones = []
         }
     }
 

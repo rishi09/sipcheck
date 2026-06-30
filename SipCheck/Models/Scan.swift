@@ -20,6 +20,8 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var linkedJournalId: UUID?
     var origin: String?
     var lastModifiedLocal: Date
+    /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).
+    var isDeleted: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -44,12 +46,13 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         self.linkedJournalId = linkedJournalId
         self.origin = origin
         self.lastModifiedLocal = Date()
+        self.isDeleted = false
     }
 
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, lastModifiedLocal
+        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -65,5 +68,6 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         linkedJournalId = try c.decodeIfPresent(UUID.self, forKey: .linkedJournalId)
         origin = try c.decodeIfPresent(String.self, forKey: .origin)
         lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? timestamp
+        isDeleted = try c.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
     }
 }

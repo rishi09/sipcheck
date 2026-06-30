@@ -182,6 +182,7 @@ final class CloudKitSyncService {
         record["typeValue"] = drink.typeValue as CKRecordValue
         record["dateAdded"] = drink.dateAdded as CKRecordValue
         record["lastModifiedLocal"] = drink.lastModifiedLocal as CKRecordValue
+        record["isDeleted"] = (drink.isDeleted ? 1 : 0) as CKRecordValue
         // Assign every optional unconditionally (nil clears the field). Writing only
         // when non-nil leaves the prior value on the fetched record, so clearing a
         // field never propagates and gets resurrected on the next sync.
@@ -211,6 +212,7 @@ final class CloudKitSyncService {
         drink.dateAdded = record["dateAdded"] as? Date ?? Date()
         drink.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? drink.dateAdded
         drink.photoFileName = record["photoFileName"] as? String
+        drink.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1
         return drink
     }
 
@@ -221,6 +223,7 @@ final class CloudKitSyncService {
         record["timestamp"] = scan.timestamp as CKRecordValue
         record["wantToTry"] = (scan.wantToTry ? 1 : 0) as CKRecordValue
         record["lastModifiedLocal"] = scan.lastModifiedLocal as CKRecordValue
+        record["isDeleted"] = (scan.isDeleted ? 1 : 0) as CKRecordValue
         record["style"] = scan.style.map { $0 as CKRecordValue }
         record["abv"] = scan.abv.map { $0 as CKRecordValue }
         record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
@@ -256,6 +259,7 @@ final class CloudKitSyncService {
             origin: record["origin"] as? String
         )
         scan.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? scan.timestamp
+        scan.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1
         return scan
     }
 
@@ -266,6 +270,7 @@ final class CloudKitSyncService {
         record["rating"] = entry.rating as CKRecordValue
         record["dateLogged"] = entry.dateLogged as CKRecordValue
         record["lastModifiedLocal"] = entry.lastModifiedLocal as CKRecordValue
+        record["isDeleted"] = (entry.isDeleted ? 1 : 0) as CKRecordValue
         record["abv"] = entry.abv.map { $0 as CKRecordValue }
         record["notes"] = entry.notes.map { $0 as CKRecordValue }
         record["photoFileName"] = entry.photoFileName.map { $0 as CKRecordValue }
@@ -301,6 +306,7 @@ final class CloudKitSyncService {
             linkedScanId: linkedScanId
         )
         entry.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? entry.dateLogged
+        entry.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1
         return entry
     }
 }

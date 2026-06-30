@@ -203,9 +203,9 @@ private struct RootView: View {
 
     private func performLaunchSync() async {
         let result = await CloudKitSyncService.shared.fullSync(
-            localDrinks: drinkStore.drinks,
-            localScans: scanStore.scans,
-            localJournals: journalStore.entries
+            localDrinks: drinkStore.syncRecords,
+            localScans: scanStore.syncRecords,
+            localJournals: journalStore.syncRecords
         )
         await drinkStore.applyRemoteDrinks(result.drinks)
         await scanStore.applyRemoteScans(result.scans)

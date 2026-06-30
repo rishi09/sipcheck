@@ -4,7 +4,14 @@ import Combine
 
 /// Observable store for managing journal entries with JSON file persistence
 class JournalStore: ObservableObject {
+    /// Visible (non-deleted) entries — what the UI binds to.
     @Published var entries: [JournalEntry] = []
+
+    /// Soft-deleted records kept only so the deletion can sync to other devices.
+    private var tombstones: [JournalEntry] = []
+
+    /// All records (visible + tombstones) for CloudKit sync.
+    var syncRecords: [JournalEntry] { entries + tombstones }
 
     private let storageDir: URL
 
@@ -30,6 +37,8 @@ class JournalStore: ObservableObject {
     func addEntry(_ entry: JournalEntry) {
         var e = entry
         e.lastModifiedLocal = Date()
+        e.isDeleted = false
+        tombstones.removeAll { $0.id == e.id }  // un-tombstone if re-added
         entries.insert(e, at: 0)
         saveEntries()
         CloudKitSyncService.shared.save(e)
@@ -46,38 +55,45 @@ class JournalStore: ObservableObject {
     }
 
     func deleteEntry(_ entry: JournalEntry) {
-        entries.removeAll { $0.id == entry.id }
+        tombstone(ids: [entry.id])
+    }
+
+    /// Soft-delete: hide locally and upload a tombstone so the deletion syncs.
+    private func tombstone(ids: [UUID]) {
+        let idSet = Set(ids)
+        let removed = entries.filter { idSet.contains($0.id) }
+        guard !removed.isEmpty else { return }
+        entries.removeAll { idSet.contains($0.id) }
+        for var rec in removed {
+            rec.isDeleted = true
+            rec.lastModifiedLocal = Date()
+            tombstones.removeAll { $0.id == rec.id }
+            tombstones.append(rec)
+            CloudKitSyncService.shared.save(rec)
+        }
         saveEntries()
-        CloudKitSyncService.shared.delete(entry)
     }
 
     /// Apply remote journal entries from CloudKit — bypasses CloudKit upload to avoid loops.
     @MainActor func applyRemoteEntries(_ remoteEntries: [JournalEntry]) {
-        var localByID = Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($0.element.id, $0.offset) })
-        var result = entries
-
+        var byID: [UUID: JournalEntry] = [:]
+        for e in entries { byID[e.id] = e }
+        for t in tombstones { byID[t.id] = t }
         for remote in remoteEntries {
-            if let localIndex = localByID[remote.id] {
-                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
-                    result[localIndex] = remote
-                }
+            if let local = byID[remote.id] {
+                if remote.lastModifiedLocal > local.lastModifiedLocal { byID[remote.id] = remote }
             } else {
-                result.append(remote)
-                localByID[remote.id] = result.count - 1
+                byID[remote.id] = remote
             }
         }
-        result.sort { $0.dateLogged > $1.dateLogged }
-        entries = result
+        let all = Array(byID.values)
+        tombstones = all.filter { $0.isDeleted }
+        entries = all.filter { !$0.isDeleted }.sorted { $0.dateLogged > $1.dateLogged }
         saveEntries()
     }
 
     func deleteAllEntries() {
-        let allEntries = entries
-        entries.removeAll()
-        saveEntries()
-        for entry in allEntries {
-            CloudKitSyncService.shared.delete(entry)
-        }
+        tombstone(ids: entries.map { $0.id })
     }
 
     // MARK: - Persistence
@@ -88,7 +104,7 @@ class JournalStore: ObservableObject {
 
     private func saveEntries() {
         do {
-            let data = try JSONEncoder().encode(entries)
+            let data = try JSONEncoder().encode(entries + tombstones)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             print("Failed to save journal entries: \(error)")
@@ -98,6 +114,7 @@ class JournalStore: ObservableObject {
     private func loadEntries() {
         guard let data = try? Data(contentsOf: fileURL) else {
             entries = []
+            tombstones = []
             return
         }
         // Write backup before decoding — protects against decode failure wiping the file on next save
@@ -105,10 +122,13 @@ class JournalStore: ObservableObject {
         try? data.write(to: backupURL, options: .atomic)
 
         do {
-            entries = try JSONDecoder().decode([JournalEntry].self, from: data)
+            let all = try JSONDecoder().decode([JournalEntry].self, from: data)
+            tombstones = all.filter { $0.isDeleted }
+            entries = all.filter { !$0.isDeleted }
         } catch {
             print("JournalStore: failed to decode journal.json — keeping empty. Error: \(error)")
             entries = []
+            tombstones = []
         }
     }
 

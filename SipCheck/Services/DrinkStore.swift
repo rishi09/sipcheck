@@ -5,7 +5,15 @@ import Combine
 
 /// Observable store for managing drinks with JSON file persistence
 class DrinkStore: ObservableObject {
+    /// Visible (non-deleted) drinks — what the UI binds to.
     @Published var drinks: [Drink] = []
+
+    /// Soft-deleted records kept only so the deletion can sync to other devices.
+    /// Never shown in the UI; merged/uploaded alongside `drinks`.
+    private var tombstones: [Drink] = []
+
+    /// All records (visible + tombstones) for CloudKit sync.
+    var syncRecords: [Drink] { drinks + tombstones }
 
     private let storageDir: URL
 
@@ -31,6 +39,8 @@ class DrinkStore: ObservableObject {
     func addDrink(_ drink: Drink) {
         var d = drink
         d.lastModifiedLocal = Date()
+        d.isDeleted = false
+        tombstones.removeAll { $0.id == d.id }  // un-tombstone if re-added
         drinks.insert(d, at: 0)
         saveDrinks()
         CloudKitSyncService.shared.save(d)
@@ -47,38 +57,46 @@ class DrinkStore: ObservableObject {
     }
 
     func deleteDrink(_ drink: Drink) {
-        drinks.removeAll { $0.id == drink.id }
-        saveDrinks()
-        CloudKitSyncService.shared.delete(drink)
+        tombstone(ids: [drink.id])
     }
 
     func deleteDrinks(at offsets: IndexSet, from filteredDrinks: [Drink]) {
-        let toDelete = offsets.map { filteredDrinks[$0] }
-        let idsToDelete = Set(toDelete.map { $0.id })
-        drinks.removeAll { idsToDelete.contains($0.id) }
-        saveDrinks()
-        for drink in toDelete {
-            CloudKitSyncService.shared.delete(drink)
+        tombstone(ids: offsets.map { filteredDrinks[$0].id })
+    }
+
+    /// Soft-delete: hide locally and upload a tombstone so the deletion syncs.
+    private func tombstone(ids: [UUID]) {
+        let idSet = Set(ids)
+        let removed = drinks.filter { idSet.contains($0.id) }
+        guard !removed.isEmpty else { return }
+        drinks.removeAll { idSet.contains($0.id) }
+        for var rec in removed {
+            rec.isDeleted = true
+            rec.lastModifiedLocal = Date()
+            tombstones.removeAll { $0.id == rec.id }
+            tombstones.append(rec)
+            CloudKitSyncService.shared.save(rec)
         }
+        saveDrinks()
     }
 
     /// Apply remote drinks from CloudKit — bypasses CloudKit upload to avoid loops.
+    /// Merges visible records AND tombstones by last-write-wins, so a newer remote
+    /// deletion removes a local record (and vice versa).
     @MainActor func applyRemoteDrinks(_ remoteDrinks: [Drink]) {
-        var localByID = Dictionary(uniqueKeysWithValues: drinks.enumerated().map { ($0.element.id, $0.offset) })
-        var result = drinks
-
+        var byID: [UUID: Drink] = [:]
+        for d in drinks { byID[d.id] = d }
+        for t in tombstones { byID[t.id] = t }
         for remote in remoteDrinks {
-            if let localIndex = localByID[remote.id] {
-                if remote.lastModifiedLocal > result[localIndex].lastModifiedLocal {
-                    result[localIndex] = remote
-                }
+            if let local = byID[remote.id] {
+                if remote.lastModifiedLocal > local.lastModifiedLocal { byID[remote.id] = remote }
             } else {
-                result.append(remote)
-                localByID[remote.id] = result.count - 1
+                byID[remote.id] = remote
             }
         }
-        result.sort { $0.dateAdded > $1.dateAdded }
-        drinks = result
+        let all = Array(byID.values)
+        tombstones = all.filter { $0.isDeleted }
+        drinks = all.filter { !$0.isDeleted }.sorted { $0.dateAdded > $1.dateAdded }
         saveDrinks()
     }
 
@@ -96,7 +114,8 @@ class DrinkStore: ObservableObject {
 
     private func saveDrinks() {
         do {
-            let data = try JSONEncoder().encode(drinks)
+            // Persist visible records and tombstones together.
+            let data = try JSONEncoder().encode(drinks + tombstones)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             print("Failed to save drinks: \(error)")
@@ -106,6 +125,7 @@ class DrinkStore: ObservableObject {
     private func loadDrinks() {
         guard let data = try? Data(contentsOf: fileURL) else {
             drinks = []
+            tombstones = []
             return
         }
         // Write backup before decoding — protects against decode failure wiping the file on next save
@@ -113,10 +133,13 @@ class DrinkStore: ObservableObject {
         try? data.write(to: backupURL, options: .atomic)
 
         do {
-            drinks = try JSONDecoder().decode([Drink].self, from: data)
+            let all = try JSONDecoder().decode([Drink].self, from: data)
+            tombstones = all.filter { $0.isDeleted }
+            drinks = all.filter { !$0.isDeleted }
         } catch {
             print("DrinkStore: failed to decode drinks.json — keeping empty. Error: \(error)")
             drinks = []
+            tombstones = []
         }
     }
 
