@@ -144,6 +144,14 @@ class ScanStore: ObservableObject {
         return nil
     }
 
+    /// Inject sample scans for testing. Idempotent — skips any already present by ID.
+    func seedSampleData() {
+        let existing = Set(scans.map { $0.id })
+        let fresh = Self.seedScans.filter { !existing.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        for scan in fresh { addScan(scan) }
+    }
+
     // MARK: - Seed Data
 
     static let seedScans: [Scan] = [

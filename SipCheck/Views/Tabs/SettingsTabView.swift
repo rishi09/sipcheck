@@ -87,6 +87,13 @@ struct SettingsTabView: View {
                     } message: {
                         Text("This will permanently delete all your beers and scans. This cannot be undone.")
                     }
+                    #if DEBUG
+                    Button("Seed Sample Data") {
+                        drinkStore.seedSampleData()
+                        scanStore.seedSampleData()
+                        journalStore.seedSampleData()
+                    }
+                    #endif
                 } header: {
                     Text("Account / Data")
                 }

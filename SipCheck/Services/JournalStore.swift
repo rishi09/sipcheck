@@ -149,6 +149,14 @@ class JournalStore: ObservableObject {
         return nil
     }
 
+    /// Inject sample journal entries for testing. Idempotent — skips any already present by ID.
+    func seedSampleData() {
+        let existing = Set(entries.map { $0.id })
+        let fresh = Self.seedEntries.filter { !existing.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        for entry in fresh { addEntry(entry) }
+    }
+
     // MARK: - Seed Data
 
     static let seedEntries: [JournalEntry] = [

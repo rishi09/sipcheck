@@ -171,6 +171,14 @@ class DrinkStore: ObservableObject {
         BeerMatcher.findMatch(for: query, in: drinks)
     }
 
+    /// Inject sample drinks for testing. Idempotent — skips any already present by ID.
+    func seedSampleData() {
+        let existing = Set(drinks.map { $0.id })
+        let fresh = Self.seedDrinks.filter { !existing.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        for drink in fresh { addDrink(drink) }
+    }
+
     // MARK: - Seed Data
 
     static let seedDrinks: [Drink] = [
