@@ -1,46 +1,54 @@
 # SipCheck — Morning Checklist
 
-Order: quick wins → the two real tasks. ~45 min. Code is done; these are the
-Apple-account / laptop steps only you can do.
+Code is done. These are the Apple-account / laptop steps only you can do.
+Do Part 0 first — CI builds are paused until it's done.
+
+## Part 0 — Fix signing so builds work again (~8 min, Mac) ← do first
+CI hit Apple's certificate cap (every build was minting a new cert). The fix:
+give CI ONE distribution cert to reuse.
+
+1. **Revoke extra certs:** developer.apple.com/account → Certificates → revoke
+   the old/unused ones (especially "Apple Development: Created via API"). Keep
+   the **Apple Distribution** cert your Mac uses.
+2. **Export that Distribution cert as .p12:** open **Keychain Access** on your
+   Mac → My Certificates → find **"Apple Distribution: Rishi Shah"** → expand it,
+   select BOTH the cert and its private key → right-click → **Export** → save as
+   `dist.p12`, set a password.
+3. **Base64 it:** in Terminal: `base64 -i dist.p12 | pbcopy`
+4. **Add two GitHub secrets** (Settings → Secrets and variables → Actions):
+   - `DIST_CERT_P12_BASE64` → paste (Cmd-V) the base64 from step 3
+   - `DIST_CERT_PASSWORD` → the password you set in step 2
+5. **Ping Claude "cert added"** → Claude pushes a build. From now on CI reuses
+   this one cert — no more "maximum number of certificates" errors.
 
 ## Part 1 — Test the app (5 min, phone)
-1. TestFlight app → SipCheck → **pull to refresh** → Update to the newest build
-   (1.0 (26) or higher — it has all fixes and auto-clears compliance).
-2. Open app → Profile → ⚙️ → **Seed Sample Data**. Confirm beers/scans/journal
-   show up. Try: delete a beer, a text scan (stub verdict until the key's in),
-   browse Journal + Profile stats.
+6. TestFlight → SipCheck → pull to refresh → Update to newest build. (Current
+   good build is 1.0 (25) with all fixes; the new cert build will supersede it.)
+7. Profile → ⚙️ → Seed Sample Data. Confirm data; try delete, a text scan
+   (stub verdict until the OpenAI key), Journal + stats.
 
-## Part 2 — Real scanning (5 min, phone or laptop)
-3. platform.openai.com → create a NEW API key (revoke the old exposed one).
-4. GitHub → repo → Settings → Secrets and variables → Actions → New secret:
-   name `OPENAI_API_KEY`, paste the key.
-5. Tell Claude "key added" → it pushes a build so scanning goes live.
+## Part 2 — Real scanning (5 min, phone OK)
+8. platform.openai.com → new API key (revoke the old exposed one).
+9. GitHub → Secrets → Actions → `OPENAI_API_KEY`.
+10. Ping Claude "key added" → it folds into the next build.
 
-## Part 3 — iCloud sync (~15 min, Mac + Xcode) ← main task
-6. `cd ~/side-projects/sipcheck && git pull`
-7. Xcode → select your iPhone (or simulator) → Run (Cmd+R). (Development build,
-   signed into iCloud.)
-8. In the app: add a beer WITH a photo + tap Seed Sample Data. (Creates the
-   Development CloudKit schema with all fields: isDeleted, photoAsset.)
-9. icloud.developer.apple.com/dashboard → container iCloud.com.rishishah.sipcheck
-   → Schema → Deploy Schema Changes… → Development → Production.
-10. Verify a beer + photo persist / show on a second device.
+## Part 3 — iCloud sync (~15 min, Mac + Xcode)
+11. `cd ~/side-projects/sipcheck && git pull`
+12. Xcode → your iPhone → Run (Development build, signed into iCloud).
+13. Add a beer WITH a photo + tap Seed Sample Data (creates the Dev schema:
+    isDeleted, photoAsset).
+14. icloud.developer.apple.com/dashboard → container iCloud.com.rishishah.sipcheck
+    → Schema → Deploy Changes → Development → Production.
+15. Verify a beer + photo sync.
 
 ## Part 4 — Privacy URLs (2 min)
-11. GitHub → Settings → Pages → Source: Deploy from branch → `main` / `/docs`.
-    (Works after the branch is merged to main — Part 5.) Then
-    rishi09.github.io/sipcheck/privacy/ should load.
+16. GitHub → Settings → Pages → `main` / `/docs` (after merge to main).
 
 ## Part 5 — App Store submission (when ready)
-12. Merge the PR to `main` (also activates Pages + the schema-deploy workflow).
-13. Use APP_STORE_SUBMISSION.md (name, description, keywords, privacy + age
-    answers, screenshot plan) to fill App Store Connect; capture 6 screenshots.
-14. Ask Claude to REMOVE the "Seed Sample Data" button before public submission.
-
-## Fastest unblock for Claude
-Parts 2 + 3 (OpenAI key + iCloud schema). Ping "key added" after Part 2.
-Paste any error from Part 3 and Claude will fix it.
+17. Merge PR → main. Fill App Store Connect from APP_STORE_SUBMISSION.md +
+    capture 6 screenshots. Ask Claude to remove the Seed Sample Data button.
 
 ---
-After the plumbing's confirmed (sync + scanning + pipeline), next phase is
-on-device testing pass + UI polish.
+Order that unblocks Claude fastest: Part 0 (cert) → Part 2 (OpenAI key).
+Ping "cert added" and "key added"; paste any error and Claude fixes it.
+Then: on-device testing pass + UI polish.

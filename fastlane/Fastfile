@@ -1,7 +1,9 @@
 default_platform(:ios)
 
+require "base64"
+
 platform :ios do
-  desc "Build and upload a new build to TestFlight (cloud-managed signing)"
+  desc "Build and upload to TestFlight using a fixed, imported Distribution cert"
   lane :beta do
     key_id = ENV["ASC_KEY_ID"]
     issuer_id = ENV["ASC_ISSUER_ID"]
@@ -14,33 +16,42 @@ platform :ios do
       is_key_content_base64: false
     )
 
-    # gym has no api_key option, so authenticate xcodebuild for automatic
-    # (cloud-managed) signing by passing the -authenticationKey* flags directly.
-    # This requires the API key to have Admin/Account-Holder access; an App
-    # Manager key is refused with "Cloud signing permission error".
-    require "tmpdir"
-    key_path = File.join(Dir.tmpdir, "asc_api_key.p8")
-    File.write(key_path, key_content)
-    auth = "-authenticationKeyPath #{key_path} " \
-           "-authenticationKeyID #{key_id} " \
-           "-authenticationKeyIssuerID #{issuer_id} " \
-           "-allowProvisioningUpdates"
+    # ---- Import the ONE distribution certificate (no per-build cert creation) ----
+    # This is the durable fix for "maximum number of certificates": instead of
+    # cloud-signing minting a new cert every build, we import a fixed .p12 the
+    # account owner exported once, and sign manually with it.
+    keychain_name = "ci.keychain"
+    keychain_pw = "ci"
+    create_keychain(
+      name: keychain_name,
+      password: keychain_pw,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
 
-    export_plist = File.join(Dir.tmpdir, "ExportOptions.plist")
-    File.write(export_plist, <<~PLIST)
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>method</key>
-        <string>app-store</string>
-        <key>signingStyle</key>
-        <string>automatic</string>
-        <key>teamID</key>
-        <string>YG7C25J24J</string>
-      </dict>
-      </plist>
-    PLIST
+    p12_path = File.absolute_path("dist_cert.p12")
+    File.binwrite(p12_path, Base64.decode64(ENV["DIST_CERT_P12_BASE64"] || ""))
+    import_certificate(
+      certificate_path: p12_path,
+      certificate_password: ENV["DIST_CERT_PASSWORD"] || "",
+      keychain_name: keychain_name,
+      keychain_password: keychain_pw
+    )
+    # Authorize codesign to use the imported private key non-interactively.
+    keychain_db = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{keychain_pw} #{keychain_db} 2>/dev/null || true")
+
+    # ---- App Store provisioning profile (reuses the imported cert; profiles are
+    # not capped like certs, so this is safe to create/refresh each run) ----
+    sigh(
+      api_key: api_key,
+      app_identifier: "com.rishishah.sipcheck",
+      platform: "ios",
+      readonly: false
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME]
 
     build_number = ENV["GITHUB_RUN_NUMBER"] || "1"
 
@@ -51,9 +62,16 @@ platform :ios do
       clean: true,
       output_directory: "build",
       output_name: "SipCheck.ipa",
-      xcargs: "#{auth} DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number}",
-      export_xcargs: "-allowProvisioningUpdates",
-      export_options: export_plist
+      export_method: "app-store",
+      codesigning_identity: "Apple Distribution",
+      xcargs: "DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number} " \
+              "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: "YG7C25J24J",
+        provisioningProfiles: { "com.rishishah.sipcheck" => profile_name }
+      }
     )
 
     upload_to_testflight(
