@@ -69,3 +69,11 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
         run: bundle exec fastlane beta
+
+      # Surface gym's detailed xcodebuild export error (it goes to a log file, not
+      # the console) so signing failures can be diagnosed precisely.
+      - name: Dump gym log on failure
+        if: failure()
+        run: |
+          echo "===== gym log (tail) ====="
+          tail -200 ~/Library/Logs/gym/SipCheck-SipCheck.log 2>/dev/null || echo "(no gym log found)"
