@@ -2,6 +2,7 @@ require "spaceship"
 require "openssl"
 require "base64"
 require "tmpdir"
+require "fileutils"
 
 default_platform(:ios)
 
@@ -72,14 +73,33 @@ platform :ios do
       keychain_name: keychain, keychain_password: "ci"
     )
 
-    # ----- App Store provisioning profile (uses the cert we just created) -----
-    sigh(
-      api_key: api_key,
-      app_identifier: APP_IDENTIFIER,
-      platform: "ios",
-      readonly: false
+    # ----- App Store provisioning profile, created directly and tied to our cert -----
+    # sigh can't discover the freshly-made cert, so build the profile via the API
+    # ourselves, referencing the certificate id we just created.
+    profile_name = "SipCheck CI AppStore"
+    begin
+      Spaceship::ConnectAPI::Profile.all(includes: "bundleId").each do |p|
+        p.delete! if p.name == profile_name
+      end
+    rescue => e
+      UI.important("Could not clean old CI profiles (continuing): #{e.message}")
+    end
+
+    bundle = Spaceship::ConnectAPI::BundleId.all.find { |b| b.identifier == APP_IDENTIFIER }
+    UI.user_error!("Bundle ID #{APP_IDENTIFIER} not found on the portal") if bundle.nil?
+
+    profile = Spaceship::ConnectAPI::Profile.create(
+      name: profile_name,
+      profile_type: "IOS_APP_STORE",
+      bundle_id_id: bundle.id,
+      certificate_ids: [cert.id],
+      device_ids: []
     )
-    profile_name = lane_context[SharedValues::SIGH_NAME]
+
+    profiles_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
+    FileUtils.mkdir_p(profiles_dir)
+    profile_path = File.join(profiles_dir, "#{profile.uuid}.mobileprovision")
+    File.binwrite(profile_path, Base64.decode64(profile.profile_content))
 
     build_number = ENV["GITHUB_RUN_NUMBER"] || "1"
 
@@ -91,7 +111,7 @@ platform :ios do
       output_directory: "build",
       output_name: "SipCheck.ipa",
       export_method: "app-store",
-      codesigning_identity: "Apple Distribution",
+      codesigning_identity: "iPhone Distribution",
       xcargs: "DEVELOPMENT_TEAM=#{TEAM_ID} CURRENT_PROJECT_VERSION=#{build_number} " \
               "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
       export_options: {
