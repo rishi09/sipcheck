@@ -15,6 +15,19 @@
 name** (never assuming a clean barcode), and returns an **instant 👍/👎** based on the user's taste
 library — and **validate the risky parts with prototypes before committing to a full build.**
 
+Expanded per user direction:
+- **Source real data / open libraries.** Use open beer datasets and label-image libraries (real
+  beer names, styles, ABVs, barcodes, label photos) to ground the simulation in reality, not toy
+  inputs. See §10 / `plans/prototypes/data/` and the image-library manifest.
+- **Simulate as much as possible.** This environment has **no Swift/Xcode**, so the iOS code is a
+  write-and-review deliverable; the *behavioral validation* runs as a Python simulation over the
+  real dataset (style-inference accuracy, verdict quality, single-winner sensibility at scale).
+- **Build everything that's buildable here.** Author the real Phase-1 Swift (instant on-device
+  verdict + menu parse + single-winner) following `CLAUDE.md`, leaving only the device-only spike
+  (Foundation Models + live `DataScanner`) for Xcode.
+- **Run it as an agent team.** Orchestrated via a dynamic multi-agent workflow (gather → simulate →
+  build → verify); see §11.
+
 Product direction locked with the user:
 
 | Decision | Choice |
