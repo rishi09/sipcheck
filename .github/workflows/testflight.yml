@@ -1,5 +1,10 @@
 name: TestFlight
 
+# ⚠️ SECURITY: this workflow has access to signing/API secrets. Keep its triggers
+# to `push` (trusted branches) and `workflow_dispatch` ONLY. Do NOT add a
+# `pull_request` (or `pull_request_target`) trigger here, and never echo a secret
+# in a step — either would expose the signing cert / API keys, especially while
+# the repo is public.
 on:
   push:
     branches: [main, claude/review-project-status-5ihff]
