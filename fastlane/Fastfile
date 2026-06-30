@@ -19,7 +19,10 @@ platform :ios do
     # by writing the key to a file and passing -authenticationKey* flags directly
     # to both the archive (xcargs) and export (export_xcargs) steps. Without this
     # the archive runs with no Apple credentials ("No Accounts").
-    key_path = File.absolute_path("fastlane/asc_api_key.p8")
+    # fastlane runs lanes from inside the fastlane/ dir, so use an absolute temp
+    # path (a relative one would resolve to fastlane/fastlane/... and not exist).
+    require "tmpdir"
+    key_path = File.join(Dir.tmpdir, "asc_api_key.p8")
     File.write(key_path, key_content)
     auth = "-authenticationKeyPath #{key_path} " \
            "-authenticationKeyID #{key_id} " \
