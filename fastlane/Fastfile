@@ -1,13 +1,21 @@
+require "spaceship"
+require "openssl"
+require "base64"
+require "tmpdir"
+
 default_platform(:ios)
 
+APP_IDENTIFIER = "com.rishishah.sipcheck"
+TEAM_ID = "YG7C25J24J"
+CI_CERT_NAME = "SipCheck CI Distribution"
+
 platform :ios do
-  desc "Build and upload a new build to TestFlight"
+  desc "Build and upload to TestFlight with a self-provisioned distribution certificate"
   lane :beta do
     key_id = ENV["ASC_KEY_ID"]
     issuer_id = ENV["ASC_ISSUER_ID"]
     key_content = ENV["ASC_KEY_CONTENT"]
 
-    # Token for the upload step (no Apple ID 2FA needed).
     api_key = app_store_connect_api_key(
       key_id: key_id,
       issuer_id: issuer_id,
@@ -15,40 +23,64 @@ platform :ios do
       is_key_content_base64: false
     )
 
-    # gym has no api_key option, so authenticate xcodebuild for automatic signing
-    # by writing the key to a file and passing -authenticationKey* flags directly
-    # to both the archive (xcargs) and export (export_xcargs). fastlane runs lanes
-    # from inside fastlane/, so use absolute temp paths.
-    require "tmpdir"
-    key_path = File.join(Dir.tmpdir, "asc_api_key.p8")
-    File.write(key_path, key_content)
-    auth = "-authenticationKeyPath #{key_path} " \
-           "-authenticationKeyID #{key_id} " \
-           "-authenticationKeyIssuerID #{issuer_id} " \
-           "-allowProvisioningUpdates"
+    # ----- Authenticate spaceship for direct Developer Portal API calls -----
+    token = Spaceship::ConnectAPI::Token.create(key_id: key_id, issuer_id: issuer_id, key: key_content)
+    Spaceship::ConnectAPI.token = token
 
-    # Explicit export options so the export step uses automatic (cloud) signing
-    # instead of demanding a manual provisioning-profile mapping. A verbatim plist
-    # is honored by gym as-is, unlike the hash form which gym merges with its own
-    # (manual) detection.
-    export_plist = File.join(Dir.tmpdir, "ExportOptions.plist")
-    File.write(export_plist, <<~PLIST)
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>method</key>
-        <string>app-store</string>
-        <key>signingStyle</key>
-        <string>automatic</string>
-        <key>teamID</key>
-        <string>YG7C25J24J</string>
-      </dict>
-      </plist>
-    PLIST
+    # ----- Self-provision an Apple Distribution certificate -----
+    # The App Manager key can't use cloud-managed distribution signing, but it may
+    # be allowed to create a regular distribution certificate (where WE hold the
+    # private key). Generate the key + CSR locally and ask the portal to issue it.
+    # Revoke any prior CI-created cert first (its private key is gone each run, so
+    # it can't be reused and would otherwise consume the account's cert quota).
+    begin
+      Spaceship::ConnectAPI::Certificate.all.each do |c|
+        name = (c.respond_to?(:display_name) && c.display_name) || (c.respond_to?(:name) && c.name)
+        if name == CI_CERT_NAME
+          UI.message("Revoking stale CI cert #{c.id}")
+          c.delete!
+        end
+      end
+    rescue => e
+      UI.important("Could not enumerate/revoke existing certs (continuing): #{e.message}")
+    end
 
-    # Unique, monotonically increasing build number per CI run so every upload
-    # is accepted by TestFlight without manual version bumps.
+    priv_key = OpenSSL::PKey::RSA.new(2048)
+    csr = OpenSSL::X509::Request.new
+    csr.version = 0
+    csr.subject = OpenSSL::X509::Name.new([["CN", CI_CERT_NAME, OpenSSL::ASN1::UTF8STRING]])
+    csr.public_key = priv_key.public_key
+    csr.sign(priv_key, OpenSSL::Digest::SHA256.new)
+
+    cert = Spaceship::ConnectAPI::Certificate.create(
+      certificate_type: "IOS_DISTRIBUTION",
+      csr_content: csr.to_pem
+    )
+    x509 = OpenSSL::X509::Certificate.new(Base64.decode64(cert.certificate_content))
+
+    p12_path = File.join(Dir.tmpdir, "sipcheck_dist.p12")
+    File.binwrite(p12_path, OpenSSL::PKCS12.create("ci", CI_CERT_NAME, priv_key, x509).to_der)
+
+    # ----- Install into a dedicated keychain -----
+    keychain = "ci.keychain"
+    create_keychain(
+      name: keychain, password: "ci",
+      default_keychain: true, unlock: true, timeout: 3600, lock_when_sleeps: false
+    )
+    import_certificate(
+      certificate_path: p12_path, certificate_password: "ci",
+      keychain_name: keychain, keychain_password: "ci"
+    )
+
+    # ----- App Store provisioning profile (uses the cert we just created) -----
+    sigh(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      platform: "ios",
+      readonly: false
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+
     build_number = ENV["GITHUB_RUN_NUMBER"] || "1"
 
     build_app(
@@ -58,12 +90,16 @@ platform :ios do
       clean: true,
       output_directory: "build",
       output_name: "SipCheck.ipa",
-      xcargs: "#{auth} DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number}",
-      # gym auto-injects the API-key auth flags into the export step (from
-      # app_store_connect_api_key), so only add -allowProvisioningUpdates here.
-      # Passing the auth flags again duplicates them and xcodebuild exits 64.
-      export_xcargs: "-allowProvisioningUpdates",
-      export_options: export_plist
+      export_method: "app-store",
+      codesigning_identity: "Apple Distribution",
+      xcargs: "DEVELOPMENT_TEAM=#{TEAM_ID} CURRENT_PROJECT_VERSION=#{build_number} " \
+              "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: TEAM_ID,
+        provisioningProfiles: { APP_IDENTIFIER => profile_name }
+      }
     )
 
     upload_to_testflight(
