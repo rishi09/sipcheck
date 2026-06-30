@@ -24,6 +24,10 @@ platform :ios do
       clean: true,
       output_directory: "build",
       output_name: "SipCheck.ipa",
+      # Passing api_key here makes gym forward -authenticationKeyPath/ID/IssuerID to
+      # the archive xcodebuild so automatic signing can create the distribution
+      # profile. Without it the archive runs with no Apple credentials ("No Accounts").
+      api_key: api_key,
       xcargs: "-allowProvisioningUpdates DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number}"
     )
 
