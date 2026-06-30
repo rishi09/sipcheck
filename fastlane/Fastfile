@@ -42,7 +42,15 @@ platform :ios do
       output_directory: "build",
       output_name: "SipCheck.ipa",
       xcargs: "#{auth} DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number}",
-      export_xcargs: auth
+      export_xcargs: auth,
+      # Archive signs fine; the export step needs to be told to sign automatically
+      # so xcodebuild creates the App Store distribution profile (with the auth key
+      # + -allowProvisioningUpdates in export_xcargs) instead of demanding a manual
+      # provisioning-profile mapping.
+      export_options: {
+        signingStyle: "automatic",
+        teamID: "YG7C25J24J"
+      }
     )
 
     upload_to_testflight(
