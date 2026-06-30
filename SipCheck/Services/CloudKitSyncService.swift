@@ -25,16 +25,6 @@ final class CloudKitSyncService {
         }
     }
 
-    func delete(_ drink: Drink) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                try await self.db.deleteRecord(withID: CKRecord.ID(recordName: drink.id.uuidString))
-            } catch {
-                print("[CloudKit] delete Drink failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
     func fetchAllDrinks() async -> [Drink] {
         let query = CKQuery(recordType: "Drink", predicate: NSPredicate(value: true))
         guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
@@ -58,16 +48,6 @@ final class CloudKitSyncService {
         }
     }
 
-    func delete(_ scan: Scan) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                try await self.db.deleteRecord(withID: CKRecord.ID(recordName: scan.id.uuidString))
-            } catch {
-                print("[CloudKit] delete Scan failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
     func fetchAllScans() async -> [Scan] {
         let query = CKQuery(recordType: "Scan", predicate: NSPredicate(value: true))
         guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
@@ -87,16 +67,6 @@ final class CloudKitSyncService {
                 try await self.db.save(record)
             } catch {
                 print("[CloudKit] save JournalEntry failed: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func delete(_ entry: JournalEntry) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                try await self.db.deleteRecord(withID: CKRecord.ID(recordName: entry.id.uuidString))
-            } catch {
-                print("[CloudKit] delete JournalEntry failed: \(error.localizedDescription)")
             }
         }
     }
@@ -154,7 +124,7 @@ final class CloudKitSyncService {
 
         for remoteItem in remote {
             if let localIndex = localByID[remoteItem.id] {
-                if remoteItem.lastModifiedLocal > result[localIndex].lastModifiedLocal {
+                if cloudKitWins(remoteItem, over: result[localIndex]) {
                     result[localIndex] = remoteItem
                 }
             } else {
@@ -315,4 +285,15 @@ final class CloudKitSyncService {
 
 protocol HasModifiedDate {
     var lastModifiedLocal: Date { get }
+    var isDeleted: Bool { get }
+}
+
+/// Decide whether a `remote` record should replace the `local` one (same id).
+/// Newer `lastModifiedLocal` wins; on an exact timestamp tie a deletion wins, so a
+/// delete is never silently lost to a concurrent edit with the same timestamp.
+func cloudKitWins<T: HasModifiedDate>(_ remote: T, over local: T) -> Bool {
+    if remote.lastModifiedLocal != local.lastModifiedLocal {
+        return remote.lastModifiedLocal > local.lastModifiedLocal
+    }
+    return remote.isDeleted && !local.isDeleted
 }

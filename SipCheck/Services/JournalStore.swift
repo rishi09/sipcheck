@@ -81,7 +81,7 @@ class JournalStore: ObservableObject {
         for t in tombstones { byID[t.id] = t }
         for remote in remoteEntries {
             if let local = byID[remote.id] {
-                if remote.lastModifiedLocal > local.lastModifiedLocal { byID[remote.id] = remote }
+                if cloudKitWins(remote, over: local) { byID[remote.id] = remote }
             } else {
                 byID[remote.id] = remote
             }
