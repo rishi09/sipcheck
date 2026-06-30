@@ -97,10 +97,12 @@ struct CheckTabView: View {
                 AddBeerView(prefill: prefill)
                     .environmentObject(drinkStore)
                     .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             } else {
                 AddBeerView()
                     .environmentObject(drinkStore)
                     .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             }
         }
         .alert("Camera Access Required", isPresented: $showingPermissionAlert) {

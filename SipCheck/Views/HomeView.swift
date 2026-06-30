@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
     @EnvironmentObject private var journalStore: JournalStore
+    @EnvironmentObject private var scanStore: ScanStore
 
     @State private var showingAddBeer = false
     @State private var showingCheckBeer = false
@@ -144,6 +145,7 @@ struct HomeView: View {
                 AddBeerView()
                     .environmentObject(drinkStore)
                     .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             }
             .sheet(isPresented: $showingCheckBeer) {
                 CheckBeerView()
@@ -162,5 +164,7 @@ struct HomeView_Previews: PreviewProvider {
     static var previews: some View {
         HomeView()
             .environmentObject(DrinkStore())
+            .environmentObject(JournalStore())
+            .environmentObject(ScanStore())
     }
 }

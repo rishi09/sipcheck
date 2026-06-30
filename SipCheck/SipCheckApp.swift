@@ -123,10 +123,12 @@ private struct RootView: View {
                 AddBeerView(prefill: prefill)
                     .environmentObject(drinkStore)
                     .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             } else {
                 AddBeerView()
                     .environmentObject(drinkStore)
                     .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             }
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in

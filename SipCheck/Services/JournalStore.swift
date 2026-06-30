@@ -170,12 +170,29 @@ class JournalStore: ObservableObject {
     }
 
     /// Inject sample journal entries for testing. Idempotent — skips any already present by ID.
+    /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
+    /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).
     func seedSampleData() {
         let existing = Set(entries.map { $0.id })
         let fresh = Self.seedEntries.filter { !existing.contains($0.id) }
         guard !fresh.isEmpty else { return }
-        for entry in fresh { addEntry(entry) }
+        for entry in fresh { insertSeed(entry) }
     }
+
+    /// Insert a seed record that can never win last-write-wins (back-dated).
+    private func insertSeed(_ entry: JournalEntry) {
+        var e = entry
+        e.dateLogged = Self.seedDate
+        e.lastModifiedLocal = Self.seedDate
+        e.isDeleted = false
+        tombstones.removeAll { $0.id == e.id }
+        entries.insert(e, at: 0)
+        saveEntries()
+        CloudKitSyncService.shared.save(e)
+    }
+
+    /// Fixed timestamp far in the past so seed records always lose last-write-wins.
+    static let seedDate = Date(timeIntervalSince1970: 0)
 
     // MARK: - Seed Data
 

@@ -80,10 +80,12 @@ struct JournalTabView: View {
                 AddBeerView(prefill: AddBeerPrefill(
                     name: scan.beerName,
                     style: scan.style ?? BeerStyle.other.rawValue,
-                    abv: scan.abv
+                    abv: scan.abv,
+                    scanId: scan.id
                 ))
                 .environmentObject(drinkStore)
                 .environmentObject(journalStore)
+                .environmentObject(scanStore)
             }
         }
     }

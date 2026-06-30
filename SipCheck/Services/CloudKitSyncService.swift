@@ -153,6 +153,47 @@ final class CloudKitSyncService {
         return CKRecord(recordType: recordType, recordID: recordID)
     }
 
+    /// Photos live in Documents/photos/<fileName> — same dir DrinkStore uses for
+    /// savePhoto/loadPhoto. Computed from the Documents directory so it matches.
+    private var photosDir: URL {
+        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let dir = docs.appendingPathComponent("photos")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// If `photoFileName` is set and the local file exists, attach it as a CKAsset
+    /// under "photoAsset"; otherwise clear the field. Missing files are tolerated.
+    private func attachPhotoAsset(_ record: CKRecord, photoFileName: String?) {
+        guard let fileName = photoFileName else {
+            record["photoAsset"] = nil
+            return
+        }
+        let fileURL = photosDir.appendingPathComponent(fileName)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            record["photoAsset"] = CKAsset(fileURL: fileURL)
+        } else {
+            record["photoAsset"] = nil
+        }
+    }
+
+    /// If the record carries a CKAsset, copy its file into Documents/photos/<photoFileName>
+    /// so DrinkStore.loadPhoto(named:) finds it. No-op if either is missing.
+    private func materializePhotoAsset(_ record: CKRecord, photoFileName: String?) {
+        guard let fileName = photoFileName,
+              let asset = record["photoAsset"] as? CKAsset,
+              let assetURL = asset.fileURL else { return }
+        let destURL = photosDir.appendingPathComponent(fileName)
+        do {
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            try FileManager.default.copyItem(at: assetURL, to: destURL)
+        } catch {
+            print("[CloudKit] photo asset materialize failed for \(fileName): \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - CKRecord ↔ Model Mapping
 
     private func populate(_ record: CKRecord, from drink: Drink) {
@@ -170,6 +211,7 @@ final class CloudKitSyncService {
         record["notes"] = drink.notes.map { $0 as CKRecordValue }
         record["abv"] = drink.abv.map { $0 as CKRecordValue }
         record["photoFileName"] = drink.photoFileName.map { $0 as CKRecordValue }
+        attachPhotoAsset(record, photoFileName: drink.photoFileName)
     }
 
     private func drinkFrom(_ record: CKRecord) -> Drink? {
@@ -194,6 +236,7 @@ final class CloudKitSyncService {
         drink.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? drink.dateAdded
         drink.photoFileName = record["photoFileName"] as? String
         drink.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1
+        materializePhotoAsset(record, photoFileName: drink.photoFileName)
         return drink
     }
 
@@ -257,6 +300,7 @@ final class CloudKitSyncService {
         record["photoFileName"] = entry.photoFileName.map { $0 as CKRecordValue }
         record["dateTried"] = entry.dateTried.map { $0 as CKRecordValue }
         record["linkedScanId"] = entry.linkedScanId.map { $0.uuidString as CKRecordValue }
+        attachPhotoAsset(record, photoFileName: entry.photoFileName)
     }
 
     private func journalEntryFrom(_ record: CKRecord) -> JournalEntry? {
@@ -288,6 +332,7 @@ final class CloudKitSyncService {
         )
         entry.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? entry.dateLogged
         entry.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1
+        materializePhotoAsset(record, photoFileName: entry.photoFileName)
         return entry
     }
 }

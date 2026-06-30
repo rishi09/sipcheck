@@ -165,12 +165,29 @@ class ScanStore: ObservableObject {
     }
 
     /// Inject sample scans for testing. Idempotent — skips any already present by ID.
+    /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
+    /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).
     func seedSampleData() {
         let existing = Set(scans.map { $0.id })
         let fresh = Self.seedScans.filter { !existing.contains($0.id) }
         guard !fresh.isEmpty else { return }
-        for scan in fresh { addScan(scan) }
+        for scan in fresh { insertSeed(scan) }
     }
+
+    /// Insert a seed record that can never win last-write-wins (back-dated).
+    private func insertSeed(_ scan: Scan) {
+        var s = scan
+        s.timestamp = Self.seedDate
+        s.lastModifiedLocal = Self.seedDate
+        s.isDeleted = false
+        tombstones.removeAll { $0.id == s.id }
+        scans.insert(s, at: 0)
+        saveScans()
+        CloudKitSyncService.shared.save(s)
+    }
+
+    /// Fixed timestamp far in the past so seed records always lose last-write-wins.
+    static let seedDate = Date(timeIntervalSince1970: 0)
 
     // MARK: - Seed Data
 

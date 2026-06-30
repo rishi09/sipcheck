@@ -5,11 +5,14 @@ struct AddBeerPrefill {
     var name: String = ""
     var style: String = BeerStyle.other.rawValue
     var abv: Double? = nil
+    /// When this log originated from a scan, the scan's id so the two can be linked.
+    var scanId: UUID? = nil
 }
 
 struct AddBeerView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
     @EnvironmentObject private var journalStore: JournalStore
+    @EnvironmentObject private var scanStore: ScanStore
     @Environment(\.dismiss) private var dismiss
 
     var prefill: AddBeerPrefill?
@@ -208,12 +211,21 @@ struct AddBeerView: View {
                 abv: abv,
                 rating: journalRating,
                 notes: notes.isEmpty ? nil : notes,
-                photoFileName: photoFileName
+                photoFileName: photoFileName,
+                linkedScanId: prefill?.scanId
             )
 
             await MainActor.run {
                 drinkStore.addDrink(drink)
                 journalStore.addEntry(entry)
+                // If this log came from a scan, link the two and clear its
+                // want-to-try flag so it leaves the Journal's Want to Try list.
+                if let scanId = prefill?.scanId,
+                   var scan = scanStore.scans.first(where: { $0.id == scanId }) {
+                    scan.linkedJournalId = entry.id
+                    scan.wantToTry = false
+                    scanStore.updateScan(scan)
+                }
                 dismiss()
             }
         }
@@ -225,5 +237,6 @@ struct AddBeerView_Previews: PreviewProvider {
         AddBeerView()
             .environmentObject(DrinkStore())
             .environmentObject(JournalStore())
+            .environmentObject(ScanStore())
     }
 }

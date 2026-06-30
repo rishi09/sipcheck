@@ -195,12 +195,29 @@ class DrinkStore: ObservableObject {
     }
 
     /// Inject sample drinks for testing. Idempotent — skips any already present by ID.
+    /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
+    /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).
     func seedSampleData() {
         let existing = Set(drinks.map { $0.id })
         let fresh = Self.seedDrinks.filter { !existing.contains($0.id) }
         guard !fresh.isEmpty else { return }
-        for drink in fresh { addDrink(drink) }
+        for drink in fresh { insertSeed(drink) }
     }
+
+    /// Insert a seed record that can never win last-write-wins (back-dated).
+    private func insertSeed(_ drink: Drink) {
+        var d = drink
+        d.dateAdded = Self.seedDate
+        d.lastModifiedLocal = Self.seedDate
+        d.isDeleted = false
+        tombstones.removeAll { $0.id == d.id }
+        drinks.insert(d, at: 0)
+        saveDrinks()
+        CloudKitSyncService.shared.save(d)
+    }
+
+    /// Fixed timestamp far in the past so seed records always lose last-write-wins.
+    static let seedDate = Date(timeIntervalSince1970: 0)
 
     // MARK: - Seed Data
 
