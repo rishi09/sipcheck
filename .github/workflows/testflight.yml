@@ -70,17 +70,18 @@ jobs:
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
         run: bundle exec fastlane beta --verbose
 
-      # Surface gym's detailed xcodebuild export error (it goes to log files, not
-      # the console) so signing failures can be diagnosed precisely.
-      - name: Dump gym logs on failure
+      # Surface the real export/signing error. xcodebuild -exportArchive writes its
+      # detailed failure to IDEDistribution.standard.log (usually under a temp dir),
+      # which is where the actual provisioning/certificate error lives.
+      - name: Dump export/signing logs on failure
         if: failure()
         run: |
           echo "===== gym logs ====="
           shopt -s nullglob
-          found=0
           for f in ~/Library/Logs/gym/*.log; do
-            found=1
-            echo "----- $f -----"
-            tail -150 "$f" 2>/dev/null
+            echo "----- $f -----"; tail -120 "$f" 2>/dev/null
           done
-          [ "$found" = "1" ] || echo "(no gym logs found)"
+          echo "===== IDEDistribution logs (the real export error) ====="
+          find ~/Library/Developer/Xcode /var/folders "$TMPDIR" -iname "IDEDistribution*.log" 2>/dev/null \
+            | while read -r f; do echo "----- $f -----"; cat "$f" 2>/dev/null; done
+          echo "===== done ====="
