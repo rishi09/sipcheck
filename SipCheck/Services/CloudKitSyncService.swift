@@ -11,18 +11,45 @@ final class CloudKitSyncService {
 
     private init() {}
 
+    /// Serializes CloudKit writes so a record's mutations apply in submission
+    /// order — an edit's save can't be overtaken by a later tombstone save, which
+    /// previously could resurrect/clobber a record (fire-and-forget Task.detached
+    /// had no ordering guarantee).
+    private actor WriteQueue {
+        private var tail: Task<Void, Never> = Task {}
+        func enqueue(_ op: @escaping () async -> Void) {
+            let prev = tail
+            tail = Task { await prev.value; await op() }
+        }
+    }
+    private let writeQueue = WriteQueue()
+
+    /// Enqueue a serialized save. On CKError.serverRecordChanged (a concurrent
+    /// writer changed the record between fetch and save), refetch the server
+    /// record, reapply our fields (local is authoritative), and retry once.
+    private func saveRecord(_ recordType: String, _ id: UUID, _ populate: @escaping (CKRecord) -> Void) {
+        Task { [self] in
+            await writeQueue.enqueue {
+                do {
+                    let record = try await self.fetchOrCreate(recordType: recordType, id: id)
+                    populate(record)
+                    try await self.db.save(record)
+                } catch let e as CKError where e.code == .serverRecordChanged {
+                    if let server = try? await self.db.record(for: CKRecord.ID(recordName: id.uuidString)) {
+                        populate(server)
+                        _ = try? await self.db.save(server)
+                    }
+                } catch {
+                    print("[CloudKit] save \(recordType) failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
     // MARK: - Drink
 
     func save(_ drink: Drink) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                let record = try await self.fetchOrCreate(recordType: "Drink", id: drink.id)
-                self.populate(record, from: drink)
-                try await self.db.save(record)
-            } catch {
-                print("[CloudKit] save Drink failed: \(error.localizedDescription)")
-            }
-        }
+        saveRecord("Drink", drink.id) { [self] record in populate(record, from: drink) }
     }
 
     func fetchAllDrinks() async -> [Drink] {
@@ -37,15 +64,7 @@ final class CloudKitSyncService {
     // MARK: - Scan
 
     func save(_ scan: Scan) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                let record = try await self.fetchOrCreate(recordType: "Scan", id: scan.id)
-                self.populate(record, from: scan)
-                try await self.db.save(record)
-            } catch {
-                print("[CloudKit] save Scan failed: \(error.localizedDescription)")
-            }
-        }
+        saveRecord("Scan", scan.id) { [self] record in populate(record, from: scan) }
     }
 
     func fetchAllScans() async -> [Scan] {
@@ -60,15 +79,7 @@ final class CloudKitSyncService {
     // MARK: - JournalEntry
 
     func save(_ entry: JournalEntry) {
-        Task.detached(priority: .background) { [self] in
-            do {
-                let record = try await self.fetchOrCreate(recordType: "JournalEntry", id: entry.id)
-                self.populate(record, from: entry)
-                try await self.db.save(record)
-            } catch {
-                print("[CloudKit] save JournalEntry failed: \(error.localizedDescription)")
-            }
-        }
+        saveRecord("JournalEntry", entry.id) { [self] record in populate(record, from: entry) }
     }
 
     func fetchAllJournalEntries() async -> [JournalEntry] {
