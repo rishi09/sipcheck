@@ -150,7 +150,7 @@ private struct BeerPickerPage: View {
                 }
 
                 // CTA
-                VStack(spacing: 10) {
+                VStack(spacing: 18) {
                     Button(action: advance) {
                         Text("Next →")
                             .font(.headline)
@@ -166,10 +166,11 @@ private struct BeerPickerPage: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.bottom, 8)
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.top, 8)
+                // Clear the TabView page-indicator dots + home indicator.
+                .padding(.bottom, 44)
                 .background(
                     // Subtle gradient to blend with scroll content
                     LinearGradient(
@@ -230,10 +231,6 @@ private struct TasteQuizPage: View {
         selectedVibe != nil && selectedAdventure != nil
     }
 
-    private var ctaLabel: String {
-        hasRequiredSelections ? "See My First Picks" : "Skip for now"
-    }
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
@@ -276,18 +273,26 @@ private struct TasteQuizPage: View {
                     selectedMulti: $selectedDislikes
                 )
 
-                // CTA
-                Button(action: saveAndContinue) {
-                    Text(ctaLabel)
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.accentColor)
-                        .cornerRadius(14)
+                // CTA — a clear primary submit plus a distinct Skip.
+                VStack(spacing: 18) {
+                    Button(action: saveAndContinue) {
+                        Text(hasRequiredSelections ? "See My Picks" : "Get Started")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.accentColor)
+                            .cornerRadius(14)
+                    }
+
+                    Button(action: saveAndContinue) {
+                        Text("Skip for now")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .padding(.top, 8)
-                .padding(.bottom, 60)
+                .padding(.bottom, 44)
             }
             .padding(.horizontal, 24)
         }
