@@ -24,28 +24,37 @@
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
   .muted{color:var(--muted);font-size:14px}
 
-  /* tappable beer flip card */
-  .beer{
+  /* tappable beer card — pure CSS via <details>, no JS */
+  details.beer{
     background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:16px;padding:18px;margin:14px 0;cursor:pointer;position:relative;
-    transition:transform .12s ease, border-color .2s;user-select:none;
+    border-radius:16px;padding:0;margin:14px 0;overflow:hidden;transition:border-color .2s;
   }
-  .beer:active{transform:scale(.98)}
-  .beer .tag{position:absolute;top:12px;right:14px;font-size:11px;color:var(--muted)}
-  .beer .name{font-size:20px;font-weight:700;margin:2px 0 6px}
-  .beer .line{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--gold);
-    background:#0e0a04;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:10px 0}
+  details.beer[open]{border-color:var(--amber)}
+  summary{
+    list-style:none;cursor:pointer;padding:18px;position:relative;user-select:none;
+  }
+  summary::-webkit-details-marker{display:none}
+  summary:active{background:rgba(245,166,35,.06)}
+  .name{font-size:20px;font-weight:700;margin:0 0 8px;display:block}
+  .chev{position:absolute;top:16px;right:16px;font-size:12px;color:var(--amber);
+    font-weight:700;border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+  details.beer[open] .chev::after{content:"tap to hide ↺"}
+  details.beer:not([open]) .chev::after{content:"tap to reveal →"}
+  .reveal{padding:0 18px 18px;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+  .line{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--gold);
+    background:#0e0a04;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:0 0 10px}
   .verdict{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15px;
-    padding:7px 13px;border-radius:999px;margin-top:6px}
+    padding:7px 13px;border-radius:999px}
   .v-unknown{background:#3a3320;color:var(--gold)}
   .v-order{background:rgba(78,201,138,.16);color:var(--green)}
-  .hint{font-size:12px;color:var(--muted);margin-top:12px;display:flex;align-items:center;gap:6px}
-  .hidden{display:none}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px}
+  details.beer[open] summary .hint{display:none}
 
   /* the 57/43 bar */
   .bar{display:flex;height:38px;border-radius:12px;overflow:hidden;margin:10px 0;font-size:12.5px;font-weight:700}
-  .bar .yes{background:linear-gradient(90deg,#f5a623,#e0883a);color:#231703;flex:57;display:flex;align-items:center;justify-content:center}
-  .bar .no{background:#3a2c14;color:var(--gold);flex:43;display:flex;align-items:center;justify-content:center}
+  .bar .yes{background:linear-gradient(90deg,#f5a623,#e0883a);color:#231703;flex:57;display:flex;align-items:center;justify-content:center;text-align:center}
+  .bar .no{background:#3a2c14;color:var(--gold);flex:43;display:flex;align-items:center;justify-content:center;text-align:center}
   .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
   .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 
@@ -72,43 +81,43 @@
 
   <div class="step">Phase 0 · the one thing left to prove</div>
   <h1>The gap 🍺 &amp; how the phone closes it</h1>
-  <p class="sub">Tap the beer cards. You're seeing why a name isn't enough — and why a real camera fixes it.</p>
+  <p class="sub">Tap the beer cards to open them. You're seeing why a name isn't enough — and why a real camera fixes it.</p>
 
   <h2>1 · What our test could see</h2>
-  <p class="muted">Our simulation only had the beer's <b>name</b>. Tap to reveal the style:</p>
+  <p class="muted">Our simulation only had the beer's <b>name</b>. Tap to reveal the real style:</p>
 
-  <div class="beer" onclick="flip(this)">
-    <span class="tag">tap →</span>
-    <div class="name">Two Hearted</div>
-    <div class="face front">
+  <details class="beer">
+    <summary>
+      <span class="chev"></span>
+      <span class="name">Two Hearted</span>
       <span class="verdict v-unknown">🤷 your call — can't tell the style</span>
-      <div class="hint">👆 The name hides that it's an IPA</div>
-    </div>
-    <div class="face back hidden">
+      <div class="hint">👆 the name hides that it's an IPA</div>
+    </summary>
+    <div class="reveal">
       <div class="line">actually → American IPA · 7.0%</div>
       <span class="verdict v-order">👍 order this — matches your IPAs</span>
     </div>
-  </div>
+  </details>
 
-  <div class="beer" onclick="flip(this)">
-    <span class="tag">tap →</span>
-    <div class="name">Old Rasputin</div>
-    <div class="face front">
+  <details class="beer">
+    <summary>
+      <span class="chev"></span>
+      <span class="name">Old Rasputin</span>
       <span class="verdict v-unknown">🤷 your call — can't tell the style</span>
-      <div class="hint">👆 Sounds like… a person?</div>
-    </div>
-    <div class="face back hidden">
+      <div class="hint">👆 sounds like… a person?</div>
+    </summary>
+    <div class="reveal">
       <div class="line">actually → Russian Imperial Stout · 9.0%</div>
       <span class="verdict v-order">👍 order this — you love stouts</span>
     </div>
-  </div>
+  </details>
 
   <h2>2 · The gap, in one bar</h2>
   <div class="card">
     <p class="muted" style="margin-top:0">How often the <b>name alone</b> reveals the style, across 2,410 real beers:</p>
     <div class="bar">
-      <div class="yes">57% — name gives it away</div>
-      <div class="no">43% — name hides it</div>
+      <div class="yes">57% · name gives it away</div>
+      <div class="no">43% · name hides it</div>
     </div>
     <div class="legend">
       <span><span class="dot" style="background:#f5a623"></span>confident (88.9% right when it commits)</span>
@@ -147,15 +156,7 @@
     <div class="pass">✅ If both work → the whole "fast, free, instant" plan is de-risked. Green light to build.</div>
   </div>
 
-  <p class="foot">SipCheck · Phase-0 spike · tap any beer card to flip it</p>
+  <p class="foot">SipCheck · Phase-0 spike · tap a beer card to open it</p>
 
-<script>
-  function flip(el){
-    el.querySelector('.front').classList.toggle('hidden');
-    el.querySelector('.back').classList.toggle('hidden');
-    var tag = el.querySelector('.tag');
-    tag.textContent = el.querySelector('.back').classList.contains('hidden') ? 'tap →' : '↺ tap back';
-  }
-</script>
 </body>
 </html>
