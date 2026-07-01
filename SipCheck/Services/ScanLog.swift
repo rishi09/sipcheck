@@ -17,6 +17,37 @@ struct ScanEvent: Codable {
     let latencyMs: Int
     /// Which entry point produced this scan: "image" or "text".
     let path: String
+
+    // Device context — stamped automatically so notes from different test
+    // devices stay legible (e.g. iPhone 14 Pro, which can't run Foundation
+    // Models, vs iPhone 15 Pro, which can). Defaulted so call sites are unchanged.
+    /// Hardware id, e.g. "iPhone16,1" (15 Pro) vs "iPhone15,2" (14 Pro).
+    let deviceModel: String = DeviceInfo.machineIdentifier
+    let osVersion: String = DeviceInfo.osVersion
+    let appBuild: String = DeviceInfo.appBuild
+}
+
+/// Lightweight device/build context for scan telemetry. Foundation only.
+enum DeviceInfo {
+    /// Hardware identifier string from `uname` (e.g. "iPhone16,1").
+    /// Apple-Intelligence capability is derivable from this at triage time.
+    static let machineIdentifier: String = {
+        var sys = utsname()
+        uname(&sys)
+        let chars = Mirror(reflecting: sys.machine).children
+            .compactMap { $0.value as? Int8 }
+            .prefix { $0 != 0 }
+            .map { Character(UnicodeScalar(UInt8($0))) }
+        return String(chars)
+    }()
+
+    static let osVersion: String = ProcessInfo.processInfo.operatingSystemVersionString
+
+    static let appBuild: String = {
+        let v = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let b = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        return "\(v) (\(b))"
+    }()
 }
 
 /// Diagnostic logger for the scan pipeline.
@@ -73,7 +104,8 @@ final class ScanLog {
         src=\(event.source, privacy: .public) \
         verdict=\(event.verdict, privacy: .public) \
         score=\(event.score, privacy: .public) \
-        \(event.latencyMs, privacy: .public)ms
+        \(event.latencyMs, privacy: .public)ms \
+        dev=\(event.deviceModel, privacy: .public)
         """)
 
         // (b) + (c) Append to the ring buffer and persist, off the main thread.
@@ -104,7 +136,8 @@ final class ScanLog {
                 + "style=\(e.style ?? "-") abv=\(abv) "
                 + "src=\(e.source) verdict=\(e.verdict) "
                 + "score=\(String(format: "%.2f", e.score)) "
-                + "\(e.latencyMs)ms"
+                + "\(e.latencyMs)ms "
+                + "dev=\(e.deviceModel) os=\(e.osVersion) build=\(e.appBuild)"
         }.joined(separator: "\n")
     }
 
