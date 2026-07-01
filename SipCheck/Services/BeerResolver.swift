@@ -134,6 +134,10 @@ enum BeerResolver {
 /// fuzzy name lookups entirely on-device. This is the default resolver source.
 final class BundledCatalog: BeerCatalog {
 
+    /// Shared, app-bundle-backed instance used by the instant scan path.
+    /// Decodes `catalog.json` from `Bundle.main` once and answers on-device.
+    static let shared = BundledCatalog()
+
     /// One row of the bundled catalog. Mirrors `plans/prototypes/data/catalog.json`.
     private struct Entry: Decodable {
         let name: String

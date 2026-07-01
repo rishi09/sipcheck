@@ -29,6 +29,12 @@ Show the verdict from whatever we have *now*; refine asynchronously. Never block
 
 **Phase-1 code (built, pure, standalone):** `SipCheck/Services/TasteScorer.swift` (instant verdict from taste library), `SipCheck/Services/MenuParser.swift` (menu → single winner), `SipCheck/Services/BeerResolver.swift` (the fusion above). Device-only spike (live DataScanner + Foundation Models) is the remaining unproven part.
 
+**Test devices & capability (for triangulating field notes):**
+- **iPhone 15 Pro** (A17 Pro) — Apple-Intelligence capable → **Foundation Models available** (full on-device AI verdict).
+- **iPhone 14 Pro** (A16) — **NOT** Apple-Intelligence capable → **no Foundation Models**; falls back to the heuristic `TasteScorer` verdict. Same beer may get different verdict *wording/quality* here vs the 15 Pro — this is expected, not a bug.
+- User drives Claude Code from the Claude iOS app (iPhone 14 Pro) or a MacBook Pro. Data syncs across devices via CloudKit (last-write-wins), so taste history is shared.
+- `ScanLog` stamps each event with device model + iOS + build + whether Foundation Models is available, so per-device behavior is legible.
+
 **Deferred (revisit after real-scan testing):** the catalog is text-only by design — no label images. Skip both UI thumbnails and Vivino-style **visual label matching** for now; only build them if real scans show the text-recognition path misses too often. Open image sources are cataloged in `plans/prototypes/data/IMAGE_LIBRARIES.md` if/when we return.
 
 ## Build Commands
