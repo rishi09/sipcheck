@@ -1,5 +1,13 @@
 # Phase-1 On-Device Verdict — Integration Guide
 
+> **Verified against merged `main` (94805b3, post-PR #1 / CloudKit+CI merge).**
+> The pbxproj anchors (`A5000006` Services group, `B6000001` Sources phase) still
+> exist and the new file IDs below (`F1000002`/`F2000002`/`F1000003`/`F2000003`)
+> are still unused — the file-add steps apply as written. `CheckTabView`'s scan
+> flow (`runScan → buildScan → currentScan → VerdictCardView`) is structurally
+> unchanged by the MVP merge, so the wiring insertion points below still hold;
+> line numbers may differ slightly after the MVP's UI polish.
+
 This document describes how to wire the new instant, on-device verdict engine
 into the SipCheck Xcode project and scan flow.
 
