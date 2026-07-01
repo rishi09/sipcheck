@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0f">
+<title>SipCheck — 3 Redesign Variants</title>
+<style>
+  :root{
+    --sf: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    --rounded: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, sans-serif;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html{ scroll-behavior:smooth; }
+  body{
+    font-family:var(--sf);
+    background:#0a0a0c;
+    color:#e9e6e0;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    padding-bottom:60px;
+  }
+  a{ color:inherit; }
+
+  /* ---- sticky variant nav ---- */
+  .topnav{
+    position:sticky; top:0; z-index:50;
+    display:flex; gap:6px; padding:10px 12px;
+    background:rgba(12,12,14,.82); backdrop-filter:blur(18px);
+    border-bottom:1px solid rgba(255,255,255,.08);
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
+  }
+  .topnav a{
+    flex:0 0 auto; font-size:12.5px; font-weight:600; text-decoration:none;
+    padding:7px 13px; border-radius:20px; white-space:nowrap;
+    background:rgba(255,255,255,.06); color:#c9c6c0;
+    border:1px solid rgba(255,255,255,.07);
+  }
+  .topnav a.home{ background:rgba(255,255,255,.12); color:#fff; }
+
+  .wrap{ max-width:820px; margin:0 auto; padding:0 16px; }
+
+  /* ---- intro ---- */
+  header.hero{ padding:34px 16px 8px; max-width:820px; margin:0 auto; }
+  .kicker{ font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:#8a8780; font-weight:700; }
+  header.hero h1{ font-family:var(--rounded); font-size:32px; font-weight:800; letter-spacing:-.02em; margin:8px 0 10px; }
+  header.hero p{ font-size:15px; color:#b7b3ac; max-width:640px; }
+  .diag{
+    margin:20px auto; max-width:820px;
+    background:linear-gradient(160deg,#181513,#111114);
+    border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:18px 18px 6px;
+  }
+  .diag h3{ font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:#e8a427; margin-bottom:10px; }
+  .diag ul{ list-style:none; }
+  .diag li{ font-size:13.5px; color:#c4c0b9; padding:6px 0 6px 22px; position:relative; border-bottom:1px solid rgba(255,255,255,.05); }
+  .diag li:last-child{ border-bottom:none; }
+  .diag li:before{ content:"✕"; position:absolute; left:0; color:#c0463b; font-weight:700; }
+  .diag li b{ color:#e9e6e0; }
+
+  .principles{ max-width:820px; margin:0 auto 8px; padding:4px 0; }
+  .principles h3{ font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:#6fe3d6; margin:14px 0 10px; }
+  .pgrid{ display:grid; grid-template-columns:1fr; gap:8px; }
+  @media(min-width:620px){ .pgrid{ grid-template-columns:1fr 1fr; } }
+  .pcard{ background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:12px; padding:12px 14px; font-size:13px; color:#c4c0b9; }
+  .pcard b{ color:#efece6; display:block; margin-bottom:2px; font-size:13.5px; }
+
+  /* ---- variant world sections ---- */
+  section.world{ padding:38px 0 12px; margin-top:22px; border-top:1px solid rgba(255,255,255,.08); }
+  .whead{ max-width:820px; margin:0 auto; padding:0 16px; }
+  .wtag{ font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+  .whead h2{ font-family:var(--rounded); font-size:30px; font-weight:800; letter-spacing:-.02em; margin:6px 0 4px; }
+  .wsub{ font-size:15px; font-style:italic; color:#b7b3ac; margin-bottom:10px; }
+  .wpos{ font-size:13.5px; color:#c4c0b9; max-width:660px; }
+
+  .meta{ max-width:820px; margin:16px auto 0; padding:0 16px; display:grid; gap:14px; grid-template-columns:1fr; }
+  @media(min-width:620px){ .meta{ grid-template-columns:1fr 1fr; } }
+  .mcard{ background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:14px 16px; }
+  .mcard h4{ font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; color:#8a8780; margin-bottom:9px; }
+  .mcard p{ font-size:13px; color:#c4c0b9; }
+  .mcard ul{ list-style:none; }
+  .mcard li{ font-size:12.8px; color:#c4c0b9; padding:5px 0 5px 16px; position:relative; }
+  .mcard li:before{ content:"→"; position:absolute; left:0; color:#8a8780; }
+  .escape{ border-color:rgba(111,227,214,.3); background:linear-gradient(160deg,rgba(111,227,214,.06),rgba(255,255,255,.02)); }
+  .escape h4{ color:#6fe3d6; }
+  .escape li:before{ content:"✓"; color:#5fa85a; }
+
+  /* swatches */
+  .swatches{ display:flex; flex-wrap:wrap; gap:7px; }
+  .sw{ display:flex; align-items:center; gap:7px; font-size:11px; color:#b7b3ac; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:4px 8px 4px 4px; }
+  .sw i{ width:20px; height:20px; border-radius:5px; display:block; border:1px solid rgba(255,255,255,.15); }
+  .sw code{ font-size:10px; color:#8a8780; }
+
+  /* logo/icon preview */
+  .brandrow{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .appicon{ width:58px; height:58px; border-radius:14px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 18px rgba(0,0,0,.4); }
+
+  /* ---- phones ---- */
+  .phones{
+    display:flex; gap:18px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+    padding:22px 16px 8px; scroll-snap-type:x mandatory;
+  }
+  .phones::-webkit-scrollbar{ height:0; }
+  .pcol{ scroll-snap-align:center; flex:0 0 auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .plabel{ font-size:11.5px; color:#8a8780; font-weight:600; letter-spacing:.02em; }
+  .phone{
+    width:288px; height:604px; border-radius:44px; padding:11px;
+    background:#000; box-shadow:0 0 0 2px #2a2a2e, 0 22px 50px rgba(0,0,0,.6);
+    position:relative; flex:0 0 auto;
+  }
+  .notch{ position:absolute; top:11px; left:50%; transform:translateX(-50%); width:112px; height:26px; background:#000; border-radius:0 0 16px 16px; z-index:20; }
+  .screen{ width:100%; height:100%; border-radius:34px; overflow:hidden; position:relative; }
+  .scroll{ position:absolute; inset:0; overflow:hidden; }
+  .statusbar{ height:40px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 22px 4px; font-size:12px; font-weight:600; position:relative; z-index:15; }
+  .statusbar .r{ display:flex; gap:5px; align-items:center; font-size:11px; }
+  /* generic tabbar */
+  .tabbar{ position:absolute; bottom:0; left:0; right:0; height:74px; display:flex; padding-bottom:14px; z-index:15; backdrop-filter:blur(20px); }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:10px; font-weight:600; }
+  .tab svg{ width:23px; height:23px; }
+  .btn{ font-weight:700; text-align:center; border-radius:14px; }
+  .chip{ display:inline-block; border-radius:20px; font-size:11px; font-weight:600; padding:6px 12px; }
+
+  /* mug glyph reuse */
+  .glyph svg{ display:block; }
+
+  .foot{ max-width:820px; margin:26px auto 0; padding:0 16px; }
+  .rec{ background:linear-gradient(160deg,#14140f,#111114); border:1px solid rgba(232,164,39,.25); border-radius:16px; padding:18px; }
+  .rec h3{ font-family:var(--rounded); font-size:18px; font-weight:800; color:#e8a427; margin-bottom:8px; }
+  .rec p{ font-size:13.5px; color:#c4c0b9; margin-bottom:8px; }
+  .rec .rank{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+  .rec .rank div{ font-size:13px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); border-radius:10px; padding:8px 12px; }
+  .hint{ text-align:center; font-size:11.5px; color:#6a6862; padding:4px 16px 0; }
+  .endnote{ text-align:center; font-size:12px; color:#6a6862; padding:30px 16px 0; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a class="home" href="#top">SipCheck ↑</a>
+  <a href="#last-call">1 · Last Call</a>
+  <a href="#verdict">2 · Verdict</a>
+  <a href="#neon-pour">3 · Neon Pour</a>
+  <a href="#pick">Which to pick</a>
+</nav>
+
+<header class="hero" id="top">
+  <div class="kicker">Visual / UX polish · MVP feature set unchanged</div>
+  <h1>3 ways to make SipCheck feel crafted, not generated</h1>
+  <p>Three distinct design worlds — same 3 tabs, same flows, same features. Each fixes the "rough / AI-generated" feel. Swipe the phones sideways. Best viewed on your phone; tap a variant above to jump.</p>
+</header>
+
+<div class="wrap">
+  <div class="diag">
+    <h3>Why the current build reads "AI-generated"</h3>
+    <ul>
+      <li><b>Clinical teal on near-black</b> — the default "AI app" palette; reads like a fintech dashboard, not a beer app.</li>
+      <li><b>mug.fill SF Symbols as placeholders everywhere</b> — the single biggest "unfinished" tell. Gray 320pt photo blocks on the verdict card.</li>
+      <li><b>100% stock SF system font</b>, no wordmark, no app-icon identity.</li>
+      <li><b>Onboarding uses default iOS blue</b> (off-brand from screen one).</li>
+      <li><b>No depth, no haptics, no celebration</b> — flat two-tone surfaces, static reveals.</li>
+    </ul>
+  </div>
+
+  <div class="principles">
+    <h3>The craft playbook (from Apple Design Award winners + Vivino / Yuka / Untappd)</h3>
+    <div class="pgrid">
+      <div class="pcard"><b>Commit to ONE opinionated world</b>Flighty borrowed airport boards, Lumy borrowed daylight. Specificity is the line between a point of view and a template.</div>
+      <div class="pcard"><b>Make the verdict human</b>Gentler Streak's whole win: turn data into a sentence. Pair TRY IT/SKIP IT/YOUR CALL with one warm reason line.</div>
+      <div class="pcard"><b>Color that means something</b>Lumy/Yuka: let the verdict color wash the whole result screen (green=try, amber=call, muted=skip).</div>
+      <div class="pcard"><b>Kill the stock placeholders</b>Real captured label photo as the hero; a designed fallback — never a gray rectangle with a dim mug.</div>
+      <div class="pcard"><b>One signature moment</b>Crouton/Dark Noise: a distinct reveal + matched haptic beats many mediocre animations. This is the scan→verdict beat.</div>
+      <div class="pcard"><b>Hand-made details = the last 5%</b>Custom app icon, real wordmark, a beer-glass mark with expressions, an empty-state illustration. Signals a human cared.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================= -->
+<!-- VARIANT 1 — LAST CALL -->
+<!-- ============================================================= -->
+<section class="world" id="last-call" style="background:linear-gradient(180deg,#17130e 0%,#0a0a0c 70%);">
+  <div class="whead">
+    <div class="wtag" style="color:#e8a427;">Variant 1 — the recommended default</div>
+    <h2 style="color:#f6efe2;">Last Call</h2>
+    <div class="wsub" style="color:#e8a427;">"Snap it. We'll tell you if it's worth the pour."</div>
+    <p class="wpos">The bartender who already knows what you like. Warm glass-of-lager gold on brown-black, frosted-glass cards over wood-dark surfaces, copy that talks like someone leaning across the bar. The coziest, most on-category world — makes teal-on-black look like a spreadsheet.</p>
+  </div>
+
+  <div class="meta">
+    <div class="mcard">
+      <h4>Palette</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#17130e"></i>Taproom <code>#17130E</code></span>
+        <span class="sw"><i style="background:#241d16"></i>Oak <code>#241D16</code></span>
+        <span class="sw"><i style="background:#2e2519"></i>Raised Oak <code>#2E2519</code></span>
+        <span class="sw"><i style="background:#e8a427"></i>Lager Gold <code>#E8A427</code></span>
+        <span class="sw"><i style="background:#f6efe2"></i>Cream <code>#F6EFE2</code></span>
+        <span class="sw"><i style="background:#5fa85a"></i>Malt Green <code>#5FA85A</code></span>
+        <span class="sw"><i style="background:#c0463b"></i>Brick <code>#C0463B</code></span>
+      </div>
+    </div>
+    <div class="mcard escape">
+      <h4>How it escapes the AI look</h4>
+      <ul>
+        <li>Warm gold-on-brown is instantly "a beer app," not a dashboard</li>
+        <li>SF Pro Rounded Heavy becomes a free wordmark identity — no stock-font feel</li>
+        <li>Real label photo + amber line-art fallback kills the gray placeholder</li>
+        <li>Spring verdict reveal + meaning-mapped haptic = a hand-made moment</li>
+      </ul>
+    </div>
+    <div class="mcard">
+      <h4>Typography &amp; identity</h4>
+      <p><b style="color:#e9e6e0;">Display:</b> SF Pro Rounded, Heavy — verdict word, titles, wordmark, stat numbers (tracking −0.5). <b style="color:#e9e6e0;">Body:</b> SF Pro. All via Dynamic Type text styles.</p>
+      <div class="brandrow" style="margin-top:12px;">
+        <div class="appicon" style="background:radial-gradient(circle at 35% 30%,#e8a427,#b87a16);">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M6 8h9a3 3 0 013 3v0a3 3 0 01-3 3h-1" stroke="#17130e" stroke-width="2"/><path d="M6 6h9v11a3 3 0 01-3 3H9a3 3 0 01-3-3V6z" fill="#17130e"/><path d="M8 11l2.2 2.2L15 9" stroke="#f6efe2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div style="font-family:var(--rounded); font-weight:800; font-size:24px; color:#f6efe2; letter-spacing:-.02em;">sip<span style="color:#e8a427;">check</span></div>
+          <div style="font-size:11px; color:#9a9088;">foam-bubble dot over a checkmark = mug rim</div>
+        </div>
+      </div>
+    </div>
+    <div class="mcard">
+      <h4>End-to-end flow polish</h4>
+      <ul>
+        <li>Verdict word springs in over the real label photo; haptic fires the instant it lands</li>
+        <li>Follow-up sheet inherits the warm world &amp; voice ("Did you actually grab it?")</li>
+        <li>Rating save → malt-green success haptic; new beer slides onto the Journal board</li>
+        <li>Onboarding: gold .tint everywhere, line-art illustrations from slide one</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hint">← swipe the phones →</div>
+  <div class="phones">
+
+    <!-- LC Screen 1: Check empty -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#17130e; font-family:var(--sf);">
+        <div class="statusbar" style="color:#f6efe2;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+        <div style="height:100%; display:flex; flex-direction:column; align-items:center; padding:0 26px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px;">
+            <div style="width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(232,164,39,.16),transparent 70%); display:flex; align-items:center; justify-content:center;">
+              <svg width="72" height="72" viewBox="0 0 24 24" fill="none"><path d="M6 7h10v11a3 3 0 01-3 3H9a3 3 0 01-3-3V7z" stroke="#f6efe2" stroke-width="1.4"/><path d="M16 9h1.5a2.5 2.5 0 010 5H16" stroke="#f6efe2" stroke-width="1.4"/><path d="M8 5.5c0-.8 1-1.2 1.8-.7M11 5c.2-.9 1.3-1 1.9-.3" stroke="#e8a427" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:var(--rounded); font-weight:800; font-size:25px; color:#f6efe2; letter-spacing:-.01em;">What are you drinking?</div>
+              <div style="font-size:13.5px; color:#9a9088; margin-top:8px; line-height:1.45;">Point it at a label. We'll tell you if it's worth the pour.</div>
+            </div>
+          </div>
+          <div style="width:100%; margin-bottom:100px;">
+            <div class="btn" style="background:#e8a427; color:#17130e; padding:15px; font-size:16px; box-shadow:0 10px 22px rgba(232,164,39,.28);">📷&nbsp; Scan a Label</div>
+            <div style="text-align:center; color:#e8a427; font-size:13.5px; font-weight:600; margin-top:16px;">or type it in</div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(36,29,22,.7); border-top:1px solid rgba(255,255,255,.06);">
+          <div class="tab" style="color:#e8a427;"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/><path d="M8 6l1.5-2h5L16 6" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#6d655b;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#6d655b;"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Check — empty state</div>
+    </div>
+
+    <!-- LC Screen 2: Verdict Try It -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#17130e; font-family:var(--sf);">
+        <div class="scroll">
+          <!-- photo hero -->
+          <div style="height:250px; background:linear-gradient(160deg,#3a2c14,#241d16); position:relative; display:flex; align-items:center; justify-content:center;">
+            <div class="statusbar" style="color:#f6efe2; position:absolute; top:0; left:0; right:0;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+            <svg width="90" height="120" viewBox="0 0 24 30" fill="none" opacity=".9"><rect x="6" y="3" width="12" height="24" rx="2" stroke="#f6efe2" stroke-width="1" fill="#e8a42722"/><rect x="6" y="11" width="12" height="9" fill="#e8a42744"/><text x="12" y="17.5" font-size="3" fill="#f6efe2" text-anchor="middle" font-family="sans-serif">IPA</text></svg>
+            <div style="position:absolute; bottom:0; left:0; right:0; height:90px; background:linear-gradient(to bottom,transparent,#17130e);"></div>
+          </div>
+          <div style="padding:0 22px 120px; margin-top:-14px; position:relative;">
+            <div style="font-family:var(--rounded); font-weight:900; font-size:44px; color:#5fa85a; letter-spacing:-1px; line-height:1;">TRY IT</div>
+            <div style="font-size:13.5px; color:#c8c2b6; margin-top:8px;">About 8 in 10 you'll like this — it's your lane.</div>
+            <div style="font-family:var(--rounded); font-weight:800; font-size:22px; color:#f6efe2; margin-top:16px;">Hazy Little Thing</div>
+            <div style="font-size:13px; color:#9a9088; margin-top:3px;">Hazy IPA · 6.7% ABV · Sierra Nevada</div>
+            <div style="background:#2e2519; border:1px solid rgba(255,255,255,.07); border-radius:14px; padding:14px; margin-top:16px; font-size:13.5px; color:#dcd6ca; line-height:1.5;">
+              Juicy, citrus-forward and soft on the bitterness — exactly the hazy profile you keep rating 4★. Easy yes.
+            </div>
+            <div style="display:flex; align-items:center; gap:7px; margin-top:12px; font-size:12px; color:#9a9088;">📍 Chico, California · West Coast staple</div>
+            <div style="display:flex; gap:12px; margin-top:22px;">
+              <div class="btn" style="flex:1; border:2px solid #e8a427; color:#e8a427; padding:13px;">Save for later</div>
+              <div class="btn" style="flex:1; background:#e8a427; color:#17130e; padding:13px;">Scan another</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="plabel">Verdict — Try It</div>
+    </div>
+
+    <!-- LC Screen 3: Profile -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#17130e; font-family:var(--sf);">
+        <div class="scroll">
+          <div class="statusbar" style="color:#f6efe2;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+          <div style="padding:6px 20px 100px;">
+            <div style="display:flex; align-items:center; justify-content:center; position:relative;">
+              <div style="font-family:var(--rounded); font-weight:800; font-size:22px; color:#f6efe2;">My Profile</div>
+              <div style="position:absolute; right:0; color:#9a9088;">⚙︎</div>
+            </div>
+            <div style="display:flex; justify-content:center; margin-top:18px;">
+              <div style="display:inline-flex; align-items:center; gap:8px; background:#e8a427; color:#17130e; padding:10px 22px; border-radius:22px; font-family:var(--rounded); font-weight:800; font-size:16px; box-shadow:0 8px 20px rgba(232,164,39,.3);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 7h10v11a3 3 0 01-3 3H9a3 3 0 01-3-3V7z" stroke="#17130e" stroke-width="1.6"/><path d="M16 9h1.5a2.5 2.5 0 010 5H16" stroke="#17130e" stroke-width="1.6"/></svg>
+                Hop Head
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+              <div style="flex:1; background:#2e2519; border-radius:14px; padding:16px; text-align:center;"><div style="font-family:var(--rounded); font-weight:900; font-size:32px; color:#f6efe2;">47</div><div style="font-size:11px; color:#9a9088;">Beers logged</div></div>
+              <div style="flex:1; background:#2e2519; border-radius:14px; padding:16px; text-align:center;"><div style="font-family:var(--rounded); font-weight:900; font-size:32px; color:#e8a427;">18</div><div style="font-size:11px; color:#9a9088;">Loved</div></div>
+            </div>
+            <div style="font-family:var(--rounded); font-weight:700; font-size:15px; color:#f6efe2; margin:22px 0 12px;">Your top styles</div>
+            <div style="display:flex; flex-direction:column; gap:11px;">
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c4c0b9; margin-bottom:4px;"><span>Hazy IPA</span><span>38%</span></div><div style="height:8px; background:#241d16; border-radius:4px;"><div style="width:92%; height:100%; background:#e8a427; border-radius:4px;"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c4c0b9; margin-bottom:4px;"><span>West Coast IPA</span><span>24%</span></div><div style="height:8px; background:#241d16; border-radius:4px;"><div style="width:58%; height:100%; background:#e8a427; border-radius:4px;"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c4c0b9; margin-bottom:4px;"><span>Pilsner</span><span>15%</span></div><div style="height:8px; background:#241d16; border-radius:4px;"><div style="width:36%; height:100%; background:#e8a427; border-radius:4px;"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(36,29,22,.7); border-top:1px solid rgba(255,255,255,.06);">
+          <div class="tab" style="color:#6d655b;"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#6d655b;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#e8a427;"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Profile — persona hero</div>
+    </div>
+
+  </div>
+
+  <div class="meta"><div class="mcard" style="grid-column:1/-1;"><h4>Trade-off</h4><p>Abandoning teal loses current recognition and risks "every other brown brewery" if the illustration is weak. <b style="color:#e9e6e0;">Guardrail (from the critique):</b> launch on tinted SF Symbols for the fallback art; commission hand-drawn line-art as a post-launch pass. Keep gold strictly interactive so the app doesn't read muddy.</p></div></div>
+</section>
+
+
+<!-- ============================================================= -->
+<!-- VARIANT 2 — VERDICT -->
+<!-- ============================================================= -->
+<section class="world" id="verdict" style="background:linear-gradient(180deg,#111214 0%,#0a0a0c 70%);">
+  <div class="whead">
+    <div class="wtag" style="color:#37c9be;">Variant 2 — boldest hook</div>
+    <h2 style="color:#f5f3f0;">Verdict</h2>
+    <div class="wsub" style="color:#37c9be;">"TRY IT. SKIP IT. YOUR CALL. Stamped."</div>
+    <p class="wpos">SipCheck as a fearless one-word review — the verdict is literally a rubber stamp slammed onto the label. Big editorial type, warm-paper blocks on neutral near-black, and an evolved teal kept only as the "seal" accent so long-time users still recognize it. The loudest, most print-inspired world.</p>
+  </div>
+
+  <div class="meta">
+    <div class="mcard">
+      <h4>Palette</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#111214"></i>Ink <code>#111214</code></span>
+        <span class="sw"><i style="background:#1c1e22"></i>Slate <code>#1C1E22</code></span>
+        <span class="sw"><i style="background:#ede6d8"></i>Warm Paper <code>#EDE6D8</code></span>
+        <span class="sw"><i style="background:#37c9be"></i>Stamp Teal <code>#37C9BE</code></span>
+        <span class="sw"><i style="background:#f2a93b"></i>Ale Amber <code>#F2A93B</code></span>
+        <span class="sw"><i style="background:#3dbe6b"></i>Try <code>#3DBE6B</code></span>
+        <span class="sw"><i style="background:#e5484d"></i>Skip <code>#E5484D</code></span>
+      </div>
+    </div>
+    <div class="mcard escape">
+      <h4>How it escapes the AI look</h4>
+      <ul>
+        <li>Warm-paper blocks on cool dark = a deliberate print contrast, not flat two-tone</li>
+        <li>Oversized condensed/expanded type gives real editorial character</li>
+        <li>The stamp graphic IS the illustration — no clip-art risk, no gray blocks</li>
+        <li>"Stamp thunk" reveal (scale + rotate + rigid haptic) is a signature moment</li>
+      </ul>
+    </div>
+    <div class="mcard">
+      <h4>Typography &amp; identity</h4>
+      <p><b style="color:#e9e6e0;">Display:</b> SF Pro Expanded Heavy, all-caps, tight tracking — verdict + headers. <b style="color:#e9e6e0;">Body:</b> SF Pro. The verdict lives inside a rubber-stamp seal, ≤3° rotation.</p>
+      <div class="brandrow" style="margin-top:12px;">
+        <div class="appicon" style="background:#111214; border:1px solid #2a2e33;">
+          <div style="width:40px; height:40px; border-radius:50%; border:3px solid #37c9be; display:flex; align-items:center; justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12l4.5 4.5L19 7" stroke="#f5f3f0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div>
+          <div style="font-weight:800; font-size:22px; color:#f5f3f0; letter-spacing:1px;">SIP<span style="color:#37c9be;">CHECK</span></div>
+          <div style="font-size:11px; color:#8a8b90;">a teal "approved" seal is the identity mark</div>
+        </div>
+      </div>
+    </div>
+    <div class="mcard">
+      <h4>End-to-end flow polish</h4>
+      <ul>
+        <li>Scanning phrases give way to the stamp slamming down + haptic thunk</li>
+        <li>Follow-up = a "file this verdict" sheet with stamp-style chips</li>
+        <li>Saved beers become filed "verdict cards" — Journal reads like a review archive</li>
+        <li>Onboarding: teal .tint + sample stamps on warm paper from slide one</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hint">← swipe the phones →</div>
+  <div class="phones">
+
+    <!-- V Screen 1: Check empty -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#111214; font-family:var(--sf);">
+        <div class="statusbar" style="color:#f5f3f0;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+        <div style="height:100%; display:flex; flex-direction:column; padding:8px 24px;">
+          <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+            <div style="font-weight:800; font-size:34px; line-height:1.02; letter-spacing:-.5px; color:#f5f3f0; text-transform:uppercase;">What<br>are you<br>drinking?</div>
+            <div style="font-size:14px; color:#9498a0; margin-top:14px;">Point the camera. We'll stamp it.</div>
+            <!-- ghost stamp watermark -->
+            <div style="align-self:flex-end; margin-top:26px; width:120px; height:120px; border-radius:50%; border:2px solid rgba(55,201,190,.18); display:flex; align-items:center; justify-content:center; transform:rotate(-8deg);">
+              <div style="font-weight:800; font-size:13px; color:rgba(55,201,190,.22); text-align:center; letter-spacing:1px;">SIP<br>CHECK<br>✓</div>
+            </div>
+          </div>
+          <div style="margin-bottom:100px;">
+            <div class="btn" style="background:#37c9be; color:#111214; padding:15px; border-radius:9px; font-size:15px; letter-spacing:.5px;">SCAN THE LABEL</div>
+            <div style="text-align:center; color:#37c9be; font-size:13px; font-weight:600; margin-top:15px; text-decoration:underline;">type it instead</div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(28,30,34,.75); border-top:1px solid rgba(255,255,255,.06);">
+          <div class="tab" style="color:#37c9be;"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#63666d;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#63666d;"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Check — empty state</div>
+    </div>
+
+    <!-- V Screen 2: Verdict Skip It -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#111214; font-family:var(--sf);">
+        <div class="scroll">
+          <div class="statusbar" style="color:#f5f3f0;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+          <!-- warm paper block with stamp -->
+          <div style="margin:10px 18px 0; height:216px; background:#ede6d8; border-radius:8px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+            <!-- corner ticks -->
+            <div style="position:absolute; top:10px; left:10px; width:16px; height:16px; border-top:2px solid #b9b1a1; border-left:2px solid #b9b1a1;"></div>
+            <div style="position:absolute; top:10px; right:10px; width:16px; height:16px; border-top:2px solid #b9b1a1; border-right:2px solid #b9b1a1;"></div>
+            <div style="position:absolute; bottom:10px; left:10px; width:16px; height:16px; border-bottom:2px solid #b9b1a1; border-left:2px solid #b9b1a1;"></div>
+            <div style="position:absolute; bottom:10px; right:10px; width:16px; height:16px; border-bottom:2px solid #b9b1a1; border-right:2px solid #b9b1a1;"></div>
+            <svg width="70" height="94" viewBox="0 0 24 30" fill="none" opacity=".18"><rect x="6" y="3" width="12" height="24" rx="2" fill="#111214"/></svg>
+            <!-- stamp seal -->
+            <div style="position:absolute; width:150px; height:150px; border-radius:50%; border:5px solid #e5484d; display:flex; align-items:center; justify-content:center; transform:rotate(-7deg); opacity:.92;">
+              <div style="font-weight:800; font-size:30px; color:#e5484d; letter-spacing:-.5px; text-transform:uppercase;">SKIP IT</div>
+            </div>
+          </div>
+          <div style="padding:16px 22px 40px;">
+            <div style="font-weight:800; font-size:24px; color:#f5f3f0; letter-spacing:-.3px;">Bud Light Lime</div>
+            <div style="font-size:13px; color:#9498a0; margin-top:3px;">Lager · 4.2% ABV</div>
+            <div style="font-size:13.5px; color:#cdd0d6; margin-top:10px;">Not your thing — 7 in 10 you'd bounce off it.</div>
+            <!-- confidence cue (reframed, no price data) -->
+            <div style="margin-top:16px;">
+              <div style="font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:#8a8b90; margin-bottom:6px;">Match confidence</div>
+              <div style="height:8px; background:#1c1e22; border-radius:4px;"><div style="width:22%; height:100%; background:#f2a93b; border-radius:4px;"></div></div>
+            </div>
+            <div style="background:#1c1e22; border-radius:12px; padding:14px; margin-top:16px; font-size:13.5px; color:#cdd0d6; line-height:1.5;">Light, corn-sweet and citrus-adjunct — the opposite of the hop-forward beers you rate highest.</div>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+              <div class="btn" style="flex:1; border:2px solid #37c9be; color:#37c9be; padding:12px; border-radius:9px; font-size:12px; letter-spacing:.4px;">SAVE FOR LATER</div>
+              <div class="btn" style="flex:1; background:#37c9be; color:#111214; padding:12px; border-radius:9px; font-size:12px; letter-spacing:.4px;">SCAN ANOTHER</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="plabel">Verdict — Skip It (stamp)</div>
+    </div>
+
+    <!-- V Screen 3: Journal -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#111214; font-family:var(--sf);">
+        <div class="scroll">
+          <div class="statusbar" style="color:#f5f3f0;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+          <div style="padding:6px 18px 100px;">
+            <div style="font-weight:800; font-size:26px; color:#f5f3f0; letter-spacing:.5px; text-transform:uppercase;">My Beers</div>
+            <div style="display:flex; align-items:center; gap:8px; background:#1c1e22; border-radius:10px; padding:10px 12px; margin-top:14px; color:#8a8b90; font-size:13px;">🔍 Search your beers…</div>
+            <div style="display:flex; gap:8px; margin-top:12px; overflow:hidden;">
+              <span class="chip" style="background:#37c9be; color:#111214;">ALL</span>
+              <span class="chip" style="border:1px solid #3a3e44; color:#9498a0;">LOVED</span>
+              <span class="chip" style="border:1px solid #3a3e44; color:#9498a0;">OK</span>
+              <span class="chip" style="border:1px solid #3a3e44; color:#9498a0;">NOT FOR ME</span>
+            </div>
+            <div style="font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#37c9be; margin:20px 0 10px; font-weight:700;">Want to try</div>
+            <div style="display:flex; gap:10px; overflow:hidden;">
+              <div style="flex:0 0 110px; height:130px; background:#1c1e22; border-radius:12px; position:relative; overflow:hidden;"><div style="height:80px; background:linear-gradient(160deg,#2a2e33,#1c1e22);"></div><div style="position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:50%; border:2px solid #37c9be; display:flex; align-items:center; justify-content:center;"><span style="color:#37c9be; font-size:11px;">✓</span></div><div style="padding:8px; font-size:12px; color:#e9e6e0; font-weight:600;">Pliny the Elder</div></div>
+              <div style="flex:0 0 110px; height:130px; background:#1c1e22; border-radius:12px; overflow:hidden;"><div style="height:80px; background:linear-gradient(160deg,#33302a,#1c1e22);"></div><div style="padding:8px; font-size:12px; color:#e9e6e0; font-weight:600;">Allagash White</div></div>
+            </div>
+            <div style="font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:#f5f3f0; margin:20px 0 10px; font-weight:700;">Tried · 47</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; align-items:center; gap:12px; background:#1c1e22; border-radius:12px; padding:11px;">
+                <div style="width:34px; height:34px; border-radius:50%; border:2.5px solid #3dbe6b; display:flex; align-items:center; justify-content:center; color:#3dbe6b; font-size:14px;">✓</div>
+                <div style="flex:1;"><div style="font-size:14px; color:#f5f3f0; font-weight:600;">Hazy Little Thing</div><div style="font-size:11px; color:#f2a93b;">★★★★★</div></div>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; background:#1c1e22; border-radius:12px; padding:11px;">
+                <div style="width:34px; height:34px; border-radius:50%; border:2.5px solid #e5484d; display:flex; align-items:center; justify-content:center; color:#e5484d; font-size:12px;">✕</div>
+                <div style="flex:1;"><div style="font-size:14px; color:#f5f3f0; font-weight:600;">Bud Light Lime</div><div style="font-size:11px; color:#f2a93b;">★★☆☆☆</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(28,30,34,.75); border-top:1px solid rgba(255,255,255,.06);">
+          <div class="tab" style="color:#63666d;"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#37c9be;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#63666d;"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Journal — filed verdicts</div>
+    </div>
+
+  </div>
+
+  <div class="meta"><div class="mcard" style="grid-column:1/-1;"><h4>Trade-off</h4><p>Bold type + rotated stamps are polarizing and can feel gimmicky if the texture isn't tasteful — keep rotation ≤3° and the seal clean. Keeping teal is off-category for beer, so amber must work hard to signal "beer." <b style="color:#e9e6e0;">Critique fix applied:</b> the original "price value meter" was scope creep (the app has no price data) — reframed here as a <b style="color:#e9e6e0;">match-confidence cue</b>, which the verdict engine already produces.</p></div></div>
+</section>
+
+
+<!-- ============================================================= -->
+<!-- VARIANT 3 — NEON POUR -->
+<!-- ============================================================= -->
+<section class="world" id="neon-pour" style="background:linear-gradient(180deg,#0e0e11 0%,#0a0a0c 70%);">
+  <div class="whead">
+    <div class="wtag" style="color:#ffbe3d;">Variant 3 — most premium / lowest build risk</div>
+    <h2 style="color:#f4f1ec;">Neon Pour</h2>
+    <div class="wsub" style="color:#ffbe3d;">"Saved. Come back thirsty."</div>
+    <p class="wpos">SipCheck as a dark, upscale tasting room: deep charcoal-stout, frosted-glass cards, one electric amber accent that glows like a pour under warm light. Leans fully into iOS materials + depth to erase the clinical flatness — with a whisper of the old teal kept for links. The "nice bar at night" of the three.</p>
+  </div>
+
+  <div class="meta">
+    <div class="mcard">
+      <h4>Palette</h4>
+      <div class="swatches">
+        <span class="sw"><i style="background:#0e0e11"></i>Stout <code>#0E0E11</code></span>
+        <span class="sw"><i style="background:#191922"></i>Glass <code>#191922</code></span>
+        <span class="sw"><i style="background:#241a12"></i>Espresso <code>#241A12</code></span>
+        <span class="sw"><i style="background:#ffbe3d"></i>Neon Amber <code>#FFBE3D</code></span>
+        <span class="sw"><i style="background:#6fe3d6"></i>Teal Whisper <code>#6FE3D6</code></span>
+        <span class="sw"><i style="background:#43d17a"></i>Try <code>#43D17A</code></span>
+        <span class="sw"><i style="background:#ff5a54"></i>Skip <code>#FF5A54</code></span>
+      </div>
+    </div>
+    <div class="mcard escape">
+      <h4>How it escapes the AI look</h4>
+      <ul>
+        <li>Real materials, hairline borders &amp; soft glows create true elevation tiers</li>
+        <li>iOS 26 Liquid Glass on nav/CTA (with iOS 17 material fallback) = feels current</li>
+        <li>Espresso→charcoal gradient + grain replaces every flat gray block</li>
+        <li>Glow-bloom verdict reveal + sensory haptic = the missing celebration beat</li>
+      </ul>
+    </div>
+    <div class="mcard">
+      <h4>Typography &amp; identity</h4>
+      <p><b style="color:#e9e6e0;">Display:</b> SF Pro Rounded Black — verdict word with a matched-color glow. <b style="color:#e9e6e0;">Body:</b> SF Pro. @ScaledMetric drives glow radius so the atmosphere scales with Dynamic Type.</p>
+      <div class="brandrow" style="margin-top:12px;">
+        <div class="appicon" style="background:linear-gradient(160deg,#241a12,#0e0e11);">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" style="filter:drop-shadow(0 0 6px #ffbe3d);"><path d="M5 12l4.5 4.5L20 6" stroke="#ffbe3d" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div style="font-family:var(--rounded); font-weight:800; font-size:23px; color:#f4f1ec;">sipcheck<span style="color:#ffbe3d; text-shadow:0 0 10px #ffbe3d;">✓</span></div>
+          <div style="font-size:11px; color:#8a8886;">glowing amber checkmark whose tail curves into a pour</div>
+        </div>
+      </div>
+    </div>
+    <div class="mcard">
+      <h4>End-to-end flow polish</h4>
+      <ul>
+        <li>Verdict pill blooms in with a matched-color glow + sensory haptic</li>
+        <li>Follow-up = a glass sheet over the dimmed verdict (same nocturnal scene)</li>
+        <li>Rating stars glow per tap; saved beer glides in, glass row settles</li>
+        <li>Onboarding: amber .tint + glowing neon-line glassware on the gradient</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="hint">← swipe the phones →</div>
+  <div class="phones">
+
+    <!-- NP Screen 1: Check empty -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:linear-gradient(180deg,#241a12,#0e0e11 55%); font-family:var(--sf);">
+        <div class="statusbar" style="color:#f4f1ec;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+        <div style="height:100%; display:flex; flex-direction:column; align-items:center; padding:0 26px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px;">
+            <svg width="86" height="100" viewBox="0 0 24 28" fill="none" style="filter:drop-shadow(0 0 12px rgba(255,190,61,.55));"><path d="M6 7h10v14a3 3 0 01-3 3H9a3 3 0 01-3-3V7z" stroke="#ffbe3d" stroke-width="1.3"/><path d="M16 10h1.6a2.4 2.4 0 010 4.8H16" stroke="#ffbe3d" stroke-width="1.3"/><path d="M6 12h10" stroke="#ffbe3d" stroke-width="1" opacity=".5"/></svg>
+            <div style="text-align:center;">
+              <div style="font-family:var(--rounded); font-weight:800; font-size:24px; color:#f4f1ec;">What are you drinking?</div>
+              <div style="font-size:13.5px; color:#9a988f; margin-top:8px; line-height:1.45;">The aisle's dark. Point the camera, we'll light it up.</div>
+            </div>
+          </div>
+          <div style="width:100%; margin-bottom:100px;">
+            <div class="btn" style="background:rgba(255,190,61,.16); border:1px solid rgba(255,255,255,.12); color:#ffbe3d; padding:15px; font-size:16px; backdrop-filter:blur(10px); box-shadow:0 8px 26px rgba(255,190,61,.18);">📷&nbsp; Scan a Label</div>
+            <div style="text-align:center; color:#6fe3d6; font-size:13.5px; font-weight:600; margin-top:16px;">or just type it</div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(25,25,34,.6); border-top:1px solid rgba(255,255,255,.07);">
+          <div class="tab" style="color:#ffbe3d;"><svg viewBox="0 0 24 24" fill="none" style="filter:drop-shadow(0 0 5px rgba(255,190,61,.6));"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#5f5d5a;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#5f5d5a;"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Check — empty state</div>
+    </div>
+
+    <!-- NP Screen 2: Verdict Your Call -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#0e0e11; font-family:var(--sf);">
+        <div class="scroll">
+          <div style="height:240px; background:linear-gradient(160deg,#241a12,#0e0e11); position:relative; display:flex; align-items:center; justify-content:center;">
+            <div class="statusbar" style="color:#f4f1ec; position:absolute; top:0; left:0; right:0;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+            <!-- glass card holding label -->
+            <div style="width:130px; height:158px; border-radius:16px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; box-shadow:0 12px 30px rgba(0,0,0,.5);">
+              <svg width="66" height="90" viewBox="0 0 24 30" fill="none"><rect x="6" y="3" width="12" height="24" rx="2" stroke="#ffbe3d" stroke-width="1" opacity=".8"/><rect x="6" y="12" width="12" height="8" fill="rgba(255,190,61,.25)"/></svg>
+            </div>
+          </div>
+          <div style="padding:20px 22px 40px; text-align:center;">
+            <div style="display:inline-block; font-family:var(--rounded); font-weight:900; font-size:34px; color:#ffbe3d; letter-spacing:-.5px; text-shadow:0 0 22px rgba(255,190,61,.55);">YOUR CALL</div>
+            <div style="font-size:13.5px; color:#c2beb5; margin-top:10px;">Genuinely a toss-up for your taste — could go either way.</div>
+            <div style="font-family:var(--rounded); font-weight:800; font-size:21px; color:#f4f1ec; margin-top:16px;">Blue Moon Belgian White</div>
+            <div style="font-size:13px; color:#9a988f; margin-top:3px;">Witbier · 5.4% ABV</div>
+            <div style="background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:14px; margin-top:16px; font-size:13.5px; color:#d2cec5; line-height:1.5; text-align:left; backdrop-filter:blur(6px);">
+              Orange-peel and coriander, mild and wheaty. You lean hoppy, but you've liked easy-drinking wheats before — worth a shot.
+            </div>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+              <div class="btn" style="flex:1; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); color:#f4f1ec; padding:13px; backdrop-filter:blur(8px);">Save for later</div>
+              <div class="btn" style="flex:1; background:#ffbe3d; color:#0e0e11; padding:13px; box-shadow:0 8px 22px rgba(255,190,61,.3);">Scan another</div>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="plabel">Verdict — Your Call (glow)</div>
+    </div>
+
+    <!-- NP Screen 3: Profile -->
+    <div class="pcol">
+      <div class="phone"><div class="notch"></div><div class="screen" style="background:#0e0e11; font-family:var(--sf);">
+        <div class="scroll">
+          <div class="statusbar" style="color:#f4f1ec;"><span>9:41</span><span class="r">••• &#9679; &#9645;</span></div>
+          <div style="padding:6px 20px 100px;">
+            <div style="display:flex; align-items:center; justify-content:center; position:relative;">
+              <div style="font-family:var(--rounded); font-weight:800; font-size:22px; color:#f4f1ec;">My Profile</div>
+              <div style="position:absolute; right:0; color:#9a988f;">⚙︎</div>
+            </div>
+            <div style="display:flex; justify-content:center; margin-top:18px;">
+              <div style="display:inline-flex; align-items:center; gap:8px; background:rgba(255,190,61,.14); border:1px solid rgba(255,190,61,.4); color:#ffbe3d; padding:10px 22px; border-radius:22px; font-family:var(--rounded); font-weight:800; font-size:16px; backdrop-filter:blur(8px); box-shadow:0 0 24px rgba(255,190,61,.25);">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 7h10v11a3 3 0 01-3 3H9a3 3 0 01-3-3V7z" stroke="#ffbe3d" stroke-width="1.6"/></svg>
+                Dark Arts
+              </div>
+            </div>
+            <div style="display:flex; gap:12px; margin-top:20px;">
+              <div style="flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:14px; padding:16px; text-align:center; backdrop-filter:blur(8px);"><div style="font-family:var(--rounded); font-weight:900; font-size:32px; color:#f4f1ec;">47</div><div style="font-size:11px; color:#9a988f;">Beers logged</div></div>
+              <div style="flex:1; background:rgba(255,255,255,.05); border:1px solid rgba(255,190,61,.2); border-radius:14px; padding:16px; text-align:center; backdrop-filter:blur(8px); box-shadow:0 0 20px rgba(255,190,61,.12);"><div style="font-family:var(--rounded); font-weight:900; font-size:32px; color:#ffbe3d;">18</div><div style="font-size:11px; color:#9a988f;">Loved</div></div>
+            </div>
+            <div style="font-family:var(--rounded); font-weight:700; font-size:15px; color:#f4f1ec; margin:22px 0 12px;">Your top styles</div>
+            <div style="display:flex; flex-direction:column; gap:11px;">
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c2beb5; margin-bottom:4px;"><span>Stout</span><span>34%</span></div><div style="height:8px; background:#191922; border-radius:4px;"><div style="width:88%; height:100%; background:#ffbe3d; border-radius:4px; box-shadow:0 0 10px rgba(255,190,61,.5);"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c2beb5; margin-bottom:4px;"><span>Porter</span><span>22%</span></div><div style="height:8px; background:#191922; border-radius:4px;"><div style="width:56%; height:100%; background:#ffbe3d; border-radius:4px; box-shadow:0 0 10px rgba(255,190,61,.5);"></div></div></div>
+              <div><div style="display:flex; justify-content:space-between; font-size:12px; color:#c2beb5; margin-bottom:4px;"><span>Hazy IPA</span><span>18%</span></div><div style="height:8px; background:#191922; border-radius:4px;"><div style="width:44%; height:100%; background:#ffbe3d; border-radius:4px; box-shadow:0 0 10px rgba(255,190,61,.5);"></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="tabbar" style="background:rgba(25,25,34,.6); border-top:1px solid rgba(255,255,255,.07);">
+          <div class="tab" style="color:#5f5d5a;"><svg viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="14" rx="3" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="13" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>Check</div>
+          <div class="tab" style="color:#5f5d5a;"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4h11a1 1 0 011 1v15l-6-3-6 3V5a1 1 0 011-1z" stroke="currentColor" stroke-width="1.6"/></svg>Journal</div>
+          <div class="tab" style="color:#ffbe3d;"><svg viewBox="0 0 24 24" fill="none" style="filter:drop-shadow(0 0 5px rgba(255,190,61,.6));"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="currentColor" stroke-width="1.6"/></svg>Profile</div>
+        </div>
+      </div></div>
+      <div class="plabel">Profile — glass stats</div>
+    </div>
+
+  </div>
+
+  <div class="meta"><div class="mcard" style="grid-column:1/-1;"><h4>Trade-off</h4><p>Glass + glow are perf-sensitive and can hurt legibility if overused — keep glass off scrolling lists, amber disciplined. Moody dark-only is hardest in a bright store aisle (the actual use context), and Reduce Transparency users lose the character. <b style="color:#e9e6e0;">Guardrail:</b> verdict + CTA use solid high-contrast fills (not glass), and ship a designed opaque tier for Reduce Transparency — never just "blur off."</p></div></div>
+</section>
+
+
+<!-- ============================================================= -->
+<!-- RECOMMENDATION -->
+<!-- ============================================================= -->
+<div class="foot" id="pick">
+  <div class="rec">
+    <h3>Which to pick — the design critic's call</h3>
+    <p><b style="color:#f6efe2;">Recommendation: Last Call, with one guardrail.</b> It's the only direction that fixes the most damaging critique of the current app — teal-on-black "feels like a fintech dashboard, not a beer app." Warm gold-on-brown is instantly on-category; SF Pro Rounded gives a distinct wordmark identity for free (no bundled font); it closes all three named gaps (placeholder imagery, off-brand onboarding, missing identity) without inventing features. Most buildable as-specified: no iOS 26 dependency, no data it doesn't have.</p>
+    <p><b style="color:#f6efe2;">Guardrail:</b> treat illustration as post-launch — ship on tinted SF Symbols, add hand-drawn line-art after a real illustration pass. That neutralizes its only real weakness.</p>
+    <div class="rank">
+      <div><b style="color:#e8a427;">1 · Last Call</b> — best category fit + lowest scope risk. "Become a beer app users bond with."</div>
+      <div><b style="color:#ffbe3d;">2 · Neon Pour</b> — most reliably premium, but the moody palette fights the bright-aisle use context. "Look premium fast."</div>
+      <div><b style="color:#37c9be;">3 · Verdict</b> — best brand hook, but highest gimmick risk (and needed a scope fix). Great as a bold bet.</div>
+    </div>
+  </div>
+  <p class="endnote">Mockups are faithful CSS renders of the exact palettes + copy — not the shipping SwiftUI. Feature set unchanged; this is visual/UX polish only.<br>Sources: Apple HIG + Design Award winners (2023–25), Vivino, Yuka, Untappd, Gentler Streak, Copilot Money, Flighty, Lumy.</p>
+</div>
+
+</body>
+</html>
