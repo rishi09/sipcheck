@@ -7,7 +7,7 @@ name: TestFlight
 # the repo is public.
 on:
   push:
-    branches: [main, claude/review-project-status-5ihff]
+    branches: [main, 'claude/**']
   workflow_dispatch:
 
 concurrency:
