@@ -3,6 +3,7 @@
 > Status note: this is a working-session note. Some "next actions" below have already partially landed, including the initial hybrid scan pipeline. Use `README.md` for current product status.
 
 ## Quick links
+- 📱 **Redesign variants (mobile-viewable):** [Open on phone →](https://raw.githack.com/rishi09/sipcheck/claude/sipcheck-design-variants-pw8twu/design-variants.html)
 - Key features playbook (v2): [SipCheck_Key_Features_Playbook_v2.html](./SipCheck_Key_Features_Playbook_v2.html)
 - Original feature playbook: [SipCheck_Key_Features_Playbook.html](./SipCheck_Key_Features_Playbook.html)
 - Screenshot-rich research doc (HTML): [SipCheck_Competitive_Research_With_Screenshots.html](./SipCheck_Competitive_Research_With_Screenshots.html)

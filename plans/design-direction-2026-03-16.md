@@ -4,6 +4,16 @@
 
 ---
 
+## 📱 Redesign variants — preview on mobile
+
+Three phone-viewable redesign directions (Last Call · Verdict · Neon Pour). Tap on your phone and swipe each row of iPhone mockups sideways:
+
+**→ [Open the 3 variants (renders on mobile)](https://raw.githack.com/rishi09/sipcheck/claude/sipcheck-design-variants-pw8twu/design-variants.html)**
+
+_(Source: [`design-variants.html`](../design-variants.html) at repo root. Tip: GitHub "blob" links show HTML source; the githack link above renders it.)_
+
+---
+
 ## One-Line Brief
 
 A dark, calm, teal-accented interface where your beer photos are the color, the AI gives you one clear answer, and nothing about the design screams "beer bro app."
