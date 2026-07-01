@@ -337,7 +337,7 @@ struct CheckTabView: View {
         scanTask = Task {
             do {
                 let result = try await ScanningPipeline.shared.scan(image: image)
-                let scan = buildScan(from: result)
+                let scan = buildScan(from: result, path: "image")
                 await MainActor.run {
                     finalizeScan(scan)
                 }
@@ -362,7 +362,7 @@ struct CheckTabView: View {
         scanTask = Task {
             do {
                 let result = try await ScanningPipeline.shared.scan(text: trimmed)
-                let scan = buildScan(from: result)
+                let scan = buildScan(from: result, path: "text")
                 await MainActor.run {
                     finalizeScan(scan)
                 }
@@ -375,16 +375,72 @@ struct CheckTabView: View {
         }
     }
 
-    private func buildScan(from result: ScanResult) -> Scan {
-        Scan(
-            beerName: result.beerInfo.name ?? "Unknown Beer",
-            style: result.beerInfo.style?.rawValue,
-            abv: result.beerInfo.abv,
-            verdict: result.verdict,
-            explanation: result.explanation,
-            wantToTry: false,
-            origin: result.beerInfo.origin
+    private func buildScan(from result: ScanResult, path: String) -> Scan {
+        let beerInfo = result.beerInfo
+        let name = beerInfo.name ?? "Unknown Beer"
+
+        // On-device taste inputs (free, instant, no network).
+        let profile = TasteProfile.build(from: drinkStore.drinks)
+        let prefs = TastePreferences.current
+
+        // Resolve style/ABV against the bundled catalog, then fuse:
+        // the label/LLM-extracted values win; the resolver fills any gaps.
+        let resolved = BeerResolver.resolve(
+            recognizedText: name,
+            using: BundledCatalog.shared
         )
+        let fusedStyle = beerInfo.style ?? resolved.style
+        let fusedABV = beerInfo.abv ?? resolved.abv
+
+        // Deterministic on-device verdict — this is what the card shows.
+        let assessment = TasteScorer.assess(
+            name: name,
+            style: fusedStyle,
+            abv: fusedABV,
+            profile: profile,
+            preferences: prefs
+        )
+
+        // Keep the network's richer copy when it actually produced one;
+        // otherwise fall back to the on-device short reason.
+        let explanation = usableNetworkExplanation(result) ?? assessment.shortReason
+
+        // Telemetry: capture the full on-device decision for later triage.
+        ScanLog.shared.record(
+            ScanEvent(
+                timestamp: Date(),
+                inputText: name,
+                resolvedName: resolved.name,
+                style: fusedStyle?.rawValue,
+                abv: fusedABV,
+                source: resolved.source.rawValue,
+                verdict: assessment.verdict.rawValue,
+                score: assessment.score,
+                latencyMs: result.latencyMs,
+                path: path
+            )
+        )
+
+        return Scan(
+            beerName: name,
+            style: fusedStyle?.rawValue,
+            abv: fusedABV,
+            verdict: assessment.verdict,
+            explanation: explanation,
+            wantToTry: false,
+            origin: beerInfo.origin
+        )
+    }
+
+    /// The pipeline's network explanation, but only when it's meaningful copy
+    /// worth showing over the on-device reason (non-empty and not the generic
+    /// no-provider fallback the pipeline returns when no LLM is reachable).
+    private func usableNetworkExplanation(_ result: ScanResult) -> String? {
+        let text = result.explanation.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        // Matches ScanningPipeline.getVerdictAndExplanation's no-provider fallback.
+        guard text != "Give it a try and see what you think!" else { return nil }
+        return text
     }
 
     private func finalizeScan(_ scan: Scan) {

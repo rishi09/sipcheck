@@ -61,7 +61,12 @@
 		A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 88C34708ADF14D72B7A94D0E; };
 		G1000001 /* AgeGateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G2000001; };
 		H1000001 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000001; };
+		H1000010 /* ScanLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = H2000010; };
 		H1000003 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = H2000003; settings = {ATTRIBUTES = (Required, ); }; };
+		A1000031 /* TasteScorer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031; };
+		A1000032 /* MenuParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032; };
+		A1000033 /* BeerResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000033; };
+		A1000040 /* catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = A2000040; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -139,8 +144,13 @@
 		88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		G2000001 /* AgeGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgeGateView.swift; sourceTree = "<group>"; };
 		H2000001 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
+		H2000010 /* ScanLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLog.swift; sourceTree = "<group>"; };
 		H2000002 /* SipCheck.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SipCheck.entitlements; sourceTree = "<group>"; };
 		H2000003 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = System/Library/Frameworks/CloudKit.framework; sourceTree = SDKROOT; };
+		A2000031 /* TasteScorer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteScorer.swift; sourceTree = "<group>"; };
+		A2000032 /* MenuParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuParser.swift; sourceTree = "<group>"; };
+		A2000033 /* BeerResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerResolver.swift; sourceTree = "<group>"; };
+		A2000040 /* catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = catalog.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -269,6 +279,10 @@
 				E2000001 /* NotificationService.swift */,
 				F2000001 /* TastePreferences.swift */,
 				H2000001 /* CloudKitSyncService.swift */,
+				H2000010 /* ScanLog.swift */,
+				A2000031 /* TasteScorer.swift */,
+				A2000032 /* MenuParser.swift */,
+				A2000033 /* BeerResolver.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -278,6 +292,7 @@
 			children = (
 				A2000014 /* Assets.xcassets */,
 				88C34708ADF14D72B7A94D0E /* PrivacyInfo.xcprivacy */,
+				A2000040 /* catalog.json */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -426,6 +441,7 @@
 			files = (
 				A1000014 /* Assets.xcassets in Resources */,
 				A85B87EA2C9F48D195CF02A0 /* PrivacyInfo.xcprivacy in Resources */,
+				A1000040 /* catalog.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -480,6 +496,10 @@
 				E1000002 /* FollowUpView.swift in Sources */,
 				F1000001 /* TastePreferences.swift in Sources */,
 				H1000001 /* CloudKitSyncService.swift in Sources */,
+				H1000010 /* ScanLog.swift in Sources */,
+				A1000031 /* TasteScorer.swift in Sources */,
+				A1000032 /* MenuParser.swift in Sources */,
+				A1000033 /* BeerResolver.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

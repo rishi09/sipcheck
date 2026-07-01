@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SipCheck — The Gap &amp; the Phase-0 Spike</title>
+<style>
+  :root{
+    --bg:#1a1206; --card:#241a0c; --card2:#2e2210;
+    --amber:#f5a623; --amber2:#ffc66b; --gold:#ffd479;
+    --green:#4ec98a; --red:#e0704f; --muted:#b9a888; --text:#f7efe1;
+    --line:#3d2f16;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:radial-gradient(120% 80% at 50% -10%,#2a1e0b,#1a1206 60%);
+    color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    line-height:1.5;padding:20px 16px 60px;max-width:520px;margin:0 auto;
+  }
+  h1{font-size:23px;margin:4px 0 2px;letter-spacing:-.4px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 22px}
+  .step{font-size:12px;font-weight:700;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase}
+  h2{font-size:17px;margin:30px 0 10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+  .muted{color:var(--muted);font-size:14px}
+  b.g{color:var(--gold)}
+
+  /* static before -> after beer card (no tap, nothing to break) */
+  .beer{background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:16px;padding:16px;margin:14px 0}
+  .beer .name{font-size:20px;font-weight:700;margin:0 0 12px}
+  .col{display:flex;align-items:stretch;gap:12px}
+  .half{flex:1;min-width:0}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .divider{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--amber);font-weight:700;font-size:12px}
+  .divider .ar{font-size:20px;line-height:1}
+  .verdict{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13.5px;
+    padding:7px 11px;border-radius:999px;width:100%}
+  .v-unknown{background:#3a3320;color:var(--gold)}
+  .v-order{background:rgba(78,201,138,.16);color:var(--green)}
+  .seen{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--gold);
+    background:#0e0a04;border:1px dashed var(--line);border-radius:8px;padding:7px 9px;margin-bottom:8px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
+
+  /* 57/43 bar */
+  .bar{display:flex;height:38px;border-radius:12px;overflow:hidden;margin:10px 0;font-size:12.5px;font-weight:700}
+  .bar .yes{background:linear-gradient(90deg,#f5a623,#e0883a);color:#231703;flex:57;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 4px}
+  .bar .no{background:#3a2c14;color:var(--gold);flex:43;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 4px}
+  .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+  /* pipeline */
+  .flow .row{display:flex;align-items:center;gap:10px;margin:10px 0}
+  .flow .box{flex:1;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:13.5px}
+  .flow .box b{display:block;font-size:12px;color:var(--amber);margin-bottom:3px;letter-spacing:.3px}
+  .flow .arrow{color:var(--amber);font-size:18px}
+  .free{color:var(--green);font-weight:700}
+
+  /* checklist */
+  .check{display:flex;gap:12px;align-items:flex-start;padding:14px 0;border-bottom:1px solid var(--line)}
+  .check:last-child{border-bottom:none}
+  .num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--amber);color:#231703;
+    font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .check .t{font-size:14.5px}
+  .check .t b{color:var(--gold)}
+  .pass{margin-top:16px;background:rgba(78,201,138,.1);border:1px solid rgba(78,201,138,.35);
+    border-radius:12px;padding:13px;font-size:14px;color:var(--green)}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:26px}
+</style>
+</head>
+<body>
+
+  <div class="step">Phase 0 · the one thing left to prove</div>
+  <h1>The gap 🍺 &amp; how the phone closes it</h1>
+  <p class="sub">Nothing to tap — just scroll. Left = what our name-only test saw. Right = what a real camera sees.</p>
+
+  <h2>1 · Name alone vs. what the camera reads</h2>
+
+  <div class="beer">
+    <div class="name">Two Hearted</div>
+    <div class="col">
+      <div class="half">
+        <div class="lbl">name only (our test)</div>
+        <span class="verdict v-unknown">🤷 can't tell style</span>
+        <div class="note">the name hides that it's an IPA</div>
+      </div>
+      <div class="divider"><span class="ar">→</span></div>
+      <div class="half">
+        <div class="lbl">camera on a phone</div>
+        <div class="seen">Two Hearted — IPA — 7.0%</div>
+        <span class="verdict v-order">👍 order this</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="beer">
+    <div class="name">Old Rasputin</div>
+    <div class="col">
+      <div class="half">
+        <div class="lbl">name only (our test)</div>
+        <span class="verdict v-unknown">🤷 can't tell style</span>
+        <div class="note">sounds like… a person?</div>
+      </div>
+      <div class="divider"><span class="ar">→</span></div>
+      <div class="half">
+        <div class="lbl">camera on a phone</div>
+        <div class="seen">Old Rasputin — Imperial Stout — 9.0%</div>
+        <span class="verdict v-order">👍 order this</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="muted">Same beer, way more signal. The <b class="g">name</b> hides the style; the <b class="g">label/menu line</b> spells it out.</p>
+
+  <h2>2 · The gap, in one bar</h2>
+  <div class="card">
+    <p class="muted" style="margin-top:0">How often the <b class="g">name alone</b> reveals the style, across 2,410 real beers:</p>
+    <div class="bar">
+      <div class="yes">57% · name gives it away</div>
+      <div class="no">43% · name hides it</div>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#f5a623"></span>confident (88.9% right when it commits)</span>
+      <span><span class="dot" style="background:#3a2c14"></span>plays it safe → "your call"</span>
+    </div>
+    <p class="muted" style="margin-bottom:0">That 43% is <b class="g">the gap</b>. Our 51% score was the worst case: name-only, no camera, no AI.</p>
+  </div>
+
+  <h2>3 · Why a real phone closes it</h2>
+  <p class="muted">On a device you're not stuck with the name — the camera reads the whole line:</p>
+  <div class="card flow">
+    <div class="row">
+      <div class="box"><b>📷 Live camera OCR</b>Reads the menu/label line:<br><span style="font-family:ui-monospace,monospace;color:var(--gold)">"Two Hearted — IPA — 7.0%"</span></div>
+    </div>
+    <div class="row"><span class="arrow">↓</span><div class="muted" style="font-size:13px">the style &amp; ABV are right there, even when the name hides them</div></div>
+    <div class="row">
+      <div class="box"><b>🧠 On-device AI verdict</b>Apple Foundation Models — <span class="free">free, offline, instant</span></div>
+    </div>
+    <div class="row"><span class="arrow">↓</span></div>
+    <div class="row">
+      <div class="box" style="border-color:rgba(78,201,138,.4)"><b style="color:var(--green)">👍 Instant answer</b>Order this — matches your taste. No network, no cost.</div>
+    </div>
+  </div>
+
+  <h2>4 · The spike: prove it on your iPhone</h2>
+  <p class="muted">A ~half-day check on Mac + iPhone — the only part a laptop can't test:</p>
+  <div class="card">
+    <div class="check">
+      <div class="num">1</div>
+      <div class="t">Point the <b>live camera</b> at a real beer menu &amp; label — does it reliably read clean text like <b>"IPA · 7.0%"</b>?</div>
+    </div>
+    <div class="check">
+      <div class="num">2</div>
+      <div class="t">Feed that text to the <b>on-device AI</b> — does it return a good verdict <b>fast, offline, free</b>?</div>
+    </div>
+    <div class="pass">✅ If both work → the whole "fast, free, instant" plan is de-risked. Green light to build.</div>
+  </div>
+
+  <p class="foot">SipCheck · Phase-0 spike · scroll — no tapping needed</p>
+
+</body>
+</html>
