@@ -182,10 +182,12 @@ final class BundledCatalog: BeerCatalog {
         // 1. Exact normalized hit.
         if let i = exactIndex[q] { return resolved(entries[i]) }
 
-        // 2. Substring either direction (label text often has extra words).
+        // 2. Substring either direction (label text often has extra words) — but
+        //    only for reasonably specific names, so short generic catalog names
+        //    ("IPA", "Pils") don't swallow every scan that contains them.
         if let e = entries.first(where: {
             let n = BundledCatalog.normalize($0.name)
-            return !n.isEmpty && (q.contains(n) || n.contains(q))
+            return n.count >= 6 && (q.contains(n) || n.contains(q))
         }) {
             return resolved(e)
         }

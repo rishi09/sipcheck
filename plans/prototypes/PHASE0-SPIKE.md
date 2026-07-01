@@ -3,8 +3,9 @@
 **Goal:** in ~half a day on a real iPhone, prove the two things this Linux env couldn't —
 so we know the "fast, free, instant verdict" plan holds before building the full feature.
 
-**Device:** Rishi's iPhone 16 (A18 → Apple-Intelligence capable), on **iOS 26**, built from Xcode
-(Cmd+R). Foundation Models + live DataScanner are device-only; the Simulator can't validate them.
+**Device:** iPhone 15 Pro (A17 Pro → Apple-Intelligence capable — the *minimum* bar; note the
+non-Pro iPhone 15 is NOT supported), on **iOS 26**, built from Xcode (Cmd+R). Foundation Models +
+live DataScanner are device-only; the Simulator can't validate them.
 
 ---
 

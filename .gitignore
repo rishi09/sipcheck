@@ -20,3 +20,9 @@ dist_cert.p12
 # Python prototype caches
 __pycache__/
 *.pyc
+
+# Grocery scan test artifacts (user photos + generated report)
+plans/prototypes/grocery_test/*.jpg
+plans/prototypes/grocery_test/*.jpeg
+plans/prototypes/grocery_test/*.png
+plans/prototypes/grocery_test/report.html
