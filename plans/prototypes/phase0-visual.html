@@ -11,7 +11,7 @@
     --green:#4ec98a; --red:#e0704f; --muted:#b9a888; --text:#f7efe1;
     --line:#3d2f16;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{box-sizing:border-box}
   body{
     margin:0;background:radial-gradient(120% 80% at 50% -10%,#2a1e0b,#1a1206 60%);
     color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
@@ -20,41 +20,32 @@
   h1{font-size:23px;margin:4px 0 2px;letter-spacing:-.4px}
   .sub{color:var(--muted);font-size:14px;margin:0 0 22px}
   .step{font-size:12px;font-weight:700;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase}
-  h2{font-size:17px;margin:30px 0 10px;display:flex;align-items:center;gap:8px}
+  h2{font-size:17px;margin:30px 0 10px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
   .muted{color:var(--muted);font-size:14px}
+  b.g{color:var(--gold)}
 
-  /* tappable beer card — pure CSS via <details>, no JS */
-  details.beer{
-    background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--line);
-    border-radius:16px;padding:0;margin:14px 0;overflow:hidden;transition:border-color .2s;
-  }
-  details.beer[open]{border-color:var(--amber)}
-  summary{
-    list-style:none;cursor:pointer;padding:18px;position:relative;user-select:none;
-  }
-  summary::-webkit-details-marker{display:none}
-  summary:active{background:rgba(245,166,35,.06)}
-  .name{font-size:20px;font-weight:700;margin:0 0 8px;display:block}
-  .chev{position:absolute;top:16px;right:16px;font-size:12px;color:var(--amber);
-    font-weight:700;border:1px solid var(--line);border-radius:999px;padding:4px 10px}
-  details.beer[open] .chev::after{content:"tap to hide ↺"}
-  details.beer:not([open]) .chev::after{content:"tap to reveal →"}
-  .reveal{padding:0 18px 18px;animation:fade .25s ease}
-  @keyframes fade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-  .line{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--gold);
-    background:#0e0a04;border:1px dashed var(--line);border-radius:8px;padding:8px 10px;margin:0 0 10px}
-  .verdict{display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:15px;
-    padding:7px 13px;border-radius:999px}
+  /* static before -> after beer card (no tap, nothing to break) */
+  .beer{background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--line);
+    border-radius:16px;padding:16px;margin:14px 0}
+  .beer .name{font-size:20px;font-weight:700;margin:0 0 12px}
+  .col{display:flex;align-items:stretch;gap:12px}
+  .half{flex:1;min-width:0}
+  .lbl{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .divider{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--amber);font-weight:700;font-size:12px}
+  .divider .ar{font-size:20px;line-height:1}
+  .verdict{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:13.5px;
+    padding:7px 11px;border-radius:999px;width:100%}
   .v-unknown{background:#3a3320;color:var(--gold)}
   .v-order{background:rgba(78,201,138,.16);color:var(--green)}
-  .hint{font-size:12px;color:var(--muted);margin-top:10px}
-  details.beer[open] summary .hint{display:none}
+  .seen{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--gold);
+    background:#0e0a04;border:1px dashed var(--line);border-radius:8px;padding:7px 9px;margin-bottom:8px}
+  .note{font-size:12px;color:var(--muted);margin-top:10px}
 
-  /* the 57/43 bar */
+  /* 57/43 bar */
   .bar{display:flex;height:38px;border-radius:12px;overflow:hidden;margin:10px 0;font-size:12.5px;font-weight:700}
-  .bar .yes{background:linear-gradient(90deg,#f5a623,#e0883a);color:#231703;flex:57;display:flex;align-items:center;justify-content:center;text-align:center}
-  .bar .no{background:#3a2c14;color:var(--gold);flex:43;display:flex;align-items:center;justify-content:center;text-align:center}
+  .bar .yes{background:linear-gradient(90deg,#f5a623,#e0883a);color:#231703;flex:57;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 4px}
+  .bar .no{background:#3a2c14;color:var(--gold);flex:43;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 4px}
   .legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-top:6px;flex-wrap:wrap}
   .dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 
@@ -81,40 +72,49 @@
 
   <div class="step">Phase 0 · the one thing left to prove</div>
   <h1>The gap 🍺 &amp; how the phone closes it</h1>
-  <p class="sub">Tap the beer cards to open them. You're seeing why a name isn't enough — and why a real camera fixes it.</p>
+  <p class="sub">Nothing to tap — just scroll. Left = what our name-only test saw. Right = what a real camera sees.</p>
 
-  <h2>1 · What our test could see</h2>
-  <p class="muted">Our simulation only had the beer's <b>name</b>. Tap to reveal the real style:</p>
+  <h2>1 · Name alone vs. what the camera reads</h2>
 
-  <details class="beer">
-    <summary>
-      <span class="chev"></span>
-      <span class="name">Two Hearted</span>
-      <span class="verdict v-unknown">🤷 your call — can't tell the style</span>
-      <div class="hint">👆 the name hides that it's an IPA</div>
-    </summary>
-    <div class="reveal">
-      <div class="line">actually → American IPA · 7.0%</div>
-      <span class="verdict v-order">👍 order this — matches your IPAs</span>
+  <div class="beer">
+    <div class="name">Two Hearted</div>
+    <div class="col">
+      <div class="half">
+        <div class="lbl">name only (our test)</div>
+        <span class="verdict v-unknown">🤷 can't tell style</span>
+        <div class="note">the name hides that it's an IPA</div>
+      </div>
+      <div class="divider"><span class="ar">→</span></div>
+      <div class="half">
+        <div class="lbl">camera on a phone</div>
+        <div class="seen">Two Hearted — IPA — 7.0%</div>
+        <span class="verdict v-order">👍 order this</span>
+      </div>
     </div>
-  </details>
+  </div>
 
-  <details class="beer">
-    <summary>
-      <span class="chev"></span>
-      <span class="name">Old Rasputin</span>
-      <span class="verdict v-unknown">🤷 your call — can't tell the style</span>
-      <div class="hint">👆 sounds like… a person?</div>
-    </summary>
-    <div class="reveal">
-      <div class="line">actually → Russian Imperial Stout · 9.0%</div>
-      <span class="verdict v-order">👍 order this — you love stouts</span>
+  <div class="beer">
+    <div class="name">Old Rasputin</div>
+    <div class="col">
+      <div class="half">
+        <div class="lbl">name only (our test)</div>
+        <span class="verdict v-unknown">🤷 can't tell style</span>
+        <div class="note">sounds like… a person?</div>
+      </div>
+      <div class="divider"><span class="ar">→</span></div>
+      <div class="half">
+        <div class="lbl">camera on a phone</div>
+        <div class="seen">Old Rasputin — Imperial Stout — 9.0%</div>
+        <span class="verdict v-order">👍 order this</span>
+      </div>
     </div>
-  </details>
+  </div>
+
+  <p class="muted">Same beer, way more signal. The <b class="g">name</b> hides the style; the <b class="g">label/menu line</b> spells it out.</p>
 
   <h2>2 · The gap, in one bar</h2>
   <div class="card">
-    <p class="muted" style="margin-top:0">How often the <b>name alone</b> reveals the style, across 2,410 real beers:</p>
+    <p class="muted" style="margin-top:0">How often the <b class="g">name alone</b> reveals the style, across 2,410 real beers:</p>
     <div class="bar">
       <div class="yes">57% · name gives it away</div>
       <div class="no">43% · name hides it</div>
@@ -123,7 +123,7 @@
       <span><span class="dot" style="background:#f5a623"></span>confident (88.9% right when it commits)</span>
       <span><span class="dot" style="background:#3a2c14"></span>plays it safe → "your call"</span>
     </div>
-    <p class="muted" style="margin-bottom:0">That 43% is <b>the gap</b>. Our 51% score was the worst case: name-only, no camera, no AI.</p>
+    <p class="muted" style="margin-bottom:0">That 43% is <b class="g">the gap</b>. Our 51% score was the worst case: name-only, no camera, no AI.</p>
   </div>
 
   <h2>3 · Why a real phone closes it</h2>
@@ -156,7 +156,7 @@
     <div class="pass">✅ If both work → the whole "fast, free, instant" plan is de-risked. Green light to build.</div>
   </div>
 
-  <p class="foot">SipCheck · Phase-0 spike · tap a beer card to open it</p>
+  <p class="foot">SipCheck · Phase-0 spike · scroll — no tapping needed</p>
 
 </body>
 </html>
