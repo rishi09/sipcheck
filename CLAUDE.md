@@ -107,3 +107,13 @@ axe screenshot --udid $SIMULATOR_UDID                # Take screenshot
 - Core flows: ✅ Implemented in working tree
 - Tests: ✅ Unit, integration, and UI targets present
 - Pending: physical-device validation, real-image scan evaluation, app icon, launch screen polish
+
+## Design Exploration (visual/UX polish — MVP feature set unchanged)
+- Goal: fix the "rough / too AI-generated" feel — clinical teal-on-black, `mug.fill` SF Symbol placeholders, all-stock SF font, no logo/identity, off-brand blue onboarding.
+- `design-variants.html` (repo root) — self-contained, phone-viewable file with faithful iPhone-framed mockups of 3 distinct redesign directions. Not shipping SwiftUI; a vetting artifact.
+  - **1 · Last Call** (recommended) — warm lager-gold `#E8A427` on brown-black `#17130E`, SF Pro Rounded wordmark, cozy taproom. Lowest build risk, most on-category.
+  - **2 · Verdict** — editorial rubber-stamp verdicts, warm-paper on ink, keeps evolved teal `#37C9BE` as the seal accent.
+  - **3 · Neon Pour** — moody glassmorphism, single glowing amber `#FFBE3D`, iOS materials/depth.
+- Research basis: agent-team workflow over Apple HIG + Design Award winners (2023–25), Vivino, Yuka, Untappd, Gentler Streak, Copilot Money, etc.
+- Mobile-viewable link (githack renders as `text/html`; GitHub blob links show source): `https://raw.githack.com/rishi09/sipcheck/claude/sipcheck-design-variants-pw8twu/design-variants.html` — also linked from `plans/design-direction-2026-03-16.md` and `plans/notes-next-steps.md`.
+- Next step (not started): pick a direction, then reskin SwiftUI (`SipCheck/Views/DesignSystem.swift` first). No direction chosen yet.
