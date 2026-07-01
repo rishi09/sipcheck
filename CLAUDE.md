@@ -29,6 +29,8 @@ Show the verdict from whatever we have *now*; refine asynchronously. Never block
 
 **Phase-1 code (built, pure, standalone):** `SipCheck/Services/TasteScorer.swift` (instant verdict from taste library), `SipCheck/Services/MenuParser.swift` (menu → single winner), `SipCheck/Services/BeerResolver.swift` (the fusion above). Device-only spike (live DataScanner + Foundation Models) is the remaining unproven part.
 
+**Deferred (revisit after real-scan testing):** the catalog is text-only by design — no label images. Skip both UI thumbnails and Vivino-style **visual label matching** for now; only build them if real scans show the text-recognition path misses too often. Open image sources are cataloged in `plans/prototypes/data/IMAGE_LIBRARIES.md` if/when we return.
+
 ## Build Commands
 ```bash
 # Build for simulator
