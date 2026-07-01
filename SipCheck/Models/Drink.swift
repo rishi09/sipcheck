@@ -1,7 +1,7 @@
 import Foundation
 
 /// Drink model - uses Codable for JSON persistence instead of SwiftData
-struct Drink: Identifiable, Codable, Equatable {
+struct Drink: Identifiable, Codable, Equatable, HasModifiedDate {
     var id: UUID = UUID()
     var name: String
     var brand: String
@@ -12,6 +12,10 @@ struct Drink: Identifiable, Codable, Equatable {
     var dateAdded: Date
     var photoFileName: String?
     var abv: Double?
+    var lastModifiedLocal: Date
+    /// Soft-delete tombstone flag. A deleted record is kept (hidden) so the
+    /// deletion can sync to other devices via CloudKit (last-write-wins).
+    var isDeleted: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -34,6 +38,8 @@ struct Drink: Identifiable, Codable, Equatable {
         self.dateAdded = Date()
         self.photoFileName = photoFileName
         self.abv = abv
+        self.lastModifiedLocal = Date()
+        self.isDeleted = false
     }
 
     var rating: Rating {
@@ -49,7 +55,7 @@ struct Drink: Identifiable, Codable, Equatable {
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, name, brand, style, ratingValue, typeValue, notes, dateAdded, photoFileName, abv
+        case id, name, brand, style, ratingValue, typeValue, notes, dateAdded, photoFileName, abv, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -64,6 +70,8 @@ struct Drink: Identifiable, Codable, Equatable {
         dateAdded = try c.decodeIfPresent(Date.self, forKey: .dateAdded) ?? Date()
         photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
         abv = try c.decodeIfPresent(Double.self, forKey: .abv)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? dateAdded
+        isDeleted = try c.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
     }
 
     static var preview: Drink {

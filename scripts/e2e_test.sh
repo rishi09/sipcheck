@@ -12,7 +12,7 @@
 set -uo pipefail
 
 SIMULATOR_UDID="48FF0EDE-5280-4C70-AB5C-F06C750443DB"
-BUNDLE_ID="com.sipcheck.app"
+BUNDLE_ID="com.rishishah.sipcheck"
 SCREENSHOT_DIR="/tmp/sipcheck-e2e"
 RESULTS_FILE="$SCREENSHOT_DIR/results.txt"
 

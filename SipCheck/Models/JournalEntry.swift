@@ -1,7 +1,7 @@
 import Foundation
 
 /// Rich journal entry — created intentionally when user logs a beer they tried
-struct JournalEntry: Identifiable, Codable, Equatable {
+struct JournalEntry: Identifiable, Codable, Equatable, HasModifiedDate {
     let id: UUID
     var beerName: String
     var brand: String
@@ -13,6 +13,9 @@ struct JournalEntry: Identifiable, Codable, Equatable {
     var dateLogged: Date
     var dateTried: Date?
     var linkedScanId: UUID?
+    var lastModifiedLocal: Date
+    /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).
+    var isDeleted: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -38,12 +41,14 @@ struct JournalEntry: Identifiable, Codable, Equatable {
         self.dateLogged = dateLogged
         self.dateTried = dateTried
         self.linkedScanId = linkedScanId
+        self.lastModifiedLocal = Date()
+        self.isDeleted = false
     }
 
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, beerName, brand, style, abv, rating, notes, photoFileName, dateLogged, dateTried, linkedScanId
+        case id, beerName, brand, style, abv, rating, notes, photoFileName, dateLogged, dateTried, linkedScanId, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -59,5 +64,7 @@ struct JournalEntry: Identifiable, Codable, Equatable {
         dateLogged = try c.decodeIfPresent(Date.self, forKey: .dateLogged) ?? Date()
         dateTried = try c.decodeIfPresent(Date.self, forKey: .dateTried)
         linkedScanId = try c.decodeIfPresent(UUID.self, forKey: .linkedScanId)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? dateLogged
+        isDeleted = try c.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
     }
 }

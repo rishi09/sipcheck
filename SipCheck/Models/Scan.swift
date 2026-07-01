@@ -8,7 +8,7 @@ enum Verdict: String, Codable, CaseIterable {
 }
 
 /// Lightweight scan result — created automatically when user scans a beer
-struct Scan: Identifiable, Codable, Equatable {
+struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     let id: UUID
     var beerName: String
     var style: String?
@@ -19,6 +19,9 @@ struct Scan: Identifiable, Codable, Equatable {
     var wantToTry: Bool
     var linkedJournalId: UUID?
     var origin: String?
+    var lastModifiedLocal: Date
+    /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).
+    var isDeleted: Bool = false
 
     init(
         id: UUID = UUID(),
@@ -42,12 +45,14 @@ struct Scan: Identifiable, Codable, Equatable {
         self.wantToTry = wantToTry
         self.linkedJournalId = linkedJournalId
         self.origin = origin
+        self.lastModifiedLocal = Date()
+        self.isDeleted = false
     }
 
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin
+        case id, beerName, style, abv, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -62,5 +67,7 @@ struct Scan: Identifiable, Codable, Equatable {
         wantToTry = try c.decodeIfPresent(Bool.self, forKey: .wantToTry) ?? false
         linkedJournalId = try c.decodeIfPresent(UUID.self, forKey: .linkedJournalId)
         origin = try c.decodeIfPresent(String.self, forKey: .origin)
+        lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? timestamp
+        isDeleted = try c.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
     }
 }

@@ -5,9 +5,12 @@ struct SettingsTabView: View {
     @EnvironmentObject private var scanStore: ScanStore
     @EnvironmentObject private var journalStore: JournalStore
 
+    @Environment(\.dismiss) private var dismiss
+
     @AppStorage("preferredScanProvider") private var preferredScanProvider: String = "auto"
     @AppStorage("followUpNotificationsEnabled") private var followUpNotificationsEnabled: Bool = true
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = true
+    @AppStorage("hasConfirmedAge") private var hasConfirmedAge: Bool = true
 
     @State private var showResetOnboardingAlert = false
     @State private var showClearDataAlert = false
@@ -50,16 +53,23 @@ struct SettingsTabView: View {
 
                 // MARK: - Account / Data
                 Section {
-                    Button("Reset Onboarding") {
+                    Button("Replay Onboarding") {
                         showResetOnboardingAlert = true
                     }
-                    .alert("Reset Onboarding?", isPresented: $showResetOnboardingAlert) {
-                        Button("Reset", role: .destructive) {
-                            hasCompletedOnboarding = false
+                    .alert("Replay Onboarding?", isPresented: $showResetOnboardingAlert) {
+                        Button("Replay", role: .destructive) {
+                            // Dismiss this sheet first; if we flip the flags while the
+                            // sheet is up, the RootView swap happens underneath it and
+                            // never becomes visible. Flip them after dismissal settles.
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                hasConfirmedAge = false
+                                hasCompletedOnboarding = false
+                            }
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
-                        Text("This will show the intro screens next time you open the app.")
+                        Text("Takes you back through the age gate and intro screens right now.")
                     }
 
                     Button("Clear All Data") {
@@ -76,6 +86,14 @@ struct SettingsTabView: View {
                         Button("Cancel", role: .cancel) {}
                     } message: {
                         Text("This will permanently delete all your beers and scans. This cannot be undone.")
+                    }
+                    // Available in TestFlight builds too so testers can populate
+                    // sample data (which then syncs to iCloud). Remove before the
+                    // public App Store release.
+                    Button("Seed Sample Data") {
+                        drinkStore.seedSampleData()
+                        scanStore.seedSampleData()
+                        journalStore.seedSampleData()
                     }
                 } header: {
                     Text("Account / Data")

@@ -4,6 +4,7 @@ import AVFoundation
 struct CheckTabView: View {
     @EnvironmentObject var scanStore: ScanStore
     @EnvironmentObject var drinkStore: DrinkStore
+    @EnvironmentObject private var journalStore: JournalStore
 
     // Camera / input state
     @State private var capturedImage: UIImage?
@@ -22,6 +23,16 @@ struct CheckTabView: View {
     @State private var showingFollowUp = false
     @State private var showingAddBeer = false
     @State private var addBeerPrefill: AddBeerPrefill?
+
+    // Scanning animation state
+    @State private var spinnerDegrees: Double = 0
+    @State private var scanningPhraseIndex = 0
+    private let scanningPhrases = [
+        "Judging this beer...",
+        "Reading the label...",
+        "Checking your taste profile...",
+        "Forming an opinion..."
+    ]
 
     // Notification service
     private let notificationService = NotificationService.shared
@@ -85,9 +96,13 @@ struct CheckTabView: View {
             if let prefill = addBeerPrefill {
                 AddBeerView(prefill: prefill)
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             } else {
                 AddBeerView()
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             }
         }
         .alert("Camera Access Required", isPresented: $showingPermissionAlert) {
@@ -116,11 +131,11 @@ struct CheckTabView: View {
                 .foregroundColor(SipColors.textSecondary)
 
             VStack(spacing: 8) {
-                Text("Scan a Beer")
+                Text("What Are You Drinking?")
                     .font(SipTypography.title)
                     .foregroundColor(SipColors.textPrimary)
 
-                Text("Point your camera at a beer label to get a personalized recommendation")
+                Text("Snap a label. We'll tell you if it's worth your money.")
                     .font(SipTypography.body)
                     .foregroundColor(SipColors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -162,14 +177,54 @@ struct CheckTabView: View {
     // MARK: - Scanning Progress View
 
     private var scanningView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-                .tint(SipColors.primary)
+        VStack(spacing: 28) {
+            ZStack {
+                // Background ring
+                Circle()
+                    .stroke(SipColors.primary.opacity(0.2), lineWidth: 4)
+                    .frame(width: 72, height: 72)
+                // Spinning arc
+                Circle()
+                    .trim(from: 0, to: 0.72)
+                    .stroke(
+                        SipColors.primary,
+                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                    )
+                    .frame(width: 72, height: 72)
+                    .rotationEffect(.degrees(spinnerDegrees))
+                // Beer icon center
+                Image(systemName: "mug.fill")
+                    .font(.system(size: 24))
+                    .foregroundColor(SipColors.primary)
+            }
+            .onAppear {
+                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                    spinnerDegrees = 360
+                }
+                startPhraseCycling()
+            }
 
-            Text("Analyzing beer...")
+            Text(scanningPhrases[scanningPhraseIndex])
                 .font(SipTypography.body)
                 .foregroundColor(SipColors.textSecondary)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .bottom).combined(with: .opacity),
+                    removal: .move(edge: .top).combined(with: .opacity)
+                ))
+                .id(scanningPhraseIndex)
+                .animation(.easeInOut(duration: 0.3), value: scanningPhraseIndex)
+        }
+    }
+
+    private func startPhraseCycling() {
+        Timer.scheduledTimer(withTimeInterval: 2.2, repeats: true) { timer in
+            guard isScanning else {
+                timer.invalidate()
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                scanningPhraseIndex = (scanningPhraseIndex + 1) % scanningPhrases.count
+            }
         }
     }
 
@@ -352,6 +407,8 @@ struct CheckTabView: View {
         currentScan = nil
         capturedImage = nil
         scanError = nil
+        spinnerDegrees = 0
+        scanningPhraseIndex = 0
     }
 }
 

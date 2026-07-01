@@ -52,7 +52,8 @@ struct FollowUpView: View {
                     let prefill = AddBeerPrefill(
                         name: scan.beerName,
                         style: scan.style ?? BeerStyle.other.rawValue,
-                        abv: scan.abv
+                        abv: scan.abv,
+                        scanId: scan.id
                     )
                     onTried?(prefill)
                 }) {

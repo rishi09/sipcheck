@@ -1,0 +1,83 @@
+default_platform(:ios)
+
+require "base64"
+
+platform :ios do
+  desc "Build and upload to TestFlight using a fixed, imported Distribution cert"
+  lane :beta do
+    key_id = ENV["ASC_KEY_ID"]
+    issuer_id = ENV["ASC_ISSUER_ID"]
+    key_content = ENV["ASC_KEY_CONTENT"]
+
+    api_key = app_store_connect_api_key(
+      key_id: key_id,
+      issuer_id: issuer_id,
+      key_content: key_content,
+      is_key_content_base64: false
+    )
+
+    # ---- Import the ONE distribution certificate (no per-build cert creation) ----
+    # This is the durable fix for "maximum number of certificates": instead of
+    # cloud-signing minting a new cert every build, we import a fixed .p12 the
+    # account owner exported once, and sign manually with it.
+    keychain_name = "ci.keychain"
+    keychain_pw = "ci"
+    create_keychain(
+      name: keychain_name,
+      password: keychain_pw,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+
+    p12_path = File.absolute_path("dist_cert.p12")
+    File.binwrite(p12_path, Base64.decode64(ENV["DIST_CERT_P12_BASE64"] || ""))
+    import_certificate(
+      certificate_path: p12_path,
+      certificate_password: ENV["DIST_CERT_PASSWORD"] || "",
+      keychain_name: keychain_name,
+      keychain_password: keychain_pw
+    )
+    # Authorize codesign to use the imported private key non-interactively.
+    keychain_db = File.expand_path("~/Library/Keychains/#{keychain_name}-db")
+    sh("security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k #{keychain_pw} #{keychain_db} 2>/dev/null || true")
+
+    # ---- App Store provisioning profile (reuses the imported cert; profiles are
+    # not capped like certs, so this is safe to create/refresh each run) ----
+    sigh(
+      api_key: api_key,
+      app_identifier: "com.rishishah.sipcheck",
+      platform: "ios",
+      readonly: false
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME]
+
+    build_number = ENV["GITHUB_RUN_NUMBER"] || "1"
+
+    build_app(
+      project: "SipCheck.xcodeproj",
+      scheme: "SipCheck",
+      configuration: "Release",
+      clean: true,
+      output_directory: "build",
+      output_name: "SipCheck.ipa",
+      export_method: "app-store",
+      codesigning_identity: "Apple Distribution",
+      xcargs: "DEVELOPMENT_TEAM=YG7C25J24J CURRENT_PROJECT_VERSION=#{build_number} " \
+              "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
+      export_options: {
+        method: "app-store",
+        signingStyle: "manual",
+        teamID: "YG7C25J24J",
+        provisioningProfiles: { "com.rishishah.sipcheck" => profile_name }
+      }
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      skip_submission: true
+    )
+  end
+end

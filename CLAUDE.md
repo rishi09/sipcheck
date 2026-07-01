@@ -12,7 +12,7 @@ xcodebuild -project SipCheck.xcodeproj -scheme SipCheck -destination 'platform=i
 xcrun simctl install "iPhone 16e" ~/Library/Developer/Xcode/DerivedData/SipCheck-*/Build/Products/Debug-iphonesimulator/SipCheck.app
 
 # Launch on simulator
-xcrun simctl launch "iPhone 16e" com.sipcheck.app
+xcrun simctl launch "iPhone 16e" com.rishishah.sipcheck
 ```
 
 ## Architecture Decisions
@@ -58,12 +58,12 @@ SIMULATOR_UDID="C3A2161C-2C4B-47A0-91F4-E4862B313365"
 xcrun simctl io $SIMULATOR_UDID screenshot /tmp/sipcheck-screen.png
 
 # Stream app logs
-xcrun simctl spawn $SIMULATOR_UDID log stream --predicate 'subsystem=="com.sipcheck.app"'
+xcrun simctl spawn $SIMULATOR_UDID log stream --predicate 'subsystem=="com.rishishah.sipcheck"'
 
 # Build, install, launch (one-liner)
 xcodebuild -project SipCheck.xcodeproj -scheme SipCheck -destination "platform=iOS Simulator,id=$SIMULATOR_UDID" build && \
 xcrun simctl install $SIMULATOR_UDID ~/Library/Developer/Xcode/DerivedData/SipCheck-*/Build/Products/Debug-iphonesimulator/SipCheck.app && \
-xcrun simctl launch --terminate-running-process $SIMULATOR_UDID com.sipcheck.app
+xcrun simctl launch --terminate-running-process $SIMULATOR_UDID com.rishishah.sipcheck
 ```
 
 ### Physical Device
@@ -72,7 +72,7 @@ xcrun simctl launch --terminate-running-process $SIMULATOR_UDID com.sipcheck.app
 # Preferred method: Xcode Cmd+R with iPhone selected as destination
 # CLI alternative (if device is already prepared):
 xcrun devicectl device install app --device 9D507846-A478-5220-B11A-B52B061B6E1C path/to/SipCheck.app
-xcrun devicectl device process launch --terminate-existing --device 9D507846-A478-5220-B11A-B52B061B6E1C com.sipcheck.app
+xcrun devicectl device process launch --terminate-existing --device 9D507846-A478-5220-B11A-B52B061B6E1C com.rishishah.sipcheck
 ```
 
 ### Automated UI Testing (XcodeBuildMCP + AXe)

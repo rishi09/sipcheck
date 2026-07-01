@@ -16,9 +16,12 @@ struct SipCheckApp: App {
         let args = ProcessInfo.processInfo.arguments
 
         // --mock-ai: All AI service calls return fixed responses (no network)
+        // useMockResponses is only assignable in Debug builds
+        #if DEBUG
         if args.contains("--mock-ai") {
             OpenAIService.useMockResponses = true
         }
+        #endif
 
         // --isolated-storage: Use temp directory instead of Documents
         // --seed-data: Load known test drinks on launch
@@ -66,11 +69,12 @@ struct SipCheckApp: App {
     }
 }
 
-// MARK: - RootView (handles notification-triggered FollowUpView)
+// MARK: - RootView (handles notification-triggered FollowUpView + CloudKit launch sync)
 
 private struct RootView: View {
     @EnvironmentObject private var scanStore: ScanStore
     @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var journalStore: JournalStore
     @EnvironmentObject private var notificationService: NotificationService
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
@@ -89,6 +93,9 @@ private struct RootView: View {
             } else {
                 OnboardingView()
             }
+        }
+        .task {
+            await performLaunchSync()
         }
         .sheet(isPresented: $showingFollowUp) {
             if let scan = followUpScan {
@@ -115,9 +122,13 @@ private struct RootView: View {
             if let prefill = addBeerPrefill {
                 AddBeerView(prefill: prefill)
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             } else {
                 AddBeerView()
                     .environmentObject(drinkStore)
+                    .environmentObject(journalStore)
+                    .environmentObject(scanStore)
             }
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
@@ -151,7 +162,8 @@ private struct RootView: View {
 
             case .lovedIt, .meh:
                 guard let scan = scanStore.scans.first(where: { $0.id == action.scanID }) else { return }
-                let rating: Rating = action.response == .lovedIt ? .like : .neutral
+                let isLoved = action.response == .lovedIt
+                let rating: Rating = isLoved ? .like : .neutral
                 let drink = Drink(
                     name: scan.beerName,
                     style: scan.style ?? "Other",
@@ -159,6 +171,16 @@ private struct RootView: View {
                     abv: scan.abv
                 )
                 drinkStore.addDrink(drink)
+                // Also create a JournalEntry so it appears in the Journal tab
+                let journalEntry = JournalEntry(
+                    beerName: scan.beerName,
+                    brand: "",
+                    style: scan.style ?? "",
+                    abv: scan.abv,
+                    rating: isLoved ? 5 : 3,
+                    linkedScanId: scan.id
+                )
+                journalStore.addEntry(journalEntry)
                 // Clear wantToTry since user has now responded
                 if var updatedScan = scanStore.scans.first(where: { $0.id == action.scanID }) {
                     updatedScan.wantToTry = false
@@ -168,7 +190,7 @@ private struct RootView: View {
                 notificationService.pendingFollowUpScanID = nil
 
             case .skippedIt:
-                // Clear wantToTry since user skipped
+                // User didn't try the beer — just clear the want-to-try flag
                 if var scan = scanStore.scans.first(where: { $0.id == action.scanID }) {
                     scan.wantToTry = false
                     scanStore.updateScan(scan)
@@ -177,5 +199,18 @@ private struct RootView: View {
                 notificationService.pendingFollowUpScanID = nil
             }
         }
+    }
+
+    // MARK: - CloudKit Launch Sync
+
+    private func performLaunchSync() async {
+        let result = await CloudKitSyncService.shared.fullSync(
+            localDrinks: drinkStore.syncRecords,
+            localScans: scanStore.syncRecords,
+            localJournals: journalStore.syncRecords
+        )
+        await drinkStore.applyRemoteDrinks(result.drinks)
+        await scanStore.applyRemoteScans(result.scans)
+        await journalStore.applyRemoteEntries(result.journals)
     }
 }

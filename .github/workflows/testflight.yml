@@ -1,0 +1,115 @@
+name: TestFlight
+
+# ⚠️ SECURITY: this workflow has access to signing/API secrets. Keep its triggers
+# to `push` (trusted branches) and `workflow_dispatch` ONLY. Do NOT add a
+# `pull_request` (or `pull_request_target`) trigger here, and never echo a secret
+# in a step — either would expose the signing cert / API keys, especially while
+# the repo is public.
+on:
+  push:
+    branches: [main, claude/review-project-status-5ihff]
+  workflow_dispatch:
+
+concurrency:
+  group: testflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Gate the build on the App Store Connect secrets existing, so pushes don't
+  # fail loudly before the one-time secret setup is done. Runs on cheap Linux.
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+        run: |
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$DIST_CERT_P12_BASE64" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Missing secrets. Need ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_CONTENT and DIST_CERT_P12_BASE64/DIST_CERT_PASSWORD (the exported Distribution certificate). Skipping the build until they're set."
+          fi
+
+  testflight:
+    needs: check-secrets
+    if: needs.check-secrets.outputs.ready == 'true'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apple rejects uploads built with an SDK older than iOS 26 (Xcode 26+).
+      # The runner defaults to an older Xcode, so select the newest installed.
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Verify iOS SDK >= 26 (fail fast before the long build)
+        run: |
+          xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "iOS SDK version: $SDK"
+          if [ "${SDK%%.*}" -lt 26 ]; then
+            echo "::error::Runner's newest Xcode provides iOS SDK $SDK (<26). App Store uploads require the iOS 26 SDK. Need a runner image with Xcode 26."
+            exit 1
+          fi
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install fastlane
+        run: bundle install
+
+      # Secrets.swift is gitignored and absent from a clean checkout, but it is a
+      # required compile input. Generate it from GitHub secrets (empty string when
+      # a key isn't set — the app still builds and degrades gracefully).
+      - name: Generate Secrets.swift
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MANUS_API_KEY: ${{ secrets.MANUS_API_KEY }}
+        run: |
+          cat > SipCheck/Secrets.swift <<EOF
+          import Foundation
+
+          enum Secrets {
+              static let openAIAPIKey = "${OPENAI_API_KEY}"
+              static let manusAPIKey = "${MANUS_API_KEY}"
+              static let geminiAPIKey = "${GEMINI_API_KEY}"
+          }
+          EOF
+          echo "Wrote SipCheck/Secrets.swift (openAI set: $([ -n "$OPENAI_API_KEY" ] && echo yes || echo no), gemini set: $([ -n "$GEMINI_API_KEY" ] && echo yes || echo no))"
+
+      - name: Build and upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+          DIST_CERT_P12_BASE64: ${{ secrets.DIST_CERT_P12_BASE64 }}
+          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
+        run: bundle exec fastlane beta
+
+      # Concise failure diagnostics: gym's console error is captured by the job log
+      # tail directly; here we only grep the IDEDistribution log for error lines so
+      # the actual cause isn't buried under thousands of entitlement-eval lines.
+      - name: Dump signing/export errors on failure
+        if: failure()
+        run: |
+          echo "===== gym log tail ====="
+          shopt -s nullglob
+          for f in ~/Library/Logs/gym/*.log; do
+            echo "----- $f -----"; tail -50 "$f" 2>/dev/null
+          done
+          echo "===== IDEDistribution error lines ====="
+          find ~/Library/Developer/Xcode /var/folders "$TMPDIR" -iname "IDEDistribution*.log" 2>/dev/null \
+            | while read -r f; do
+                echo "----- $f -----"
+                grep -iE "error|denied|cannot|unable|fail|forbidden|not permitted|invalid|missing| 4[0-9][0-9] " "$f" 2>/dev/null | tail -30
+              done
+          echo "===== done ====="

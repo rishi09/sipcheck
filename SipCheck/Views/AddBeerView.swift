@@ -5,10 +5,14 @@ struct AddBeerPrefill {
     var name: String = ""
     var style: String = BeerStyle.other.rawValue
     var abv: Double? = nil
+    /// When this log originated from a scan, the scan's id so the two can be linked.
+    var scanId: UUID? = nil
 }
 
 struct AddBeerView: View {
     @EnvironmentObject private var drinkStore: DrinkStore
+    @EnvironmentObject private var journalStore: JournalStore
+    @EnvironmentObject private var scanStore: ScanStore
     @Environment(\.dismiss) private var dismiss
 
     var prefill: AddBeerPrefill?
@@ -193,8 +197,35 @@ struct AddBeerView: View {
                 abv: abv
             )
 
+            // Mirror into the journal so it appears in the Journal tab's "Tried" list
+            let journalRating: Int
+            switch rating {
+            case .like:    journalRating = 5
+            case .neutral: journalRating = 3
+            case .dislike: journalRating = 1
+            }
+            let entry = JournalEntry(
+                beerName: name.trimmingCharacters(in: .whitespaces),
+                brand: brand.trimmingCharacters(in: .whitespaces),
+                style: style,
+                abv: abv,
+                rating: journalRating,
+                notes: notes.isEmpty ? nil : notes,
+                photoFileName: photoFileName,
+                linkedScanId: prefill?.scanId
+            )
+
             await MainActor.run {
                 drinkStore.addDrink(drink)
+                journalStore.addEntry(entry)
+                // If this log came from a scan, link the two and clear its
+                // want-to-try flag so it leaves the Journal's Want to Try list.
+                if let scanId = prefill?.scanId,
+                   var scan = scanStore.scans.first(where: { $0.id == scanId }) {
+                    scan.linkedJournalId = entry.id
+                    scan.wantToTry = false
+                    scanStore.updateScan(scan)
+                }
                 dismiss()
             }
         }
@@ -205,5 +236,7 @@ struct AddBeerView_Previews: PreviewProvider {
     static var previews: some View {
         AddBeerView()
             .environmentObject(DrinkStore())
+            .environmentObject(JournalStore())
+            .environmentObject(ScanStore())
     }
 }

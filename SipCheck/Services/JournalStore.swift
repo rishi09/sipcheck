@@ -4,7 +4,14 @@ import Combine
 
 /// Observable store for managing journal entries with JSON file persistence
 class JournalStore: ObservableObject {
+    /// Visible (non-deleted) entries — what the UI binds to.
     @Published var entries: [JournalEntry] = []
+
+    /// Soft-deleted records kept only so the deletion can sync to other devices.
+    private var tombstones: [JournalEntry] = []
+
+    /// All records (visible + tombstones) for CloudKit sync.
+    var syncRecords: [JournalEntry] { entries + tombstones }
 
     private let storageDir: URL
 
@@ -28,25 +35,65 @@ class JournalStore: ObservableObject {
     // MARK: - CRUD Operations
 
     func addEntry(_ entry: JournalEntry) {
-        entries.insert(entry, at: 0)
+        var e = entry
+        e.lastModifiedLocal = Date()
+        e.isDeleted = false
+        tombstones.removeAll { $0.id == e.id }  // un-tombstone if re-added
+        entries.insert(e, at: 0)
         saveEntries()
+        CloudKitSyncService.shared.save(e)
     }
 
     func updateEntry(_ entry: JournalEntry) {
-        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
-            entries[index] = entry
+        var e = entry
+        e.lastModifiedLocal = Date()
+        if let index = entries.firstIndex(where: { $0.id == e.id }) {
+            entries[index] = e
             saveEntries()
+            CloudKitSyncService.shared.save(e)
         }
     }
 
     func deleteEntry(_ entry: JournalEntry) {
-        entries.removeAll { $0.id == entry.id }
+        tombstone(ids: [entry.id])
+    }
+
+    /// Soft-delete: hide locally and upload a tombstone so the deletion syncs.
+    private func tombstone(ids: [UUID]) {
+        let idSet = Set(ids)
+        let removed = entries.filter { idSet.contains($0.id) }
+        guard !removed.isEmpty else { return }
+        entries.removeAll { idSet.contains($0.id) }
+        for var rec in removed {
+            rec.isDeleted = true
+            rec.lastModifiedLocal = Date()
+            tombstones.removeAll { $0.id == rec.id }
+            tombstones.append(rec)
+            CloudKitSyncService.shared.save(rec)
+        }
+        saveEntries()
+    }
+
+    /// Apply remote journal entries from CloudKit — bypasses CloudKit upload to avoid loops.
+    @MainActor func applyRemoteEntries(_ remoteEntries: [JournalEntry]) {
+        var byID: [UUID: JournalEntry] = [:]
+        for e in entries { byID[e.id] = e }
+        for t in tombstones { byID[t.id] = t }
+        for remote in remoteEntries {
+            if let local = byID[remote.id] {
+                if cloudKitWins(remote, over: local) { byID[remote.id] = remote }
+            } else {
+                byID[remote.id] = remote
+            }
+        }
+        let all = Array(byID.values)
+        tombstones = all.filter { $0.isDeleted }
+        entries = all.filter { !$0.isDeleted }.sorted { $0.dateLogged > $1.dateLogged }
         saveEntries()
     }
 
     func deleteAllEntries() {
-        entries.removeAll()
-        saveEntries()
+        tombstone(ids: entries.map { $0.id })
     }
 
     // MARK: - Persistence
@@ -57,7 +104,7 @@ class JournalStore: ObservableObject {
 
     private func saveEntries() {
         do {
-            let data = try JSONEncoder().encode(entries)
+            let data = try JSONEncoder().encode(entries + tombstones)
             try data.write(to: fileURL, options: .atomic)
         } catch {
             print("Failed to save journal entries: \(error)")
@@ -67,6 +114,7 @@ class JournalStore: ObservableObject {
     private func loadEntries() {
         guard let data = try? Data(contentsOf: fileURL) else {
             entries = []
+            tombstones = []
             return
         }
         // Write backup before decoding — protects against decode failure wiping the file on next save
@@ -74,10 +122,13 @@ class JournalStore: ObservableObject {
         try? data.write(to: backupURL, options: .atomic)
 
         do {
-            entries = try JSONDecoder().decode([JournalEntry].self, from: data)
+            let all = try JSONDecoder().decode([JournalEntry].self, from: data)
+            tombstones = all.filter { $0.isDeleted }
+            entries = all.filter { !$0.isDeleted }
         } catch {
             print("JournalStore: failed to decode journal.json — keeping empty. Error: \(error)")
             entries = []
+            tombstones = []
         }
     }
 
@@ -104,12 +155,10 @@ class JournalStore: ObservableObject {
     func findMatch(for query: String) -> JournalEntry? {
         let normalizedQuery = query.lowercased().trimmingCharacters(in: .whitespaces)
 
-        // Exact match
         if let exact = entries.first(where: { $0.beerName.lowercased().trimmingCharacters(in: .whitespaces) == normalizedQuery }) {
             return exact
         }
 
-        // Contains match
         if let contains = entries.first(where: {
             let normalized = $0.beerName.lowercased().trimmingCharacters(in: .whitespaces)
             return normalized.contains(normalizedQuery) || normalizedQuery.contains(normalized)
@@ -119,6 +168,31 @@ class JournalStore: ObservableObject {
 
         return nil
     }
+
+    /// Inject sample journal entries for testing. Idempotent — skips any already present by ID.
+    /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
+    /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).
+    func seedSampleData() {
+        let existing = Set(entries.map { $0.id })
+        let fresh = Self.seedEntries.filter { !existing.contains($0.id) }
+        guard !fresh.isEmpty else { return }
+        for entry in fresh { insertSeed(entry) }
+    }
+
+    /// Insert a seed record that can never win last-write-wins (back-dated).
+    private func insertSeed(_ entry: JournalEntry) {
+        var e = entry
+        e.dateLogged = Self.seedDate
+        e.lastModifiedLocal = Self.seedDate
+        e.isDeleted = false
+        tombstones.removeAll { $0.id == e.id }
+        entries.insert(e, at: 0)
+        saveEntries()
+        CloudKitSyncService.shared.save(e)
+    }
+
+    /// Fixed timestamp far in the past so seed records always lose last-write-wins.
+    static let seedDate = Date(timeIntervalSince1970: 0)
 
     // MARK: - Seed Data
 

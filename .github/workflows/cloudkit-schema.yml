@@ -1,0 +1,51 @@
+name: Deploy CloudKit Schema
+
+# Promotes the CloudKit schema from Development to Production so new record
+# types / fields (e.g. isDeleted) go live for TestFlight + App Store builds.
+# Run manually after the Development schema has the latest fields (which Xcode
+# auto-creates when the app saves records in the Development environment).
+#
+# Requires a CloudKit *Management Token* (NOT an API token or server-to-server
+# key) stored as the secret CLOUDKIT_MGMT_TOKEN. Generate it at
+# https://icloud.developer.apple.com/dashboard → user menu → Manage Tokens.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-schema:
+    runs-on: macos-15
+    steps:
+      - name: Select latest Xcode (for cktool)
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Promote Development schema to Production
+        env:
+          TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
+          TEAM_ID: YG7C25J24J
+          CONTAINER: iCloud.com.rishishah.sipcheck
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "::error::CLOUDKIT_MGMT_TOKEN secret is not set. Generate a CloudKit Management Token in the CloudKit Console and add it as a repo secret."
+            exit 1
+          fi
+          echo "Exporting Development schema…"
+          xcrun cktool export-schema \
+            --team-id "$TEAM_ID" \
+            --container-id "$CONTAINER" \
+            --environment DEVELOPMENT \
+            --management-token "$TOKEN" \
+            --output-file schema.ckdb
+          echo "----- schema.ckdb -----"
+          cat schema.ckdb
+          echo "Importing schema into Production…"
+          xcrun cktool import-schema \
+            --team-id "$TEAM_ID" \
+            --container-id "$CONTAINER" \
+            --environment PRODUCTION \
+            --management-token "$TOKEN" \
+            --file schema.ckdb
+          echo "✅ CloudKit schema promoted Development → Production."

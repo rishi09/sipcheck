@@ -87,7 +87,7 @@ class GeminiService: LLMProvider {
         }
 
         guard !apiKey.isEmpty else {
-            return (.yourCall, "No API key configured — give it a try and see what you think.")
+            throw GeminiError.noAPIKey
         }
 
         let tasteContext = TastePreferences.current.promptSummary
@@ -114,34 +114,33 @@ class GeminiService: LLMProvider {
         {"verdict": "TRY_IT", "explanation": "1-2 sentences explaining why, written directly to the user in a friendly tone."}
         """
 
-        do {
-            let responseData = try await makeRequest(prompt: prompt)
-            let text = try extractTextFromResponse(responseData)
+        // Let failures throw so ScanningPipeline can fall back to OpenAI. Returning
+        // a canned tuple here would make the pipeline's `try?` always succeed and
+        // the fallback path dead code.
+        let responseData = try await makeRequest(prompt: prompt)
+        let text = try extractTextFromResponse(responseData)
 
-            guard let jsonStart = text.firstIndex(of: "{"),
-                  let jsonEnd = text.lastIndex(of: "}") else {
-                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
-            }
-
-            let jsonString = String(text[jsonStart...jsonEnd])
-            guard let jsonData = jsonString.data(using: .utf8),
-                  let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                  let verdictString = parsed["verdict"] as? String,
-                  let explanation = parsed["explanation"] as? String else {
-                return (.yourCall, "Couldn't get a read on this one — try it and find out!")
-            }
-
-            let verdict: Verdict
-            switch verdictString.uppercased() {
-            case "TRY_IT": verdict = .tryIt
-            case "SKIP_IT": verdict = .skipIt
-            default: verdict = .yourCall
-            }
-
-            return (verdict, explanation)
-        } catch {
-            return (.yourCall, "Couldn't reach our recommendation engine — give it a try and decide for yourself!")
+        guard let jsonStart = text.firstIndex(of: "{"),
+              let jsonEnd = text.lastIndex(of: "}") else {
+            throw GeminiError.parseError
         }
+
+        let jsonString = String(text[jsonStart...jsonEnd])
+        guard let jsonData = jsonString.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let verdictString = parsed["verdict"] as? String,
+              let explanation = parsed["explanation"] as? String else {
+            throw GeminiError.parseError
+        }
+
+        let verdict: Verdict
+        switch verdictString.uppercased() {
+        case "TRY_IT": verdict = .tryIt
+        case "SKIP_IT": verdict = .skipIt
+        default: verdict = .yourCall
+        }
+
+        return (verdict, explanation)
     }
 
     // MARK: - Private Methods
