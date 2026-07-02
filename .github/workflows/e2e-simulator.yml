@@ -91,7 +91,6 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -only-testing:SipCheckUITests \
             -resultBundlePath TestResults/e2e.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
             > xcodebuild-full.log 2>&1
           STATUS=$?
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"

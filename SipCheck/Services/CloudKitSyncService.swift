@@ -6,10 +6,19 @@ import CloudKit
 final class CloudKitSyncService {
     static let shared = CloudKitSyncService()
 
-    private let container = CKContainer(identifier: "iCloud.com.rishishah.sipcheck")
-    private var db: CKDatabase { container.privateCloudDatabase }
+    /// Test runs must be hermetic (no network), and unsigned test builds lack
+    /// the iCloud entitlement — merely creating a CKContainer there raises an
+    /// NSException that kills the app at launch. In test mode no CKContainer
+    /// is ever created and every sync entry point is a no-op.
+    private let disabled: Bool
+    private let container: CKContainer?
+    private var db: CKDatabase { container!.privateCloudDatabase }
 
-    private init() {}
+    private init() {
+        let args = ProcessInfo.processInfo.arguments
+        disabled = args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
+        container = disabled ? nil : CKContainer(identifier: "iCloud.com.rishishah.sipcheck")
+    }
 
     /// Serializes CloudKit writes so a record's mutations apply in submission
     /// order — an edit's save can't be overtaken by a later tombstone save, which
@@ -28,6 +37,7 @@ final class CloudKitSyncService {
     /// writer changed the record between fetch and save), refetch the server
     /// record, reapply our fields (local is authoritative), and retry once.
     private func saveRecord(_ recordType: String, _ id: UUID, _ populate: @escaping (CKRecord) -> Void) {
+        guard !disabled else { return }
         Task { [self] in
             await writeQueue.enqueue {
                 do {
@@ -53,6 +63,7 @@ final class CloudKitSyncService {
     }
 
     func fetchAllDrinks() async -> [Drink] {
+        guard !disabled else { return [] }
         let query = CKQuery(recordType: "Drink", predicate: NSPredicate(value: true))
         guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
         return results.matchResults.compactMap { (_, result) -> Drink? in
@@ -68,6 +79,7 @@ final class CloudKitSyncService {
     }
 
     func fetchAllScans() async -> [Scan] {
+        guard !disabled else { return [] }
         let query = CKQuery(recordType: "Scan", predicate: NSPredicate(value: true))
         guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
         return results.matchResults.compactMap { (_, result) -> Scan? in
@@ -83,6 +95,7 @@ final class CloudKitSyncService {
     }
 
     func fetchAllJournalEntries() async -> [JournalEntry] {
+        guard !disabled else { return [] }
         let query = CKQuery(recordType: "JournalEntry", predicate: NSPredicate(value: true))
         guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
         return results.matchResults.compactMap { (_, result) -> JournalEntry? in
@@ -100,6 +113,7 @@ final class CloudKitSyncService {
         localScans: [Scan],
         localJournals: [JournalEntry]
     ) async -> (drinks: [Drink], scans: [Scan], journals: [JournalEntry]) {
+        guard !disabled else { return (localDrinks, localScans, localJournals) }
         async let remoteDrinksTask = fetchAllDrinks()
         async let remoteScansTask = fetchAllScans()
         async let remoteJournalsTask = fetchAllJournalEntries()

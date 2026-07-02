@@ -1,5 +1,5 @@
 {
   "minutes": 45,
   "launch_args": "--mock-ai --seed-data --isolated-storage",
-  "note": "interactive drive session 1 — exploratory pass over core flows"
+  "note": "session 2 \u2014 retest after CloudKit launch-crash fix"
 }

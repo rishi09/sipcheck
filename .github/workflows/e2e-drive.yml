@@ -116,7 +116,6 @@ jobs:
             -configuration Debug \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath DerivedData \
-            CODE_SIGNING_ALLOWED=NO \
             build > build.log 2>&1 || { tail -100 build.log; exit 1; }
           tail -5 build.log
 
