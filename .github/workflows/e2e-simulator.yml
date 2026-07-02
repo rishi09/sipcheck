@@ -52,9 +52,12 @@ jobs:
       - name: Pick and boot a simulator
         id: sim
         run: |
-          UDID=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          data = json.load(sys.stdin)["devices"]
+          UDID=$(python3 <<'PY'
+          import json, subprocess, sys
+          out = subprocess.run(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"],
+              capture_output=True, text=True, check=True).stdout
+          data = json.loads(out)["devices"]
           candidates = []
           for runtime, devices in data.items():
               if "iOS" not in runtime:
@@ -68,9 +71,11 @@ jobs:
           if not candidates:
               sys.exit("no available iPhone simulator found")
           ver, name, udid = candidates[-1]
-          print(f"picked {name} (iOS {'.'.join(map(str, ver))}) {udid}", file=sys.stderr)
+          vs = ".".join(map(str, ver))
+          print(f"picked {name} (iOS {vs}) {udid}", file=sys.stderr)
           print(udid)
-          ')
+          PY
+          )
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
@@ -143,7 +148,7 @@ jobs:
               walk(manifest)
           PY
 
-          tail -3000 xcodebuild-full.log > publish/xcodebuild-tail.log
+          [ -f xcodebuild-full.log ] && tail -3000 xcodebuild-full.log > publish/xcodebuild-tail.log
           {
             echo "# E2E run ${GITHUB_RUN_NUMBER}"
             echo "- commit: ${GITHUB_SHA}"
@@ -183,4 +188,6 @@ jobs:
 
       - name: Report status
         if: always()
-        run: exit ${{ steps.tests.outputs.status }}
+        run: |
+          S="${{ steps.tests.outputs.status }}"
+          exit "${S:-1}"
