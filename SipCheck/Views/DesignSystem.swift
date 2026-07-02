@@ -1,5 +1,7 @@
 import SwiftUI
 
+// Upload-retry marker (harmless): 1
+
 // MARK: - Color Tokens (dark values; asset-catalog Any/Dark split deferred to light-mode project)
 
 enum SipColors {
