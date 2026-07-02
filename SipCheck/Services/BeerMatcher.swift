@@ -37,8 +37,9 @@ enum BeerMatcher {
             .replacingOccurrences(of: "  ", with: " ")
     }
 
-    /// Calculate similarity between two strings (0.0 to 1.0)
-    private static func calculateSimilarity(_ s1: String, _ s2: String) -> Double {
+    /// Calculate similarity between two strings (0.0 to 1.0).
+    /// Internal so `BundledCatalog` can reuse it for typo-tolerant catalog matching.
+    static func calculateSimilarity(_ s1: String, _ s2: String) -> Double {
         let distance = levenshteinDistance(s1, s2)
         let maxLength = max(s1.count, s2.count)
         guard maxLength > 0 else { return 1.0 }

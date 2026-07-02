@@ -55,7 +55,18 @@ enum TasteScorer {
         profile: TasteProfile,
         preferences: TastePreferences
     ) -> Assessment {
-        let resolvedStyle = style ?? inferStyle(from: name)
+        // No style signal at all: an honest "your call", never a confident skip.
+        // A graphic label whose OCR only yields brewery + fantasy name carries no
+        // taste information — pretending otherwise ("SKIP IT") is worse than
+        // admitting it (locked constraint: verdict must work from style alone,
+        // and no signal must still yield a usable verdict).
+        guard let resolvedStyle = style ?? inferStyle(from: name) else {
+            return Assessment(
+                verdict: .yourCall,
+                shortReason: "we couldn't tell the style — trust your gut",
+                score: 0.0
+            )
+        }
 
         var score = 0.0
         var reasons: [String] = []
@@ -64,22 +75,16 @@ enum TasteScorer {
         let likedWeights = likedStyleWeights(from: profile, preferences: preferences)
         let dislikedSet = dislikedStyleKeys(from: profile, preferences: preferences)
 
-        if let resolvedStyle {
-            let key = styleKey(resolvedStyle)
-            if dislikedSet.contains(key) {
-                score -= 5.0
-                reasons.append("you usually avoid \(resolvedStyle.displayName.lowercased())")
-            } else if let weight = likedWeights[key] {
-                score += weight
-                reasons.append("matches your love of \(resolvedStyle.displayName.lowercased())")
-            } else {
-                // Known style, neither loved nor avoided.
-                score += 0.2
-            }
+        let key = styleKey(resolvedStyle)
+        if dislikedSet.contains(key) {
+            score -= 5.0
+            reasons.append("you usually avoid \(resolvedStyle.displayName.lowercased())")
+        } else if let weight = likedWeights[key] {
+            score += weight
+            reasons.append("matches your love of \(resolvedStyle.displayName.lowercased())")
         } else {
-            // Couldn't infer a style at all.
-            score -= 0.5
-            reasons.append("couldn't tell the style")
+            // Known style, neither loved nor avoided.
+            score += 0.2
         }
 
         // ---- ABV contribution ---------------------------------------------
@@ -170,24 +175,25 @@ enum TasteScorer {
     /// `STYLE_KEYWORDS`; the most specific (longest) matching keyword wins.
     private static let styleKeywords: [(style: BeerStyle, keywords: [String])] = [
         (.ipa,       ["double ipa", "west coast", "neipa", "juicy", "hazy", "dipa", "ipa", "hop"]),
-        (.paleAle,   ["pale ale", "apa", "pale"]),
-        (.lager,     ["lager", "helles", "vienna", "festbier"]),
+        (.paleAle,   ["pale ale", "golden ale", "blonde", "blond ale", "apa", "pale"]),
+        (.lager,     ["lager", "helles", "vienna", "festbier", "doppelbock", "bock", "dunkel", "cream ale"]),
         (.pilsner,   ["pilsner", "pils", "kolsch"]),
         (.stout,     ["imperial stout", "milk stout", "oatmeal", "stout"]),
-        (.porter,    ["porter"]),
+        (.porter,    ["porter", "schwarzbier", "black lager"]),
         (.wheat,     ["hefeweizen", "witbier", "white ale", "blanche", "wheat", "hefe"]),
         (.sour,      ["berliner", "lambic", "wild ale", "sour", "gose", "kriek", "funk"]),
-        (.amber,     ["irish red", "red ale", "amber"]),
+        (.amber,     ["irish red", "red ale", "amber", "marzen", "oktoberfest", "extra special", "esb"]),
         (.brownAle,  ["nut brown", "brown ale", "brown"]),
-        (.belgian,   ["belgian", "tripel", "dubbel", "saison", "quad"]),
+        (.belgian,   ["belgian", "tripel", "dubbel", "saison", "quad", "barleywine", "barley wine"]),
     ]
 
     /// Infer a `BeerStyle` from a beer name, or `nil` if nothing matches.
     ///
     /// The longest matching keyword across all styles wins, so "double ipa"
-    /// beats "pale" and "imperial stout" beats a bare "stout".
+    /// beats "pale" and "imperial stout" beats a bare "stout". Input is
+    /// diacritic-folded so "Märzen"/"Kölsch" match their keywords.
     static func inferStyle(from name: String) -> BeerStyle? {
-        let lower = name.lowercased()
+        let lower = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
         var best: (style: BeerStyle, length: Int)?
         for entry in styleKeywords {
             for keyword in entry.keywords where lower.contains(keyword) {
@@ -238,11 +244,19 @@ enum TasteScorer {
         from profile: TasteProfile,
         preferences: TastePreferences
     ) -> Set<String> {
-        var disliked = Set(profile.dislikedStyles.map { $0.style.lowercased() })
+        let disliked = Set(profile.dislikedStyles.map { $0.style.lowercased() })
+
+        var quizDislikes: Set<String> = []
         for dislike in preferences.dislikes {
-            disliked.formUnion(styleKeys(matching: dislike))
+            quizDislikes.formUnion(styleKeys(matching: dislike))
         }
-        return disliked
+        // The explicit vibe outranks a generic dislike phrase that keyword-matches
+        // the same styles: "Hoppy & Bitter" vibe + "Super Bitter" dislike is a
+        // coherent answer (loves hops, hates palate-wreckers) — it must not nuke
+        // every IPA. Rating history still counts as a real dislike.
+        quizDislikes.subtract(vibeStyleKeys(from: preferences.vibe))
+
+        return disliked.union(quizDislikes)
     }
 
     /// Map a free-text quiz "vibe" string to liked style keys.

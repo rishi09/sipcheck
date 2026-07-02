@@ -5,6 +5,13 @@ struct VerdictCardView: View {
     /// Set when this beer matches one already in the user's history, so the
     /// card can say "you've had this" instead of treating it as new.
     var previousDrink: Drink? = nil
+    /// True while background network enrichment is still filling in details.
+    /// The verdict itself is final the moment the card renders — this only
+    /// signals that copy/style/ABV may still improve in place.
+    var refining: Bool = false
+    /// Optimistic saved state: flips the Save button to a confirmed "Saved"
+    /// immediately on tap (the silent button was the app's worst UX moment).
+    var savedForLater: Bool = false
     var onSaveForLater: (() -> Void)?
     var onScanAnother: (() -> Void)?
 
@@ -44,6 +51,20 @@ struct VerdictCardView: View {
                     .padding(.top, 8)
                     .accessibilityIdentifier("verdictText")
 
+                // MARK: - Refining Hint
+                if refining {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("refining details…")
+                            .font(SipTypography.caption)
+                            .foregroundColor(SipColors.textSecondary)
+                    }
+                    .padding(.top, 6)
+                    .transition(.opacity)
+                    .accessibilityIdentifier("refiningHint")
+                }
+
                 // MARK: - Already-Tried Banner
                 if let previous = previousDrink {
                     HStack(spacing: 8) {
@@ -79,6 +100,9 @@ struct VerdictCardView: View {
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
+                    // Enrichment swaps this copy in place — cross-fade, don't jump.
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.35), value: scan.explanation)
 
                 // MARK: - Origin Card
                 if let origin = scan.origin, !origin.isEmpty {
@@ -100,18 +124,31 @@ struct VerdictCardView: View {
 
                 // MARK: - Action Buttons
                 HStack(spacing: 16) {
-                    // Save for Later — outline style
+                    // Save for Later — outline style; flips to a filled "Saved"
+                    // confirmation instantly (optimistic — the store write and
+                    // notification scheduling ride along behind it).
                     Button(action: { onSaveForLater?() }) {
-                        Text("Save for Later")
-                            .font(SipTypography.headline)
-                            .foregroundColor(SipColors.primary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(SipColors.primary, lineWidth: 2)
-                            )
+                        HStack(spacing: 6) {
+                            if savedForLater {
+                                Image(systemName: "checkmark")
+                            }
+                            Text(savedForLater ? "Saved" : "Save for Later")
+                        }
+                        .font(SipTypography.headline)
+                        .foregroundColor(savedForLater ? SipColors.background : SipColors.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(savedForLater ? SipColors.primary : Color.clear)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(SipColors.primary, lineWidth: savedForLater ? 0 : 2)
+                        )
                     }
+                    .disabled(savedForLater)
+                    .animation(.easeInOut(duration: 0.2), value: savedForLater)
                     .accessibilityIdentifier("saveForLater")
 
                     // Scan Another — filled style

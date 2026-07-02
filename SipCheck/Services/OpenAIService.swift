@@ -139,6 +139,22 @@ actor OpenAIService {
         return result
     }
 
+    /// One-shot raw prompt → model text (gpt-4o-mini), no context prepend — the
+    /// caller builds the full prompt. Used by ScanningPipeline's post-verdict
+    /// enrichment (single merged round trip).
+    func complete(prompt: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw OpenAIError.noAPIKey
+        }
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "max_tokens": 300
+        ]
+        let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
+        return try parseRecommendationResponse(responseData)
+    }
+
     /// Personalized TRY IT / SKIP IT / YOUR CALL verdict — fallback when Gemini is unavailable
     func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
         if Self.useMockResponses {
