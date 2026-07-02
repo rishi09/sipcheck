@@ -7,6 +7,9 @@ struct ResolvedBeer: Equatable {
     let style: BeerStyle?
     let abv: Double?
     let source: Source
+    /// Catalog match confidence (0–1) when `source == .catalog`; nil otherwise.
+    /// Lets the UI say "Best match: Two Hearted (72%)" instead of faking certainty.
+    var confidence: Double? = nil
 
     /// Where the style/ABV came from — useful for telemetry and for deciding
     /// whether an async top-up is worth firing.
@@ -81,7 +84,8 @@ enum BeerResolver {
             brewery: brewery,
             style: style,
             abv: abv,
-            source: source
+            source: source,
+            confidence: hit?.confidence
         )
     }
 
@@ -148,8 +152,38 @@ final class BundledCatalog: BeerCatalog {
     }
 
     private let entries: [Entry]
+    /// Precomputed normalized names + token sets, parallel to `entries`.
+    private let normalizedNames: [String]
+    private let tokenSets: [Set<String>]
     /// Normalized-name → index, for O(1) exact hits before falling back to fuzzy.
     private let exactIndex: [String: Int]
+    /// token → entry indices; candidate generation so fuzzy scoring never walks
+    /// all 2,410 entries.
+    private let tokenIndex: [String: [Int]]
+
+    /// Words that can never identify a beer on their own ("Pale Ale" must not
+    /// match every pale ale on the shelf). Backed up by a data-driven check on
+    /// posting-list size in `isDistinctive`.
+    private static let genericWords: Set<String> = [
+        "ale", "beer", "the", "and", "brewing", "brewery", "company", "co",
+        "ipa", "lager", "stout", "porter", "pale", "with", "series"
+    ]
+
+    /// Style vocabulary that must never anchor a match by itself: typing
+    /// "blonde ale" describes a style, not the alphabetically-first blonde in
+    /// the catalog. These still count toward containment/overlap once a real
+    /// identity token anchors the candidate.
+    private static let styleWords: Set<String> = [
+        "blonde", "blond", "brown", "wheat", "amber", "hazy", "juicy", "golden",
+        "sour", "cream", "black", "india", "double", "imperial", "session",
+        "hoppy", "dark", "light", "red", "white", "extra", "special",
+        "pilsner", "pils", "kolsch", "hefeweizen", "witbier", "saison",
+        "tripel", "dubbel", "gose", "helles", "vienna", "oktoberfest",
+        "marzen", "bock", "dunkel", "belgian", "irish", "west", "coast"
+    ]
+
+    /// Minimum score for a fuzzy candidate to count as a match at all.
+    private static let matchThreshold: Double = 0.6
 
     /// - Parameter bundle: defaults to `.main`; injectable for tests.
     init(bundle: Bundle = .main, resourceName: String = "catalog") {
@@ -162,51 +196,152 @@ final class BundledCatalog: BeerCatalog {
             loaded = []
         }
         self.entries = loaded
-        var idx: [String: Int] = [:]
-        for (i, e) in loaded.enumerated() {
-            idx[BundledCatalog.normalize(e.name)] = i
-        }
-        self.exactIndex = idx
+        (self.normalizedNames, self.tokenSets, self.exactIndex, self.tokenIndex) =
+            BundledCatalog.buildIndexes(loaded)
     }
 
     /// Test/preview seam: build directly from decoded rows without a bundle.
     init(seed rows: [(name: String, brewery: String?, style: String?, coarse: String?, abv: Double?)]) {
         let mapped = rows.map { Entry(name: $0.name, brewery: $0.brewery, style: $0.style, coarse: $0.coarse, abv: $0.abv) }
         self.entries = mapped
-        var idx: [String: Int] = [:]
-        for (i, e) in mapped.enumerated() { idx[BundledCatalog.normalize(e.name)] = i }
-        self.exactIndex = idx
+        (self.normalizedNames, self.tokenSets, self.exactIndex, self.tokenIndex) =
+            BundledCatalog.buildIndexes(mapped)
     }
 
     func lookup(name: String) -> ResolvedBeer? {
-        guard !entries.isEmpty else { return nil }
+        matches(name: name, limit: 1).first
+    }
+
+    /// Ranked candidate matches with a 0–1 confidence, best first. Deterministic
+    /// for identical inputs. The old first-substring-wins lookup confidently
+    /// returned the wrong beer ("Voodoo Ranger Juice Force" → a porter named
+    /// "Voodoo"); scoring anchored on distinctive tokens prevents that class of
+    /// false positive while still matching label blobs that *contain* a real name.
+    func matches(name: String, limit: Int = 3) -> [ResolvedBeer] {
+        guard !entries.isEmpty else { return [] }
         let q = BundledCatalog.normalize(name)
-        guard !q.isEmpty else { return nil }
+        guard !q.isEmpty else { return [] }
 
-        // 1. Exact normalized hit.
-        if let i = exactIndex[q] { return resolved(entries[i]) }
-
-        // 2. Substring either direction (label text often has extra words) — but
-        //    only for reasonably specific names, so short generic catalog names
-        //    ("IPA", "Pils") don't swallow every scan that contains them.
-        if let e = entries.first(where: {
-            let n = BundledCatalog.normalize($0.name)
-            return n.count >= 6 && (q.contains(n) || n.contains(q))
-        }) {
-            return resolved(e)
+        // 1. Exact normalized hit — but only when the name carries at least one
+        //    identity token. An entry literally named "Pale Ale" matching the
+        //    typed style phrase "pale ale" would silently adopt that one
+        //    brewery's ABV; style inference handles those honestly instead.
+        if let i = exactIndex[q], hasIdentityToken(tokenSets[i]) {
+            return [resolved(entries[i], confidence: 1.0)]
         }
-        return nil
+
+        // 2. Candidate generation via the token index (distinctive tokens only).
+        let querySet = Set(q.split(separator: " ").map(String.init))
+        var candidates: Set<Int> = []
+        for token in querySet where isDistinctive(token) {
+            if let list = tokenIndex[token] { candidates.formUnion(list) }
+        }
+        guard !candidates.isEmpty else { return [] }
+
+        // 3. Score candidates; keep those above threshold.
+        var scored: [(idx: Int, score: Double, overlap: Int)] = []
+        for i in candidates {
+            let s = score(query: q, querySet: querySet, entry: normalizedNames[i], entrySet: tokenSets[i])
+            if s >= BundledCatalog.matchThreshold {
+                scored.append((i, s, querySet.intersection(tokenSets[i]).count))
+            }
+        }
+
+        // 4. Deterministic ranking: score, then token overlap, then name.
+        scored.sort { a, b in
+            if a.score != b.score { return a.score > b.score }
+            if a.overlap != b.overlap { return a.overlap > b.overlap }
+            return entries[a.idx].name < entries[b.idx].name
+        }
+        return scored.prefix(limit).map { resolved(entries[$0.idx], confidence: $0.score) }
+    }
+
+    // MARK: - Scoring
+
+    /// A token specific enough to anchor a match: not a generic beer word, not
+    /// style vocabulary, not trivially short (digit-bearing tokens like "512"
+    /// count — they're brand identity), and not present in a huge slice of the
+    /// catalog.
+    private func isDistinctive(_ token: String) -> Bool {
+        guard !BundledCatalog.genericWords.contains(token),
+              !BundledCatalog.styleWords.contains(token) else { return false }
+        let longEnough = token.count >= 4 || (token.count >= 3 && token.contains(where: \.isNumber))
+        guard longEnough else { return false }
+        return (tokenIndex[token]?.count ?? 0) <= 150
+    }
+
+    /// Does this token set contain anything beyond style/generic vocabulary?
+    /// ("Bud Light" → yes via "bud"; "Pale Ale" → no.)
+    private func hasIdentityToken(_ tokens: Set<String>) -> Bool {
+        tokens.contains {
+            !BundledCatalog.genericWords.contains($0) && !BundledCatalog.styleWords.contains($0)
+        }
+    }
+
+    private func score(query q: String, querySet: Set<String>, entry n: String, entrySet: Set<String>) -> Double {
+        if q == n { return 1.0 }
+
+        let hasDistinctiveOverlap = querySet.intersection(entrySet).contains(where: isDistinctive)
+
+        // Full containment either direction, anchored by a distinctive token:
+        // a label blob ("TRADER JOES BOATSWAIN DOUBLE IPA 22 FL OZ") contains the
+        // full entry name; a typed partial ("two hearted") is contained by it.
+        if entrySet.count >= 2, hasDistinctiveOverlap, entrySet.isSubset(of: querySet) {
+            return min(0.95, 0.75 + 0.07 * Double(entrySet.count))
+        }
+        if querySet.count >= 2, hasDistinctiveOverlap, querySet.isSubset(of: entrySet) {
+            return 0.85
+        }
+        // Single long specific token ("boatswain") on either side.
+        if querySet.count == 1, let t = querySet.first, t.count >= 7, entrySet.contains(t) { return 0.62 }
+        if entrySet.count == 1, let t = entrySet.first, t.count >= 7, querySet.contains(t) { return 0.62 }
+
+        var s = 0.0
+        let union = querySet.union(entrySet)
+        if !union.isEmpty, hasDistinctiveOverlap {
+            let jaccard = Double(querySet.intersection(entrySet).count) / Double(union.count)
+            if jaccard >= 0.5 { s = 0.45 + 0.4 * jaccard }
+        }
+        // Typo tolerance on the whole string ("hazy little thnig"). The length
+        // gap scales with the entry name so a typed partial with a typo can
+        // still reach an entry that carries an extra suffix word.
+        if abs(q.count - n.count) <= max(3, n.count / 5), max(q.count, n.count) <= 40 {
+            let sim = BeerMatcher.calculateSimilarity(q, n)
+            if sim >= 0.8 { s = max(s, sim * 0.92) }
+        }
+        return s
     }
 
     // MARK: - Helpers
 
-    private func resolved(_ e: Entry) -> ResolvedBeer {
+    private static func buildIndexes(
+        _ entries: [Entry]
+    ) -> (names: [String], tokens: [Set<String>], exact: [String: Int], byToken: [String: [Int]]) {
+        var names: [String] = []
+        var tokens: [Set<String>] = []
+        var exact: [String: Int] = [:]
+        var byToken: [String: [Int]] = [:]
+        names.reserveCapacity(entries.count)
+        tokens.reserveCapacity(entries.count)
+        for (i, e) in entries.enumerated() {
+            let n = normalize(e.name)
+            names.append(n)
+            let set = Set(n.split(separator: " ").map(String.init))
+            tokens.append(set)
+            if exact[n] == nil { exact[n] = i }
+            for t in set { byToken[t, default: []].append(i) }
+        }
+        return (names, tokens, exact, byToken)
+    }
+
+    private func resolved(_ e: Entry, confidence: Double) -> ResolvedBeer {
         ResolvedBeer(
             name: e.name,
             brewery: e.brewery,
             style: BundledCatalog.style(fromCoarse: e.coarse) ?? TasteScorer.inferStyle(from: e.style ?? e.name),
             abv: e.abv,
-            source: .catalog
+            source: .catalog,
+            confidence: confidence
         )
     }
 
@@ -216,9 +351,12 @@ final class BundledCatalog: BeerCatalog {
         return BeerStyle.allCases.first { $0.rawValue.lowercased() == coarse.lowercased() }
     }
 
+    /// Case/diacritic-folded, punctuation-stripped, whitespace-collapsed.
+    /// "Kölsch #002 — Löwenbräu" → "kolsch 002 lowenbrau", so real-world label
+    /// text and catalog names meet on common ground.
     private static func normalize(_ s: String) -> String {
-        s.lowercased()
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "  ", with: " ")
+        let folded = s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        let mapped = folded.map { c -> Character in (c.isLetter || c.isNumber) ? c : " " }
+        return String(mapped).split(separator: " ").joined(separator: " ")
     }
 }

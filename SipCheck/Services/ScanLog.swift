@@ -21,10 +21,13 @@ struct ScanEvent: Codable {
     // Device context — stamped automatically so notes from different test
     // devices stay legible (e.g. iPhone 14 Pro, which can't run Foundation
     // Models, vs iPhone 15 Pro, which can). Defaulted so call sites are unchanged.
+    // `var`, not `let`: immutable properties with initial values are NOT decoded
+    // (Swift skips them), which silently re-stamped persisted/synced events with
+    // the *current* device's identity on every load.
     /// Hardware id, e.g. "iPhone16,1" (15 Pro) vs "iPhone15,2" (14 Pro).
-    let deviceModel: String = DeviceInfo.machineIdentifier
-    let osVersion: String = DeviceInfo.osVersion
-    let appBuild: String = DeviceInfo.appBuild
+    var deviceModel: String = DeviceInfo.machineIdentifier
+    var osVersion: String = DeviceInfo.osVersion
+    var appBuild: String = DeviceInfo.appBuild
 }
 
 /// Lightweight device/build context for scan telemetry. Foundation only.

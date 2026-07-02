@@ -29,6 +29,15 @@ enum BeerMatcher {
         return nil
     }
 
+    /// Strict variant for "you've had this one" claims: exact normalized-name
+    /// equality only. The loose substring/fuzzy `findMatch` produces false
+    /// banners ("Voodoo" ≠ "Voodoo Ranger Juice Force").
+    static func exactMatch(for query: String, in drinks: [Drink]) -> Drink? {
+        let normalizedQuery = normalize(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+        return drinks.first { normalize($0.name) == normalizedQuery }
+    }
+
     /// Normalize a string for comparison
     private static func normalize(_ string: String) -> String {
         string
@@ -37,8 +46,9 @@ enum BeerMatcher {
             .replacingOccurrences(of: "  ", with: " ")
     }
 
-    /// Calculate similarity between two strings (0.0 to 1.0)
-    private static func calculateSimilarity(_ s1: String, _ s2: String) -> Double {
+    /// Calculate similarity between two strings (0.0 to 1.0).
+    /// Internal so `BundledCatalog` can reuse it for typo-tolerant catalog matching.
+    static func calculateSimilarity(_ s1: String, _ s2: String) -> Double {
         let distance = levenshteinDistance(s1, s2)
         let maxLength = max(s1.count, s2.count)
         guard maxLength > 0 else { return 1.0 }

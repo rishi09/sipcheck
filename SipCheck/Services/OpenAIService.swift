@@ -139,6 +139,22 @@ actor OpenAIService {
         return result
     }
 
+    /// One-shot raw prompt → model text (gpt-4o-mini), no context prepend — the
+    /// caller builds the full prompt. Used by ScanningPipeline's post-verdict
+    /// enrichment (single merged round trip).
+    func complete(prompt: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw OpenAIError.noAPIKey
+        }
+        let requestBody: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [["role": "user", "content": prompt]],
+            "max_tokens": 300
+        ]
+        let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
+        return try parseRecommendationResponse(responseData)
+    }
+
     /// Personalized TRY IT / SKIP IT / YOUR CALL verdict — fallback when Gemini is unavailable
     func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
         if Self.useMockResponses {
@@ -355,7 +371,11 @@ actor OpenAIService {
         guard maxSide > maxDimension else { return image }
         let scale = maxDimension / maxSide
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        // Force 1x rendering: the default format inherits the device's screen
+        // scale (3x), which made this "1024px max" upload an actual 3072px JPEG.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 

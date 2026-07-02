@@ -17,11 +17,21 @@ enum VisionOCRService {
         }
 
         return await withCheckedContinuation { continuation in
+            // VNRecognizeTextRequest's completion runs synchronously inside
+            // handler.perform on this thread; the flag guards the (rare) path
+            // where perform throws after the completion already resumed.
+            var resumed = false
+            let resumeOnce: ((text: String, confidence: Float)) -> Void = { result in
+                guard !resumed else { return }
+                resumed = true
+                continuation.resume(returning: result)
+            }
+
             let request = VNRecognizeTextRequest { request, error in
                 guard error == nil,
                       let observations = request.results as? [VNRecognizedTextObservation],
                       !observations.isEmpty else {
-                    continuation.resume(returning: ("", 0.0))
+                    resumeOnce(("", 0.0))
                     return
                 }
 
@@ -50,27 +60,46 @@ enum VisionOCRService {
                 }
 
                 if texts.isEmpty {
-                    continuation.resume(returning: ("", 0.0))
+                    resumeOnce(("", 0.0))
                     return
                 }
 
                 let combinedText = texts.joined(separator: "\n")
                 let averageConfidence = totalConfidence / Float(texts.count)
 
-                continuation.resume(returning: (combinedText, averageConfidence))
+                resumeOnce((combinedText, averageConfidence))
             }
 
             // Configure for beer label text: accurate recognition handles stylized fonts better
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            // CRITICAL: pass the photo's orientation. UIImagePickerController's
+            // portrait captures store landscape pixels + an orientation flag;
+            // without it Vision OCRs the label sideways and reads nothing.
+            let orientation = cgOrientation(from: image.imageOrientation)
+            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
 
             do {
                 try handler.perform([request])
             } catch {
-                continuation.resume(returning: ("", 0.0))
+                resumeOnce(("", 0.0))
             }
+        }
+    }
+
+    /// UIImage.Orientation → CGImagePropertyOrientation (no built-in bridge).
+    private static func cgOrientation(from orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+        switch orientation {
+        case .up: return .up
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
         }
     }
 }

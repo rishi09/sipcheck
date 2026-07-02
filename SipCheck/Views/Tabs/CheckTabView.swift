@@ -6,20 +6,56 @@ struct CheckTabView: View {
     @EnvironmentObject var drinkStore: DrinkStore
     @EnvironmentObject private var journalStore: JournalStore
 
+    /// The scan flow's single source of truth (SPEED_PLAN §2).
+    ///
+    /// Legal transitions: idle → recognizing → verdict(refining: true|false),
+    /// and verdict(refining: true) → verdict(refining: false). The network can
+    /// never move the machine backwards — a refinement failure just flips
+    /// `refining` off and the on-device verdict stands. `.failed` is reachable
+    /// only from `.recognizing` (nothing readable in frame), never from
+    /// refinement.
+    private enum ScanPhase: Equatable {
+        case idle
+        case recognizing
+        case verdict(Scan, refining: Bool)
+        case failed(String)
+    }
+
+    /// Everything the on-device stage decides — computed off the main actor.
+    private struct ScanOutcome {
+        let scan: Scan
+        /// Resolver source ("labelText"/"catalog"/"unresolved") or "menu".
+        let source: String
+        let score: Double
+        /// True when the shown name is a best-guess that network refinement
+        /// is allowed to replace.
+        let nameIsGuess: Bool
+        /// True when the scan had no style signal on-device — refinement must
+        /// then keep facts and copy moving together (no "IPA · 6.5%" above
+        /// "couldn't tell the style").
+        let startedStyleless: Bool
+        /// Menu scans are on-device-final: enriching the winner against the
+        /// whole menu blob would only re-extract the wrong beer.
+        let isMenu: Bool
+    }
+
     // Camera / input state
     @State private var capturedImage: UIImage?
     @State private var showingCamera = false
     @State private var showingPermissionAlert = false
     @State private var showingTextEntry = false
     @State private var textEntryInput = ""
+    @FocusState private var textEntryFocused: Bool
 
     // Scan flow state
-    @State private var isScanning = false
-    @State private var scanError: String?
-
-    // Result state
+    @State private var phase: ScanPhase = .idle
+    @State private var savedForLater = false
+    /// Monotonic guard so a stale OCR task can never deliver into a newer scan.
+    @State private var scanGeneration = 0
     @State private var scanTask: Task<Void, Never>?
-    @State private var currentScan: Scan?
+    @State private var refineTask: Task<Void, Never>?
+
+    // Follow-up / add-beer plumbing
     @State private var showingFollowUp = false
     @State private var showingAddBeer = false
     @State private var addBeerPrefill: AddBeerPrefill?
@@ -27,6 +63,7 @@ struct CheckTabView: View {
     // Scanning animation state
     @State private var spinnerDegrees: Double = 0
     @State private var scanningPhraseIndex = 0
+    @State private var phraseTimer: Timer?
     private let scanningPhrases = [
         "Judging this beer...",
         "Reading the label...",
@@ -34,19 +71,24 @@ struct CheckTabView: View {
         "Forming an opinion..."
     ]
 
-    // Notification service
-    private let notificationService = NotificationService.shared
-
     var body: some View {
         ZStack {
             SipColors.background
                 .ignoresSafeArea()
 
-            if isScanning {
+            switch phase {
+            case .idle:
+                scanPromptView
+            case .recognizing:
                 scanningView
-            } else if let scan = currentScan {
+            case .verdict(let scan, let refining):
                 VerdictCardView(
                     scan: scan,
+                    // Exact-name match only: a fuzzy hit here would put a false
+                    // "you've had this one" banner on a beer the user never tried.
+                    previousDrink: BeerMatcher.exactMatch(for: scan.beerName, in: drinkStore.drinks),
+                    refining: refining,
+                    savedForLater: savedForLater,
                     onSaveForLater: {
                         saveForLater(scan)
                     },
@@ -54,15 +96,26 @@ struct CheckTabView: View {
                         resetScanState()
                     }
                 )
-            } else {
+            case .failed(let message):
                 scanPromptView
-            }
-
-            if let errorMsg = scanError {
-                errorBannerView(message: errorMsg)
+                errorBannerView(message: message)
             }
         }
         .accessibilityIdentifier("checkTab")
+        // Verdict lands: a felt cue before it's read. Confidence-gated — the
+        // celebratory tap is reserved for TRY IT; others get a neutral bump.
+        .sensoryFeedback(trigger: verdictStamp) { _, newValue in
+            guard let newValue else { return nil }
+            return newValue.hasSuffix(Verdict.tryIt.rawValue) ? .success : .impact(weight: .medium)
+        }
+        .sensoryFeedback(trigger: savedForLater) { _, newValue in
+            newValue ? .selection : nil
+        }
+        .task {
+            // Warm the catalog decode + token indexes off the main actor so
+            // scan #1 pays the same ~0ms lookup cost as scan #10.
+            Task.detached(priority: .utility) { _ = BundledCatalog.shared }
+        }
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
         }
@@ -120,6 +173,20 @@ struct CheckTabView: View {
                 runScan(image: image)
             }
         }
+    }
+
+    // MARK: - Derived State
+
+    private var currentScan: Scan? {
+        if case .verdict(let scan, _) = phase { return scan }
+        return nil
+    }
+
+    /// Changes exactly once per delivered verdict (id + verdict), stable across
+    /// refinement patches — drives the verdict haptic.
+    private var verdictStamp: String? {
+        if case .verdict(let scan, _) = phase { return "\(scan.id.uuidString)-\(scan.verdict.rawValue)" }
+        return nil
     }
 
     // MARK: - Scan Prompt (Empty State)
@@ -217,8 +284,10 @@ struct CheckTabView: View {
     }
 
     private func startPhraseCycling() {
-        Timer.scheduledTimer(withTimeInterval: 2.2, repeats: true) { timer in
-            guard isScanning else {
+        // Invalidate-and-replace so repeated recognizing phases can't stack timers.
+        phraseTimer?.invalidate()
+        phraseTimer = Timer.scheduledTimer(withTimeInterval: 2.2, repeats: true) { timer in
+            guard case .recognizing = phase else {
                 timer.invalidate()
                 return
             }
@@ -241,7 +310,7 @@ struct CheckTabView: View {
                     .foregroundColor(SipColors.textPrimary)
                 Spacer()
                 Button {
-                    scanError = nil
+                    phase = .idle
                 } label: {
                     Image(systemName: "xmark")
                         .foregroundColor(SipColors.textSecondary)
@@ -265,15 +334,17 @@ struct CheckTabView: View {
                         .foregroundColor(SipColors.textSecondary)
                     TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $textEntryInput)
                         .textFieldStyle(.roundedBorder)
+                        .focused($textEntryFocused)
+                        .submitLabel(.search)
+                        .onSubmit {
+                            submitTextEntry()
+                        }
                         .accessibilityIdentifier("beerTextInput")
                 }
                 .padding(.horizontal)
 
                 Button(action: {
-                    showingTextEntry = false
-                    let input = textEntryInput
-                    textEntryInput = ""
-                    runScan(text: input)
+                    submitTextEntry()
                 }) {
                     Text("Check This Beer")
                         .font(SipTypography.headline)
@@ -302,7 +373,18 @@ struct CheckTabView: View {
                     }
                 }
             }
+            .onAppear {
+                textEntryFocused = true
+            }
         }
+    }
+
+    private func submitTextEntry() {
+        let input = textEntryInput.trimmingCharacters(in: .whitespaces)
+        guard !input.isEmpty else { return }
+        showingTextEntry = false
+        textEntryInput = ""
+        runScan(text: input)
     }
 
     // MARK: - Actions
@@ -318,6 +400,8 @@ struct CheckTabView: View {
                     if granted {
                         capturedImage = nil
                         showingCamera = true
+                    } else {
+                        showingPermissionAlert = true
                     }
                 }
             }
@@ -328,24 +412,40 @@ struct CheckTabView: View {
         }
     }
 
-    private func runScan(image: UIImage) {
-        guard !isScanning else { return }
-        isScanning = true
-        scanError = nil
-        currentScan = nil
+    // MARK: - Verdict-First Scan Flow (SPEED_PLAN §2)
+    //
+    // Stage 1 (on-device, sub-second): OCR → menu detection → resolver (printed
+    // style/ABV + bundled catalog) → TasteScorer → verdict on screen. All the
+    // pure compute (catalog decode, scoring) runs OFF the main actor.
+    // Stage 2 (network, optional): a single bounded enrichment call that only
+    // fills blanks and upgrades copy — never the verdict, never the phase.
 
-        scanTask = Task {
-            do {
-                let result = try await ScanningPipeline.shared.scan(image: image)
-                let scan = buildScan(from: result, path: "image")
+    private func runScan(image: UIImage) {
+        guard startScan() else { return }
+        let generation = scanGeneration
+        let drinks = drinkStore.drinks
+
+        scanTask = Task(priority: .userInitiated) {
+            let start = CFAbsoluteTimeGetCurrent()
+            let ocrResult = await VisionOCRService.extractText(from: image)
+            let text = ocrResult.text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if text.isEmpty {
+                // Nothing readable in frame (glare, glossy can). An honest
+                // retake prompt beats a garbage verdict built from nothing.
                 await MainActor.run {
-                    finalizeScan(scan)
+                    guard generation == scanGeneration, case .recognizing = phase else { return }
+                    phase = .failed("Couldn't read the label — try again with less glare, or type the name.")
                 }
-            } catch {
-                await MainActor.run {
-                    isScanning = false
-                    scanError = "Scan failed: \(error.localizedDescription)"
-                }
+                return
+            }
+
+            let outcome = Self.computeOutcome(fromText: text, path: "image", drinks: drinks)
+            let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+
+            await MainActor.run {
+                guard generation == scanGeneration, case .recognizing = phase else { return }
+                present(outcome, rawText: text, path: "image", latencyMs: latencyMs, image: image)
             }
         }
     }
@@ -353,118 +453,249 @@ struct CheckTabView: View {
     private func runScan(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-        guard !isScanning else { return }
+        guard startScan() else { return }
+        let generation = scanGeneration
+        let drinks = drinkStore.drinks
 
-        isScanning = true
-        scanError = nil
-        currentScan = nil
+        scanTask = Task(priority: .userInitiated) {
+            let start = CFAbsoluteTimeGetCurrent()
+            let outcome = Self.computeOutcome(fromText: trimmed, path: "text", drinks: drinks)
+            let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
 
-        scanTask = Task {
-            do {
-                let result = try await ScanningPipeline.shared.scan(text: trimmed)
-                let scan = buildScan(from: result, path: "text")
-                await MainActor.run {
-                    finalizeScan(scan)
+            await MainActor.run {
+                guard generation == scanGeneration, case .recognizing = phase else { return }
+                present(outcome, rawText: trimmed, path: "text", latencyMs: latencyMs, image: nil)
+            }
+        }
+    }
+
+    /// Common scan entry: cancels stale work, resets per-scan UI state, and
+    /// moves the machine to `.recognizing`. Returns false when a scan is
+    /// already being recognized (double-tap guard).
+    private func startScan() -> Bool {
+        if case .recognizing = phase { return false }
+        scanTask?.cancel()
+        refineTask?.cancel()
+        scanGeneration += 1
+        savedForLater = false
+        spinnerDegrees = 0
+        scanningPhraseIndex = 0
+        withAnimation { phase = .recognizing }
+        return true
+    }
+
+    /// Stage 1 compute — pure and static so it can run off the main actor.
+    private static func computeOutcome(fromText text: String, path: String, drinks: [Drink]) -> ScanOutcome {
+        let profile = TasteProfile.build(from: drinks)
+        let prefs = TastePreferences.current
+
+        // Menu detection first (locked constraint: menu → ONE clear winner).
+        // Two-plus parsed candidates means this is a list, not a label.
+        let menuCandidates = MenuParser.parse(text)
+        if menuCandidates.count >= 2,
+           let winner = MenuParser.evaluate(candidates: menuCandidates, profile: profile, preferences: prefs).winner {
+            let scan = Scan(
+                beerName: winner.name,
+                style: winner.style?.rawValue,
+                abv: winner.abv,
+                verdict: winner.assessment.verdict,
+                explanation: menuExplanation(winner: winner, totalCandidates: menuCandidates.count),
+                wantToTry: false,
+                origin: nil
+            )
+            return ScanOutcome(
+                scan: scan,
+                source: "menu",
+                score: winner.assessment.score,
+                nameIsGuess: false,
+                startedStyleless: winner.style == nil,
+                isMenu: true
+            )
+        }
+
+        // Single-beer path: fuse printed style/ABV with a bundled-catalog match.
+        let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
+        let assessment = TasteScorer.assess(
+            name: resolved.name,
+            style: resolved.style,
+            abv: resolved.abv,
+            profile: profile,
+            preferences: prefs
+        )
+        let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
+
+        let scan = Scan(
+            beerName: name,
+            style: resolved.style?.rawValue,
+            abv: resolved.abv,
+            verdict: assessment.verdict,
+            explanation: sentenceCase(assessment.shortReason),
+            wantToTry: false,
+            origin: nil
+        )
+        return ScanOutcome(
+            scan: scan,
+            source: resolved.source.rawValue,
+            score: assessment.score,
+            nameIsGuess: nameIsGuess,
+            startedStyleless: resolved.style == nil,
+            isMenu: false
+        )
+    }
+
+    private static func menuExplanation(winner: TasteScorer.AssessedCandidate, totalCandidates: Int) -> String {
+        let reason = sentenceCase(winner.assessment.shortReason)
+        switch winner.assessment.verdict {
+        case .tryIt:
+            return "Order this — the best of the \(totalCandidates) beers we read on this menu. \(reason)"
+        case .yourCall:
+            return "Closest match of the \(totalCandidates) beers we read on this menu. \(reason)"
+        case .skipIt:
+            return "Slim pickings — of the \(totalCandidates) beers we read, this is nearest your taste. \(reason)"
+        }
+    }
+
+    /// Stage 1 presentation — main actor: log, persist, show, kick refinement.
+    private func present(_ outcome: ScanOutcome, rawText: String, path: String, latencyMs: Int, image: UIImage?) {
+        ScanLog.shared.record(
+            ScanEvent(
+                timestamp: Date(),
+                inputText: String(rawText.prefix(200)),
+                resolvedName: outcome.scan.beerName,
+                style: outcome.scan.style,
+                abv: outcome.scan.abv,
+                source: outcome.source,
+                verdict: outcome.scan.verdict.rawValue,
+                score: outcome.score,
+                latencyMs: latencyMs,
+                path: path
+            )
+        )
+
+        scanStore.addScan(outcome.scan)
+        // E2E handoff F5: never pop the OS permission dialog over a verdict —
+        // schedule only if already authorized; Save for Later owns the ask.
+        NotificationService.shared.scheduleFollowUpIfAuthorized(for: outcome.scan)
+
+        savedForLater = false
+        let willRefine = !outcome.isMenu && ScanningPipeline.shared.canEnrich
+        withAnimation { phase = .verdict(outcome.scan, refining: willRefine) }
+        if willRefine {
+            startRefinement(for: outcome.scan, text: rawText, outcome: outcome, image: image)
+        }
+    }
+
+    /// Stage 2: bounded background enrichment. Patches blanks and upgrades the
+    /// explanation copy in place; the verdict and the phase kind never change.
+    private func startRefinement(for scan: Scan, text: String, outcome: ScanOutcome, image: UIImage?) {
+        let nameIsGuess = outcome.nameIsGuess
+        let startedStyleless = outcome.startedStyleless
+
+        refineTask = Task(priority: .utility) {
+            // Weak or guessed reads get the frame too, so a graphic label with
+            // garbage OCR can still be identified by the vision fallback.
+            let sendImage = (nameIsGuess || text.count < 15) ? image : nil
+            let enrichment = await ScanningPipeline.shared.enrich(
+                text: text,
+                image: sendImage,
+                deviceVerdict: scan.verdict
+            )
+            if Task.isCancelled { return }
+
+            await MainActor.run {
+                // Only patch the scan that's still on screen.
+                guard case .verdict(var current, _) = phase, current.id == scan.id else { return }
+                if let e = enrichment {
+                    var nameChanged = false
+                    if nameIsGuess, let name = e.name, name != current.beerName {
+                        current.beerName = name
+                        nameChanged = true
+                    }
+                    // Facts and copy move together: never render "IPA · 6.5%"
+                    // above copy that still says "couldn't tell the style".
+                    let canPatchFacts = !startedStyleless || e.explanation != nil
+                    if canPatchFacts, current.style == nil, let style = e.style { current.style = style.rawValue }
+                    if canPatchFacts, current.abv == nil, let abv = e.abv { current.abv = abv }
+                    if current.origin == nil, let origin = e.origin { current.origin = origin }
+                    if let explanation = e.explanation { current.explanation = explanation }
+                    scanStore.updateScan(current)
+                    if nameChanged {
+                        // Same identifier → replaces the pending follow-up, so the
+                        // notification names the corrected beer.
+                        NotificationService.shared.scheduleFollowUpIfAuthorized(for: current)
+                    }
                 }
-            } catch {
-                await MainActor.run {
-                    isScanning = false
-                    scanError = "Scan failed: \(error.localizedDescription)"
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    phase = .verdict(current, refining: false)
                 }
             }
         }
     }
 
-    private func buildScan(from result: ScanResult, path: String) -> Scan {
-        let beerInfo = result.beerInfo
-        let name = beerInfo.name ?? "Unknown Beer"
+    /// Choose what to show as the beer's name, and whether it's a guess that
+    /// network refinement is allowed to replace. Trust is graded by catalog
+    /// confidence — a 0.6 fuzzy hit must not permanently rename the scan.
+    private static func displayName(fromText text: String, resolved: ResolvedBeer, path: String) -> (name: String, isGuess: Bool) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // On-device taste inputs (free, instant, no network).
-        let profile = TasteProfile.build(from: drinkStore.drinks)
-        let prefs = TastePreferences.current
+        if let confidence = resolved.confidence {
+            // High-confidence catalog hit: canonical name is authoritative.
+            if confidence >= 0.9 { return (resolved.name, false) }
+            // Moderate hit: show the canonical name, but refinement may correct it.
+            return (resolved.name, true)
+        }
 
-        // Resolve style/ABV against the bundled catalog, then fuse:
-        // the label/LLM-extracted values win; the resolver fills any gaps.
-        let resolved = BeerResolver.resolve(
-            recognizedText: name,
-            using: BundledCatalog.shared
-        )
-        let fusedStyle = beerInfo.style ?? resolved.style
-        let fusedABV = beerInfo.abv ?? resolved.abv
+        // No catalog hit. Typed input is the user's own words — trust it.
+        // A single-line OCR read is still machine output, so it stays replaceable.
+        if !trimmed.contains("\n") {
+            return (String(trimmed.prefix(60)), path == "image")
+        }
 
-        // Deterministic on-device verdict — this is what the card shows.
-        let assessment = TasteScorer.assess(
-            name: name,
-            style: fusedStyle,
-            abv: fusedABV,
-            profile: profile,
-            preferences: prefs
-        )
-
-        // Keep the network's richer copy when it actually produced one;
-        // otherwise fall back to the on-device short reason.
-        let explanation = usableNetworkExplanation(result) ?? assessment.shortReason
-
-        // Telemetry: capture the full on-device decision for later triage.
-        ScanLog.shared.record(
-            ScanEvent(
-                timestamp: Date(),
-                inputText: name,
-                resolvedName: resolved.name,
-                style: fusedStyle?.rawValue,
-                abv: fusedABV,
-                source: resolved.source.rawValue,
-                verdict: assessment.verdict.rawValue,
-                score: assessment.score,
-                latencyMs: result.latencyMs,
-                path: path
-            )
-        )
-
-        return Scan(
-            beerName: name,
-            style: fusedStyle?.rawValue,
-            abv: fusedABV,
-            verdict: assessment.verdict,
-            explanation: explanation,
-            wantToTry: false,
-            origin: beerInfo.origin
-        )
+        // Multi-line OCR blob (that didn't parse as a menu): best-guess the
+        // first non-empty line and let refinement supply the real name.
+        let firstLine = trimmed
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? trimmed
+        return (String(firstLine.prefix(60)), true)
     }
 
-    /// The pipeline's network explanation, but only when it's meaningful copy
-    /// worth showing over the on-device reason (non-empty and not the generic
-    /// no-provider fallback the pipeline returns when no LLM is reachable).
-    private func usableNetworkExplanation(_ result: ScanResult) -> String? {
-        let text = result.explanation.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        // Matches ScanningPipeline.getVerdictAndExplanation's no-provider fallback.
-        guard text != "Give it a try and see what you think!" else { return nil }
-        return text
-    }
-
-    private func finalizeScan(_ scan: Scan) {
-        scanStore.addScan(scan)
-        notificationService.scheduleFollowUp(for: scan)
-        currentScan = scan
-        isScanning = false
+    /// "matches your love of IPA" → "Matches your love of IPA."
+    private static func sentenceCase(_ fragment: String) -> String {
+        let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return trimmed }
+        let capitalized = first.uppercased() + trimmed.dropFirst()
+        return capitalized.hasSuffix(".") || capitalized.hasSuffix("!") ? capitalized : capitalized + "."
     }
 
     private func saveForLater(_ scan: Scan) {
+        guard !savedForLater else { return }
         var updated = scan
         updated.wantToTry = true
         scanStore.updateScan(updated)
-        notificationService.scheduleFollowUp(for: updated)
+        // E2E handoff F5: this is the moment that earns the notification ask.
+        NotificationService.shared.requestAuthorizationAndScheduleFollowUp(for: updated)
+        savedForLater = true
+        // Keep the phase's scan in sync so a late refinement patch can't
+        // clobber wantToTry with the stale pre-save copy.
+        if case .verdict(_, let refining) = phase {
+            phase = .verdict(updated, refining: refining)
+        }
     }
 
     private func resetScanState() {
         scanTask?.cancel()
         scanTask = nil
-        currentScan = nil
+        refineTask?.cancel()
+        refineTask = nil
+        phraseTimer?.invalidate()
+        phraseTimer = nil
+        scanGeneration += 1
+        savedForLater = false
         capturedImage = nil
-        scanError = nil
         spinnerDegrees = 0
         scanningPhraseIndex = 0
+        withAnimation { phase = .idle }
     }
 }
 

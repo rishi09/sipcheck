@@ -81,6 +81,17 @@ class GeminiService: LLMProvider {
         return try parseTextResponse(responseData)
     }
 
+    /// One-shot raw prompt → model text, with no taste-context prepend — the
+    /// caller builds the full prompt. Used by ScanningPipeline's post-verdict
+    /// enrichment (single merged round trip).
+    func complete(prompt: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw GeminiError.noAPIKey
+        }
+        let responseData = try await makeRequest(prompt: prompt)
+        return try parseTextResponse(responseData)
+    }
+
     func getVerdictAndExplanation(for beerInfo: BeerInfo) async throws -> (verdict: Verdict, explanation: String) {
         if OpenAIService.useMockResponses {
             return (.tryIt, "Based on your taste profile, this looks like a solid match. Give it a shot!")
