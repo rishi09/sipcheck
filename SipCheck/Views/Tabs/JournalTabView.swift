@@ -76,6 +76,9 @@ struct JournalTabView: View {
                 .padding(.bottom, 110)
             }
         }
+        // .contain keeps this container id from clobbering every child's
+        // identifier (a bare container identifier overwrites them all).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("journalTab")
         .sheet(item: $selectedEntry) { entry in
             JournalEntryDetailView(entry: entry)

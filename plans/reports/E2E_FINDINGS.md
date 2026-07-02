@@ -36,6 +36,14 @@ already on main):
    reverted in favor of your planned optimistic "Saved ✓" flip (SPEED_PLAN #8) —
    just make sure *something* ships; the silent button is the single worst UX
    moment in the current app.
+5. **F12 — container id clobbers child identifiers:** the bare
+   `.accessibilityIdentifier("checkTab")` on CheckTabView's root ZStack
+   overwrites the identifier of *every* element inside (XCUITest hierarchy dump
+   shows Scan Label, Enter beer name, verdict text all reporting `checkTab`),
+   which broke id-based UI tests and hurts accessibility tooling. Fix during the
+   rewrite: put `.accessibilityElement(children: .contain)` immediately before
+   the identifier (done for journalTab/profileTab on main), or drop the
+   container id. UI tests currently work around it by querying visible labels.
 
 ## Known, intentionally not fixed by this track
 

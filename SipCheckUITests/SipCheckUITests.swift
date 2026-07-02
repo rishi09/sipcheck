@@ -32,28 +32,40 @@ final class SipCheckUITests: XCTestCase {
 
     // MARK: - Flow 1: Launch lands on Check tab
 
+    // NOTE: Check-tab queries go by visible label, not identifier — the
+    // container id on CheckTabView's ZStack currently clobbers child ids
+    // (see E2E_FINDINGS.md F12; fix belongs to the reserved refactor).
     func testLaunchShowsCheckTab() {
-        XCTAssertTrue(app.buttons["scanNowButton"].waitForExistence(timeout: 5),
+        XCTAssertTrue(app.buttons["Scan Label"].waitForExistence(timeout: 5),
                       "Check tab scan prompt should be visible on launch")
-        XCTAssertTrue(app.buttons["enterTextButton"].exists)
+        XCTAssertTrue(app.buttons["Enter beer name"].exists)
         snap("01-check-tab")
     }
 
     // MARK: - Flow 2: Typed beer name → verdict card
 
     func testTypedNameProducesVerdict() {
-        app.buttons["enterTextButton"].tap()
+        let enterName = app.buttons["Enter beer name"]
+        XCTAssertTrue(enterName.waitForExistence(timeout: 5))
+        enterName.tap()
 
-        let field = app.textFields["beerTextInput"]
+        // The sheet escapes the tab container, so its field is findable by id;
+        // fall back to the first text field for refactor resilience.
+        let byId = app.textFields["beerTextInput"]
+        let field = byId.waitForExistence(timeout: 3) ? byId : app.textFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 3))
         field.tap()
         field.typeText("Sierra Nevada Pale Ale")
         snap("01-name-entered")
 
-        app.buttons["checkBeerButton"].tap()
+        app.buttons["Check This Beer"].tap()
 
-        // Mock AI responds fast, but allow for scan-phase animation.
-        XCTAssertTrue(app.staticTexts["verdictText"].waitForExistence(timeout: 10),
+        // Verdict wording is one of the three fixed values; match by label so
+        // this survives identifier changes in the verdict-first refactor.
+        let verdict = app.staticTexts.matching(
+            NSPredicate(format: "label IN %@", ["TRY IT", "YOUR CALL", "SKIP IT"])
+        ).firstMatch
+        XCTAssertTrue(verdict.waitForExistence(timeout: 10),
                       "A verdict should render after checking a typed name")
         snap("02-verdict")
     }

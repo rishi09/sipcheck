@@ -57,6 +57,9 @@ struct ProfileTabView: View {
                 .padding(.top, 16)
             }
         }
+        // .contain keeps this container id from clobbering every child's
+        // identifier (a bare container identifier overwrites them all).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("profileTab")
     }
 
