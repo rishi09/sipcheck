@@ -46,16 +46,14 @@ struct CameraCaptureButton: View {
     @State private var showingPermissionAlert = false
 
     var body: some View {
+        // Sits inside AddBeerView's Form (opaque row), not over a live feed —
+        // per spec §3 WO-7 this is a standard primary button, no glass here.
         Button {
             checkCameraPermission()
         } label: {
             Label("Take Photo", systemImage: "camera.fill")
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.accentColor)
-                .foregroundColor(.white)
-                .cornerRadius(12)
         }
+        .buttonStyle(SipPrimaryButtonStyle())
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
         }
@@ -80,6 +78,10 @@ struct CameraCaptureButton: View {
                 DispatchQueue.main.async {
                     if granted {
                         showingCamera = true
+                    } else {
+                        // Surface the alert instead of silently doing nothing
+                        // (intended behavior change, ordered by spec §3 WO-7).
+                        showingPermissionAlert = true
                     }
                 }
             }

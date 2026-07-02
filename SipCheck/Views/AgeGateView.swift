@@ -4,21 +4,24 @@ struct AgeGateView: View {
     @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
     @State private var isLockedOut = false
 
+    @ScaledMetric(relativeTo: .largeTitle) private var logoSize: CGFloat = 72
+    @ScaledMetric(relativeTo: .title2) private var lockedIconSize: CGFloat = 28
+
     var body: some View {
         ZStack {
             SipColors.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 32) {
+            VStack(spacing: SipSpacing.xxl) {
                 Spacer()
 
                 // App icon / logo area
                 Image(systemName: "mug.fill")
-                    .font(.system(size: 72))
-                    .foregroundColor(SipColors.primary)
+                    .font(.system(size: logoSize))
+                    .foregroundColor(SipColors.accent)
 
                 // Headline + subtext
-                VStack(spacing: 12) {
+                VStack(spacing: SipSpacing.m) {
                     Text("SipCheck is for adults\n21 and older.")
                         .font(SipTypography.title)
                         .foregroundColor(SipColors.textPrimary)
@@ -36,10 +39,12 @@ struct AgeGateView: View {
 
                 if isLockedOut {
                     // Locked state
-                    VStack(spacing: 16) {
+                    VStack(spacing: SipSpacing.l) {
+                        // Dimmed brand tint, not gray — a gray content glyph
+                        // reads as template slop (crit watchlist Q1).
                         Image(systemName: "mug.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(SipColors.textSecondary)
+                            .font(.system(size: lockedIconSize))
+                            .foregroundColor(SipColors.accent.opacity(0.55))
 
                         Text("SipCheck is only available\nfor adults 21+.")
                             .font(SipTypography.body)
@@ -48,58 +53,43 @@ struct AgeGateView: View {
 
                         // A mis-tap must not brick the app — offer a way back.
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.snappy(duration: 0.25)) {
                                 isLockedOut = false
                             }
                         }) {
                             Text("I tapped by mistake — go back")
-                                .font(SipTypography.subhead)
-                                .foregroundColor(SipColors.primary)
                         }
+                        .buttonStyle(SipQuietButtonStyle())
                         .accessibilityIdentifier("ageGateGoBack")
-                        .padding(.top, 8)
+                        .padding(.top, SipSpacing.s)
                     }
                     .padding(.bottom, 60)
                 } else {
                     // Buttons
-                    VStack(spacing: 14) {
+                    VStack(spacing: SipSpacing.l) {
                         // Primary filled button
                         Button(action: {
                             hasConfirmedAge = true
                         }) {
                             Text("I'm 21 or Older")
-                                .font(SipTypography.headline)
-                                .foregroundColor(SipColors.background)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .fill(SipColors.primary)
-                                )
                         }
+                        .buttonStyle(SipPrimaryButtonStyle())
 
-                        // Ghost / outline button
+                        // Ghost / outline button — stays muted, not brand teal.
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(.snappy(duration: 0.25)) {
                                 isLockedOut = true
                             }
                         }) {
                             Text("I'm Under 21")
-                                .font(SipTypography.headline)
-                                .foregroundColor(SipColors.textSecondary)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(SipColors.textSecondary.opacity(0.4), lineWidth: 1.5)
-                                )
                         }
+                        .buttonStyle(SipSecondaryButtonStyle(tint: SipColors.textSecondary))
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, SipSpacing.xl)
                     .padding(.bottom, 60)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, SipSpacing.xl)
         }
     }
 }

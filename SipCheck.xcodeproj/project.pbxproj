@@ -10,16 +10,12 @@
 		A1000001 /* SipCheckApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001; };
 		A1000002 /* Drink.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002; };
 		A1000003 /* DrinkEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003; };
-		A1000004 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004; };
 		A1000005 /* AddBeerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005; };
-		A1000006 /* BeerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006; };
-		A1000007 /* BeerDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007; };
 		A1000008 /* RatingPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008; };
 		A1000009 /* StylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009; };
 		A1000010 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010; };
 		A1000011 /* OpenAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011; };
 		A1000012 /* BeerMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012; };
-		A1000013 /* CheckBeerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013; };
 		A1000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000014; };
 		A1000015 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015; };
 		A1000016 /* DrinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016; };
@@ -30,7 +26,6 @@
 		A1000021 /* ImageCompressor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021; };
 		A1000022 /* ScanningPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022; };
 		A1000023 /* TasteProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023; };
-		A1000024 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024; };
 		A1000025 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025; };
 		A1000026 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026; };
 		A1000027 /* CheckTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000027; };
@@ -56,6 +51,7 @@
 		D1000003 /* WantToTryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000003; };
 		D1000004 /* StyleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000004; };
 		D1000005 /* VerdictBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000005; };
+		D1000006 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000006; };
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
 		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
@@ -92,16 +88,12 @@
 		A2000001 /* SipCheckApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SipCheckApp.swift; sourceTree = "<group>"; };
 		A2000002 /* Drink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Drink.swift; sourceTree = "<group>"; };
 		A2000003 /* DrinkEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrinkEnums.swift; sourceTree = "<group>"; };
-		A2000004 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A2000005 /* AddBeerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddBeerView.swift; sourceTree = "<group>"; };
-		A2000006 /* BeerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerListView.swift; sourceTree = "<group>"; };
-		A2000007 /* BeerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerDetailView.swift; sourceTree = "<group>"; };
 		A2000008 /* RatingPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingPicker.swift; sourceTree = "<group>"; };
 		A2000009 /* StylePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StylePicker.swift; sourceTree = "<group>"; };
 		A2000010 /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		A2000011 /* OpenAIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIService.swift; sourceTree = "<group>"; };
 		A2000012 /* BeerMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerMatcher.swift; sourceTree = "<group>"; };
-		A2000013 /* CheckBeerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckBeerView.swift; sourceTree = "<group>"; };
 		A2000014 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A2000015 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		A2000016 /* DrinkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrinkStore.swift; sourceTree = "<group>"; };
@@ -112,7 +104,6 @@
 		A2000021 /* ImageCompressor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCompressor.swift; sourceTree = "<group>"; };
 		A2000022 /* ScanningPipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanningPipeline.swift; sourceTree = "<group>"; };
 		A2000023 /* TasteProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteProfile.swift; sourceTree = "<group>"; };
-		A2000024 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		A2000025 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A2000026 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		A2000027 /* CheckTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckTabView.swift; sourceTree = "<group>"; };
@@ -141,6 +132,7 @@
 		D2000003 /* WantToTryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WantToTryCard.swift; sourceTree = "<group>"; };
 		D2000004 /* StyleBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleBarView.swift; sourceTree = "<group>"; };
 		D2000005 /* VerdictBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictBadge.swift; sourceTree = "<group>"; };
+		D2000006 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
 		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
@@ -225,14 +217,9 @@
 			isa = PBXGroup;
 			children = (
 				G2000001 /* AgeGateView.swift */,
-				A2000004 /* HomeView.swift */,
 				A2000026 /* MainTabView.swift */,
 				A2000005 /* AddBeerView.swift */,
-				A2000006 /* BeerListView.swift */,
-				A2000007 /* BeerDetailView.swift */,
 				D2000099 /* JournalEntryDetailView.swift */,
-				A2000013 /* CheckBeerView.swift */,
-				A2000024 /* StatsView.swift */,
 				A2000025 /* OnboardingView.swift */,
 				C2000001 /* DesignSystem.swift */,
 				E2000002 /* FollowUpView.swift */,
@@ -264,6 +251,7 @@
 				D2000003 /* WantToTryCard.swift */,
 				D2000004 /* StyleBarView.swift */,
 				D2000005 /* VerdictBadge.swift */,
+				D2000006 /* ShareSheet.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -463,16 +451,12 @@
 				A1000017 /* Secrets.swift in Sources */,
 				A1000002 /* Drink.swift in Sources */,
 				A1000003 /* DrinkEnums.swift in Sources */,
-				A1000004 /* HomeView.swift in Sources */,
 				A1000005 /* AddBeerView.swift in Sources */,
-				A1000006 /* BeerListView.swift in Sources */,
-				A1000007 /* BeerDetailView.swift in Sources */,
 				A1000008 /* RatingPicker.swift in Sources */,
 				A1000009 /* StylePicker.swift in Sources */,
 				A1000010 /* CameraView.swift in Sources */,
 				A1000011 /* OpenAIService.swift in Sources */,
 				A1000012 /* BeerMatcher.swift in Sources */,
-				A1000013 /* CheckBeerView.swift in Sources */,
 				A1000016 /* DrinkStore.swift in Sources */,
 				A1000018 /* LLMProvider.swift in Sources */,
 				A1000019 /* GeminiService.swift in Sources */,
@@ -480,7 +464,6 @@
 				A1000021 /* ImageCompressor.swift in Sources */,
 				A1000022 /* ScanningPipeline.swift in Sources */,
 				A1000023 /* TasteProfile.swift in Sources */,
-				A1000024 /* StatsView.swift in Sources */,
 				G1000001 /* AgeGateView.swift in Sources */,
 				A1000025 /* OnboardingView.swift in Sources */,
 				A1000026 /* MainTabView.swift in Sources */,
@@ -499,6 +482,7 @@
 				D1000003 /* WantToTryCard.swift in Sources */,
 				D1000004 /* StyleBarView.swift in Sources */,
 				D1000005 /* VerdictBadge.swift in Sources */,
+				D1000006 /* ShareSheet.swift in Sources */,
 				E1000001 /* NotificationService.swift in Sources */,
 				E1000002 /* FollowUpView.swift in Sources */,
 				F1000001 /* TastePreferences.swift in Sources */,

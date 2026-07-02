@@ -48,12 +48,12 @@ struct AddBeerView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(maxHeight: 200)
-                            .cornerRadius(12)
+                            .clipShape(RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous))
 
                         if isProcessingImage {
                             HStack {
                                 ProgressView()
-                                    .padding(.trailing, 8)
+                                    .padding(.trailing, SipSpacing.s)
                                 Text("Analyzing label...")
                             }
                         }
@@ -67,6 +67,7 @@ struct AddBeerView: View {
                 } header: {
                     Text("Photo (Optional)")
                 }
+                .listRowBackground(SipColors.surface)
 
                 // Beer details section
                 Section {
@@ -86,6 +87,7 @@ struct AddBeerView: View {
                 } header: {
                     Text("Details")
                 }
+                .listRowBackground(SipColors.surface)
 
                 // Rating section
                 Section {
@@ -93,6 +95,7 @@ struct AddBeerView: View {
                 } header: {
                     Text("Your Rating")
                 }
+                .listRowBackground(SipColors.surface)
 
                 // Notes section
                 Section {
@@ -101,16 +104,18 @@ struct AddBeerView: View {
                 } header: {
                     Text("Notes (Optional)")
                 }
+                .listRowBackground(SipColors.surface)
 
                 // Error message
                 if errorMessage != nil {
                     Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Scan failed -- fill in the details manually.")
-                                .foregroundColor(.red)
-                                .font(.subheadline)
+                        VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                            Text("Couldn't read the label — fill in what you know.")
+                                .foregroundColor(SipColors.destructive)
+                                .font(SipTypography.subhead)
                         }
                     }
+                    .listRowBackground(SipColors.surface)
                 }
             }
             .navigationTitle("Add Beer")

@@ -14,15 +14,19 @@ struct SettingsTabView: View {
 
     @State private var showResetOnboardingAlert = false
     @State private var showClearDataAlert = false
+    @State private var showingTasteEditor = false
+    @State private var showingExportSheet = false
+    @State private var exportURL: URL?
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
-                // MARK: - Scanning
+                // MARK: - Scanning (debug-only: provider choice is a dev knob, not a user setting)
+                #if DEBUG
                 Section {
                     Picker("AI Provider", selection: $preferredScanProvider) {
                         Text("Auto (Recommended)").tag("auto")
@@ -34,21 +38,47 @@ struct SettingsTabView: View {
                 } header: {
                     Text("Scanning")
                 }
+                #endif
+
+                // MARK: - Taste
+                Section {
+                    Button("Edit taste preferences") {
+                        showingTasteEditor = true
+                    }
+                } header: {
+                    Text("Taste")
+                } footer: {
+                    Text("Retake the quick quiz — verdicts follow your answers.")
+                }
 
                 // MARK: - Notifications
                 Section {
                     Toggle(isOn: $followUpNotificationsEnabled) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Follow-up reminders")
-                            Text("We'll ask a few hours after you scan")
+                            Text("We'll check in a day or two after you save one")
                                 .font(.footnote)
                                 .foregroundColor(.secondary)
                         }
                     }
                 } header: {
                     Text("Notifications")
-                } footer: {
-                    Text("Remind me to log beers I want to try")
+                }
+
+                // MARK: - Export
+                Section {
+                    Button {
+                        exportAsCSV()
+                    } label: {
+                        Label("Export as CSV", systemImage: "tablecells")
+                    }
+                    Button {
+                        exportAsJSON()
+                    } label: {
+                        Label("Export as JSON", systemImage: "square.and.arrow.up")
+                    }
+                } header: {
+                    Text("Export my data")
                 }
 
                 // MARK: - Account / Data
@@ -75,7 +105,7 @@ struct SettingsTabView: View {
                     Button("Clear All Data") {
                         showClearDataAlert = true
                     }
-                    .foregroundColor(.red)
+                    .foregroundColor(SipColors.destructive)
                     .alert("Clear All Data?", isPresented: $showClearDataAlert) {
                         Button("Delete Everything", role: .destructive) {
                             let allIndices = IndexSet(drinkStore.drinks.indices)
@@ -114,8 +144,183 @@ struct SettingsTabView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showingTasteEditor) {
+                TastePreferencesEditorView()
+            }
+            .sheet(isPresented: $showingExportSheet) {
+                if let url = exportURL {
+                    ShareSheet(activityItems: [url])
+                }
+            }
         }
         .accessibilityIdentifier("settingsTab")
+    }
+
+    // MARK: - Export (relocated from StatsView; WO-8 deletes the originals)
+
+    private func exportAsJSON() {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(drinkStore.drinks) else { return }
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.json")
+        try? data.write(to: tempURL)
+        exportURL = tempURL
+        showingExportSheet = true
+    }
+
+    private func exportAsCSV() {
+        var csv = "Name,Brand,Style,Rating,ABV,Type,Notes,Date\n"
+        for drink in drinkStore.drinks {
+            let name = drink.name.replacingOccurrences(of: ",", with: ";")
+            let brand = drink.brand.replacingOccurrences(of: ",", with: ";")
+            let notes = (drink.notes ?? "").replacingOccurrences(of: ",", with: ";")
+            let abv = drink.abv.map { String(format: "%.1f", $0) } ?? ""
+            let date = drink.dateAdded.formatted(.iso8601)
+            csv += "\(name),\(brand),\(drink.style),\(drink.rating.displayName),\(abv),\(drink.drinkType.displayName),\(notes),\(date)\n"
+        }
+
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.csv")
+        try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
+        exportURL = tempURL
+        showingExportSheet = true
+    }
+}
+
+// MARK: - Taste Preferences Editor
+// Deep-links to the taste quiz *content* only — no age-gate or onboarding reset.
+// (OnboardingView's TasteQuizPage is file-private, so the quiz layout is
+// mirrored here against the same TastePreferences store; the option strings
+// themselves are single-sourced from TastePreferences.)
+
+private struct TastePreferencesEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedVibe: String? = nil
+    @State private var selectedAdventure: String? = nil
+    @State private var selectedDislikes: Set<String> = []
+
+    // Single-sourced from TastePreferences — must be the exact strings the
+    // onboarding quiz offers, since both write the same saved-answer keys.
+    private let vibeOptions = TastePreferences.vibeOptions
+    private let adventureOptions = TastePreferences.adventureOptions
+    private let dislikeOptions = TastePreferences.dislikeOptions
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 28) {
+                    Text("Same 10-second quiz — change anything, verdicts update instantly.")
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
+                        .padding(.top, SipSpacing.s)
+
+                    quizQuestion(
+                        question: "Pick your vibe",
+                        options: vibeOptions
+                    ) { option in
+                        selectedVibe == option
+                    } onTap: { option in
+                        selectedVibe = option
+                    }
+
+                    quizQuestion(
+                        question: "How adventurous?",
+                        options: adventureOptions
+                    ) { option in
+                        selectedAdventure == option
+                    } onTap: { option in
+                        selectedAdventure = option
+                    }
+
+                    quizQuestion(
+                        question: "Anything you hate?",
+                        questionSuffix: "(optional)",
+                        options: dislikeOptions
+                    ) { option in
+                        selectedDislikes.contains(option)
+                    } onTap: { option in
+                        if selectedDislikes.contains(option) {
+                            selectedDislikes.remove(option)
+                        } else {
+                            selectedDislikes.insert(option)
+                        }
+                    }
+
+                    Button(action: { dismiss() }) {
+                        Text("Done")
+                    }
+                    .buttonStyle(SipPrimaryButtonStyle())
+                    .padding(.top, SipSpacing.s)
+                    .padding(.bottom, SipSpacing.xl)
+                }
+                .padding(.horizontal, SipSpacing.xl)
+            }
+            .background(SipColors.background.ignoresSafeArea())
+            .navigationTitle("Taste Preferences")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .preferredColorScheme(.dark)
+        .onAppear {
+            restoreSavedAnswers()
+        }
+        .onChange(of: selectedVibe) { _, _ in persistAnswers() }
+        .onChange(of: selectedAdventure) { _, _ in persistAnswers() }
+        .onChange(of: selectedDislikes) { _, _ in persistAnswers() }
+    }
+
+    private func quizQuestion(
+        question: String,
+        questionSuffix: String? = nil,
+        options: [String],
+        isSelected: @escaping (String) -> Bool,
+        onTap: @escaping (String) -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
+            HStack(spacing: SipSpacing.xs) {
+                Text(question)
+                    .font(SipTypography.headline)
+                    .foregroundColor(SipColors.textPrimary)
+                if let suffix = questionSuffix {
+                    Text(suffix)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
+                }
+            }
+
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 120), spacing: SipSpacing.s)],
+                alignment: .leading,
+                spacing: SipSpacing.s
+            ) {
+                ForEach(options, id: \.self) { option in
+                    Button(action: { onTap(option) }) {
+                        Text(option)
+                    }
+                    .buttonStyle(SipChipStyle(isSelected: isSelected(option)))
+                }
+            }
+        }
+    }
+
+    /// Mirror of the onboarding quiz's restore: start from what the user
+    /// already said so opening the editor never blanks real answers.
+    private func restoreSavedAnswers() {
+        let saved = TastePreferences.current
+        if selectedVibe == nil, !saved.vibe.isEmpty { selectedVibe = saved.vibe }
+        if selectedAdventure == nil, !saved.adventure.isEmpty { selectedAdventure = saved.adventure }
+        if selectedDislikes.isEmpty, !saved.dislikes.isEmpty { selectedDislikes = Set(saved.dislikes) }
+    }
+
+    /// Write-through on every selection change — same semantics as the quiz,
+    /// so answers survive swiping the sheet away without tapping Done.
+    private func persistAnswers() {
+        TastePreferences.save(
+            vibe: selectedVibe ?? "",
+            adventure: selectedAdventure ?? "",
+            dislikes: selectedDislikes.joined(separator: ",")
+        )
     }
 }
 

@@ -55,8 +55,8 @@ struct JournalTabView: View {
                     Text("My Beers")
                         .font(SipTypography.title)
                         .foregroundColor(SipColors.textPrimary)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        .padding(.horizontal, SipSpacing.l)
+                        .padding(.top, SipSpacing.s)
 
                     // Search bar
                     searchBar
@@ -75,13 +75,14 @@ struct JournalTabView: View {
                 // Clear the floating tab bar so the last row isn't buried
                 .padding(.bottom, 110)
             }
+            .compatScrollEdgeSoft()
         }
         // .contain keeps this container id from clobbering every child's
         // identifier (a bare container identifier overwrites them all).
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("journalTab")
         .sheet(item: $selectedEntry) { entry in
-            JournalEntryDetailView(entry: entry)
+            JournalEntryDetailView(entry: entry, linkedVerdict: linkedVerdict(for: entry))
                 .environmentObject(journalStore)
         }
         .sheet(isPresented: $showingAddBeer) {
@@ -99,12 +100,19 @@ struct JournalTabView: View {
         }
     }
 
+    // MARK: - Scan linkage (display-only lookup for the detail sheet's loop-closer line)
+
+    private func linkedVerdict(for entry: JournalEntry) -> Verdict? {
+        guard let scanId = entry.linkedScanId else { return nil }
+        return scanStore.scans.first(where: { $0.id == scanId })?.verdict
+    }
+
     // MARK: - Search Bar
 
     private var searchBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: SipSpacing.s) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 16))
+                .font(SipTypography.body)
                 .foregroundColor(SipColors.textSecondary)
 
             TextField("Search your beers...", text: $searchText)
@@ -112,38 +120,32 @@ struct JournalTabView: View {
                 .foregroundColor(SipColors.textPrimary)
                 .accessibilityIdentifier("journalSearch")
         }
-        .padding(12)
-        .background(SipColors.surface)
-        .cornerRadius(12)
-        .padding(.horizontal, 16)
+        .padding(SipSpacing.m)
+        .background(
+            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                .fill(SipColors.surface)
+        )
+        .padding(.horizontal, SipSpacing.l)
     }
 
     // MARK: - Filter Chips
 
     private var filterChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: SipSpacing.s) {
                 ForEach(JournalFilter.allCases, id: \.self) { filter in
                     filterChip(filter)
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, SipSpacing.l)
         }
     }
 
     private func filterChip(_ filter: JournalFilter) -> some View {
-        let isSelected = selectedFilter == filter
-        return Button(action: {
+        Button(filter.rawValue) {
             selectedFilter = filter
-        }) {
-            Text(filter.rawValue)
-                .font(SipTypography.subhead)
-                .foregroundColor(isSelected ? Color.black : SipColors.textSecondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(isSelected ? SipColors.primary : SipColors.surface)
-                .cornerRadius(20)
         }
+        .buttonStyle(SipChipStyle(isSelected: selectedFilter == filter))
         .accessibilityIdentifier(accessibilityId(for: filter))
     }
 
@@ -159,14 +161,15 @@ struct JournalTabView: View {
     // MARK: - Want to Try Section
 
     private var wantToTrySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
+            // Section headers are metadata, not titles (teal is reserved for tappable things).
             Text("Want to Try")
-                .font(SipTypography.headline)
-                .foregroundColor(SipColors.primary)
-                .padding(.horizontal, 16)
+                .font(SipTypography.caption)
+                .foregroundColor(SipColors.textSecondary)
+                .padding(.horizontal, SipSpacing.l)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
+                HStack(spacing: SipSpacing.m) {
                     ForEach(scanStore.wantToTryScans) { scan in
                         WantToTryCard(scan: scan) {
                             selectedWantToTryScan = scan
@@ -174,7 +177,7 @@ struct JournalTabView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, SipSpacing.l)
             }
         }
     }
@@ -182,11 +185,11 @@ struct JournalTabView: View {
     // MARK: - Tried Section
 
     private var triedSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Tried \u{00B7} \(filteredEntries.count) beers")
-                .font(SipTypography.headline)
-                .foregroundColor(SipColors.textPrimary)
-                .padding(.horizontal, 16)
+        VStack(alignment: .leading, spacing: SipSpacing.s) {
+            Text("Tried \u{00B7} \(filteredEntries.count) \(filteredEntries.count == 1 ? "beer" : "beers")")
+                .font(SipTypography.caption)
+                .foregroundColor(SipColors.textSecondary)
+                .padding(.horizontal, SipSpacing.l)
 
             if filteredEntries.isEmpty {
                 emptyState
@@ -208,17 +211,24 @@ struct JournalTabView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "mug")
-                .font(.system(size: 36))
-                .foregroundColor(SipColors.textSecondary)
-
-            Text("No beers found")
-                .font(SipTypography.body)
-                .foregroundColor(SipColors.textSecondary)
+        Group {
+            if journalStore.entries.isEmpty {
+                // Truly no data yet
+                ContentUnavailableView(
+                    "Nothing logged yet — scan a beer to start",
+                    systemImage: "book"
+                )
+            } else {
+                // Data exists but the search/filter excludes it all
+                ContentUnavailableView(
+                    "No beers match",
+                    systemImage: "magnifyingglass"
+                )
+            }
         }
+        .foregroundColor(SipColors.textSecondary)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, SipSpacing.xl)
     }
 }
 

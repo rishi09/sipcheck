@@ -10,7 +10,10 @@ struct OnboardingView: View {
                 icon: "mug.fill",
                 title: "Never Waste a Sip Again",
                 description: "Stood in the beer aisle not sure what to grab? SipCheck tells you in seconds.",
-                tag: 0
+                tag: 0,
+                // Beer-native amber hero (matches the Check idle motif) — the
+                // age gate already owns the teal mug; don't repeat it here.
+                iconStyle: AnyShapeStyle(StyleGradient.gradient(for: "IPA"))
             )
             onboardingPage(
                 icon: "camera.fill",
@@ -27,29 +30,28 @@ struct OnboardingView: View {
             beerPickerPage(tag: 3)
             tasteQuizPage(tag: 4)
         }
-        .tabViewStyle(.page(indexDisplayMode: .always))
+        // Pages 3–4 carry their own CTA blocks — hide the system dots there so
+        // buttons never fight the page indicator for the same bottom band.
+        .tabViewStyle(.page(indexDisplayMode: currentPage >= 3 ? .never : .always))
         .indexViewStyle(.page(backgroundDisplayMode: .always))
+        .background(SipColors.background.ignoresSafeArea())
     }
 
-    private func onboardingPage(icon: String, title: String, description: String, tag: Int) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 80))
-                .foregroundColor(.accentColor)
-            Text(title)
-                .font(.title)
-                .fontWeight(.bold)
-                .multilineTextAlignment(.center)
-            Text(description)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Spacer()
-            Spacer()
-        }
-        .tag(tag)
+    private func onboardingPage(
+        icon: String,
+        title: String,
+        description: String,
+        tag: Int,
+        iconStyle: AnyShapeStyle = AnyShapeStyle(SipColors.accent)
+    ) -> some View {
+        StoryPage(
+            icon: icon,
+            title: title,
+            description: description,
+            tag: tag,
+            currentPage: $currentPage,
+            iconStyle: iconStyle
+        )
     }
 
     private func beerPickerPage(tag: Int) -> some View {
@@ -58,6 +60,55 @@ struct OnboardingView: View {
 
     private func tasteQuizPage(tag: Int) -> some View {
         TasteQuizPage(tag: tag, hasCompletedOnboarding: $hasCompletedOnboarding)
+    }
+}
+
+// MARK: - Story Page
+
+private struct StoryPage: View {
+    let icon: String
+    let title: String
+    let description: String
+    let tag: Int
+    @Binding var currentPage: Int
+    var iconStyle: AnyShapeStyle = AnyShapeStyle(SipColors.accent)
+
+    @ScaledMetric(relativeTo: .largeTitle) private var heroIconSize: CGFloat = 80
+
+    var body: some View {
+        VStack(spacing: SipSpacing.xl) {
+            Spacer()
+            Image(systemName: icon)
+                .font(.system(size: heroIconSize))
+                .foregroundStyle(iconStyle)
+            Text(title)
+                .font(SipTypography.title)
+                .foregroundColor(SipColors.textPrimary)
+                .multilineTextAlignment(.center)
+            Text(description)
+                .font(SipTypography.body)
+                .foregroundColor(SipColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+            Spacer()
+
+            // Swipe-only advance is undiscoverable — every story page gets an
+            // explicit primary Continue.
+            Button(action: advance) {
+                Text("Continue")
+            }
+            .buttonStyle(SipPrimaryButtonStyle())
+            .padding(.horizontal, SipSpacing.xl)
+            // Clear the system page dots below the CTA.
+            .padding(.bottom, 56)
+        }
+        .tag(tag)
+    }
+
+    private func advance() {
+        withAnimation(.smooth) {
+            currentPage = tag + 1
+        }
     }
 }
 
@@ -82,23 +133,23 @@ private struct BeerPickerPage: View {
     var body: some View {
         ZStack(alignment: .bottom) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: SipSpacing.xl) {
                     // Header
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: SipSpacing.s) {
                         Text("Beers you've had before?")
-                            .font(.title)
-                            .fontWeight(.bold)
+                            .font(SipTypography.title)
+                            .foregroundColor(SipColors.textPrimary)
                         Text("Tap any you've tried. We'll use it to calibrate your taste.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(SipTypography.subhead)
+                            .foregroundColor(SipColors.textSecondary)
                     }
-                    .padding(.top, 24)
+                    .padding(.top, SipSpacing.xl)
 
                     // Beer chip grid
                     LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 100), spacing: 10)],
+                        columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
                         alignment: .leading,
-                        spacing: 10
+                        spacing: SipSpacing.s
                     ) {
                         ForEach(beerOptions, id: \.self) { beer in
                             ChipButton(
@@ -111,38 +162,37 @@ private struct BeerPickerPage: View {
                     }
 
                     // Spacer so content clears the fixed buttons
-                    Spacer(minLength: 120)
+                    Spacer(minLength: 140)
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, SipSpacing.xl)
             }
 
             // Fixed bottom area: toast + CTA + Skip
             VStack(spacing: 0) {
                 // Corona easter egg toast
                 if showCoronaEgg {
-                    HStack(spacing: 10) {
+                    HStack(spacing: SipSpacing.s) {
                         Text("🏎️")
-                            .font(.title2)
+                            .font(SipTypography.title)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\"One quarter mile at a time.\"")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
+                                .font(SipTypography.subhead)
                                 .foregroundColor(SipColors.textPrimary)
                             Text("— Dominic Toretto")
-                                .font(.caption)
+                                .font(SipTypography.caption)
                                 .foregroundColor(SipColors.textSecondary)
                         }
                         Spacer()
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, SipSpacing.l)
+                    .padding(.vertical, SipSpacing.m)
                     .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(SipColors.surface)
-                            .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+                        RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
+                            .fill(SipColors.surfaceElevated)
+                            .shadow(color: SipColors.background.opacity(0.35), radius: 8, x: 0, y: 4)
                     )
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, SipSpacing.xl)
+                    .padding(.bottom, SipSpacing.m)
                     .transition(
                         .asymmetric(
                             insertion: .opacity.combined(with: .offset(y: 20)),
@@ -151,32 +201,26 @@ private struct BeerPickerPage: View {
                     )
                 }
 
-                // CTA
-                VStack(spacing: 18) {
+                // CTA hierarchy: one primary, one quiet skip.
+                VStack(spacing: SipSpacing.m) {
                     Button(action: advance) {
                         Text("Next →")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.accentColor)
-                            .cornerRadius(14)
                     }
+                    .buttonStyle(SipPrimaryButtonStyle())
 
                     Button(action: advance) {
                         Text("Skip")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
                     }
+                    .buttonStyle(SipQuietButtonStyle())
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-                // Clear the TabView page-indicator dots + home indicator.
-                .padding(.bottom, 44)
+                .padding(.horizontal, SipSpacing.xl)
+                .padding(.top, SipSpacing.s)
+                // System dots are hidden on this page; clear the home indicator.
+                .padding(.bottom, SipSpacing.xl)
                 .background(
                     // Subtle gradient to blend with scroll content
                     LinearGradient(
-                        gradient: Gradient(colors: [Color(UIColor.systemBackground).opacity(0), Color(UIColor.systemBackground)]),
+                        gradient: Gradient(colors: [SipColors.background.opacity(0), SipColors.background]),
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -202,11 +246,11 @@ private struct BeerPickerPage: View {
         } else {
             selectedBeers.insert(beer)
             if beer == "Corona" {
-                withAnimation(.easeOut(duration: 0.3)) {
+                withAnimation(.snappy(duration: 0.25)) {
                     showCoronaEgg = true
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation(.easeIn(duration: 0.3)) {
+                    withAnimation(.snappy(duration: 0.25)) {
                         showCoronaEgg = false
                     }
                 }
@@ -241,7 +285,7 @@ private struct BeerPickerPage: View {
 
     private func advance() {
         persistSelections()
-        withAnimation {
+        withAnimation(.smooth) {
             currentPage = 4
         }
     }
@@ -257,9 +301,11 @@ private struct TasteQuizPage: View {
     @State private var selectedAdventure: String? = nil
     @State private var selectedDislikes: Set<String> = []
 
-    private let vibeOptions = ["Crisp & Light", "Hoppy & Bitter", "Dark & Roasty", "Fruity & Easy", "Sour & Weird"]
-    private let adventureOptions = ["Stick to Favorites", "Mix It Up", "Give Me the Weird Stuff"]
-    private let dislikeOptions = ["Super Bitter", "Very Dark", "Really Sour", "Wheat-y / Cloudy"]
+    // Single-sourced from TastePreferences so Settings' editor offers the
+    // exact same answer strings (drift would corrupt saved answers).
+    private let vibeOptions = TastePreferences.vibeOptions
+    private let adventureOptions = TastePreferences.adventureOptions
+    private let dislikeOptions = TastePreferences.dislikeOptions
 
     private var hasRequiredSelections: Bool {
         selectedVibe != nil && selectedAdventure != nil
@@ -269,15 +315,15 @@ private struct TasteQuizPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 // Header
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: SipSpacing.s) {
                     Text("Quick — what do you like?")
-                        .font(.title)
-                        .fontWeight(.bold)
+                        .font(SipTypography.title)
+                        .foregroundColor(SipColors.textPrimary)
                     Text("Takes 10 seconds. Makes recommendations way better.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
                 }
-                .padding(.top, 24)
+                .padding(.top, SipSpacing.xl)
 
                 // Q1: Vibe
                 QuizQuestion(
@@ -307,28 +353,26 @@ private struct TasteQuizPage: View {
                     selectedMulti: $selectedDislikes
                 )
 
-                // CTA — a clear primary submit plus a distinct Skip.
-                VStack(spacing: 18) {
+                // CTA — a clear primary submit plus a distinct quiet Skip.
+                VStack(spacing: SipSpacing.m) {
                     Button(action: saveAndContinue) {
-                        Text(hasRequiredSelections ? "See My Picks" : "Get Started")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.accentColor)
-                            .cornerRadius(14)
+                        Text("See My Picks")
                     }
+                    .buttonStyle(SipPrimaryButtonStyle())
+                    .disabled(!hasRequiredSelections)
 
-                    Button(action: saveAndContinue) {
-                        Text("Skip for now")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    // Skip leaves saved prefs untouched — answered-state
+                    // write-through below already persists real answers.
+                    Button(action: skip) {
+                        Text("Skip — you can tune this later")
                     }
+                    .buttonStyle(SipQuietButtonStyle())
                 }
-                .padding(.top, 8)
-                .padding(.bottom, 44)
+                .padding(.top, SipSpacing.s)
+                // System dots are hidden on this page; modest bottom clearance.
+                .padding(.bottom, SipSpacing.xl)
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, SipSpacing.xl)
         }
         .tag(tag)
         .onAppear {
@@ -341,7 +385,7 @@ private struct TasteQuizPage: View {
 
     /// Restore any previously saved answers so replaying onboarding (or a
     /// reinstall with iCloud KVS answers) starts from what the user already
-    /// said — and so "Skip for now" can never erase real answers with blanks.
+    /// said — and so Skip can never erase real answers with blanks.
     private func restoreSavedAnswers() {
         let saved = TastePreferences.current
         if selectedVibe == nil, !saved.vibe.isEmpty { selectedVibe = saved.vibe }
@@ -363,6 +407,12 @@ private struct TasteQuizPage: View {
         persistAnswers()
         hasCompletedOnboarding = true
     }
+
+    /// Skip must NOT persist: it only ends onboarding. Real answers were
+    /// already written through by the onChange handlers above.
+    private func skip() {
+        hasCompletedOnboarding = true
+    }
 }
 
 // MARK: - Quiz Question
@@ -376,14 +426,15 @@ private struct QuizQuestion: View {
     @Binding var selectedMulti: Set<String>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
+            HStack(spacing: SipSpacing.xs) {
                 Text(question)
-                    .font(.headline)
+                    .font(SipTypography.headline)
+                    .foregroundColor(SipColors.textPrimary)
                 if let suffix = questionSuffix {
                     Text(suffix)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
                 }
             }
             ChipGrid(
@@ -406,9 +457,9 @@ private struct ChipGrid: View {
 
     var body: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 120), spacing: 10)],
+            columns: [GridItem(.adaptive(minimum: 120), spacing: SipSpacing.s)],
             alignment: .leading,
-            spacing: 10
+            spacing: SipSpacing.s
         ) {
             ForEach(options, id: \.self) { option in
                 ChipButton(
@@ -432,7 +483,7 @@ private struct ChipGrid: View {
     }
 }
 
-// MARK: - Chip Button
+// MARK: - Chip Button (thin wrapper over the shared SipChipStyle)
 
 private struct ChipButton: View {
     let label: String
@@ -442,21 +493,8 @@ private struct ChipButton: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.subheadline)
-                .fontWeight(isSelected ? .semibold : .regular)
-                .foregroundColor(isSelected ? .white : .secondary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(isSelected ? Color.accentColor : Color.clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.5), lineWidth: 1.5)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SipChipStyle(isSelected: isSelected))
     }
 }
 
@@ -465,5 +503,6 @@ private struct ChipButton: View {
 struct OnboardingView_Previews: PreviewProvider {
     static var previews: some View {
         OnboardingView()
+            .preferredColorScheme(.dark)
     }
 }

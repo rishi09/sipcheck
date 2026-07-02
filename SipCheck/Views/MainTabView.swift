@@ -23,7 +23,13 @@ struct MainTabView: View {
                 }
                 .tag(2)
         }
-        .tint(SipColors.primary)
+        // Native TabView: on iOS 26 the floating Liquid Glass bar comes free —
+        // do NOT add UITabBarAppearance or bar backgrounds (would break it).
+        // TODO(glass-followup): adopt .tabBarMinimizeBehavior(.onScrollDown) +
+        // .contentMargins(.bottom, for: .scrollContent) in a coordinated pass —
+        // the E2E bridge assumes the bar at y≈584–646 and three views carry
+        // 110pt bottom-clearance paddings that must migrate at the same time.
+        .tint(SipColors.accent)
     }
 }
 

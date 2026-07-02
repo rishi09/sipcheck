@@ -10,42 +10,49 @@ struct JournalEntryRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Beer thumbnail placeholder
-            ZStack {
-                Circle()
-                    .fill(SipColors.surface)
-                    .frame(width: 44, height: 44)
-                Image(systemName: "mug.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(SipColors.primary)
-            }
+        HStack(spacing: SipSpacing.m) {
+            // SRM style tile — the beer's color is the thumbnail
+            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                .fill(StyleGradient.gradient(for: entry.style.isEmpty ? nil : entry.style))
+                .frame(width: 44, height: 44)
 
-            // Beer name + style
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(entry.beerName) \(entry.style.isEmpty ? "" : "- \(entry.style)")")
-                    .font(SipTypography.body)
+            // Name on line 1; style + rating share the metadata baseline
+            VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                Text(entry.beerName)
+                    .font(SipTypography.headline)
                     .foregroundColor(SipColors.textPrimary)
                     .lineLimit(1)
 
-                // Star rating
-                HStack(spacing: 2) {
-                    ForEach(1...5, id: \.self) { star in
-                        Image(systemName: star <= entry.rating ? "star.fill" : "star")
-                            .font(.system(size: 12))
-                            .foregroundColor(star <= entry.rating ? SipColors.starFilled : SipColors.starEmpty)
+                HStack(spacing: SipSpacing.s) {
+                    if !entry.style.isEmpty {
+                        Text(entry.style)
+                            .font(SipTypography.caption)
+                            .foregroundColor(SipColors.textSecondary)
+                            .lineLimit(1)
                     }
+
+                    // Star rating
+                    HStack(spacing: 2) {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= entry.rating ? "star.fill" : "star")
+                                .font(SipTypography.caption)
+                                .foregroundColor(star <= entry.rating ? SipColors.starFilled : SipColors.starEmpty)
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Rated \(entry.rating) of 5")
 
                     // "Not For Me" badge for low ratings
                     if entry.rating <= 2 {
                         Text("Not For Me")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(SipColors.destructive)
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(SipColors.verdictSkip)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(SipColors.destructive.opacity(0.15))
-                            .cornerRadius(4)
-                            .padding(.leading, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous)
+                                    .fill(SipColors.verdictSkip.opacity(0.15))
+                            )
                     }
                 }
             }
@@ -57,8 +64,8 @@ struct JournalEntryRow: View {
                 .font(SipTypography.caption)
                 .foregroundColor(SipColors.textSecondary)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 16)
+        .padding(.vertical, SipSpacing.s)
+        .padding(.horizontal, SipSpacing.l)
     }
 }
 

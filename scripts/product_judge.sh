@@ -140,12 +140,17 @@ dump_ui "01_launch"
 # Check if we see onboarding or tab bar
 if ui_has_id "checkTab" || ui_has_label "Check"; then
   report "App launches to tab bar" "PASS"
-elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Get Started"; then
+elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Never Waste a Sip" || ui_has_label "Continue"; then
   report "App launches to onboarding" "PASS" "(expected for first-time)"
-  # Try to skip onboarding if there's a skip/continue button
-  tap_label "Skip" 2
+  # New onboarding flow (design spec §4.2): three story pages advance with
+  # "Continue", the beer picker skips with "Skip", and the taste quiz skips
+  # with its long quiet-button label ("Get Started"/"See My Picks" gate on
+  # selections, so Skip is the reliable path).
   tap_label "Continue" 2
-  tap_label "Get Started" 2
+  tap_label "Continue" 2
+  tap_label "Continue" 2
+  tap_label "Skip" 2
+  tap_label "Skip — you can tune this later" 2
   screenshot "01b_after_onboarding"
 else
   report "App launches to recognizable screen" "FAIL" "Unknown launch state"

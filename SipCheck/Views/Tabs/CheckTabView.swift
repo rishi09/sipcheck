@@ -60,11 +60,14 @@ struct CheckTabView: View {
     @State private var scanningPhraseIndex = 0
     @State private var phraseTimer: Timer?
     private let scanningPhrases = [
-        "Judging this beer...",
-        "Reading the label...",
-        "Checking your taste profile...",
-        "Forming an opinion..."
+        "Reading the label…",
+        "Checking it against your taste…",
+        "Almost there…"
     ]
+
+    // Hero glyph sizes scale with Dynamic Type (spec §1.4 — no fixed .system(size:)).
+    @ScaledMetric(relativeTo: .largeTitle) private var idleGlyphSize: CGFloat = 64
+    @ScaledMetric(relativeTo: .title2) private var spinnerIconSize: CGFloat = 24
 
     var body: some View {
         ZStack {
@@ -154,51 +157,55 @@ struct CheckTabView: View {
     // MARK: - Scan Prompt (Empty State)
 
     private var scanPromptView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "camera.viewfinder")
-                .font(.system(size: 64))
-                .foregroundColor(SipColors.textSecondary)
+        VStack(spacing: SipSpacing.xl) {
+            // Beer-native idle affordance (crit note 15): amber mug framed by
+            // viewfinder brackets — content imagery is tinted, never gray.
+            // Static by design: motion is feedback, not decoration (spec §1.6).
+            ZStack {
+                Image(systemName: "viewfinder")
+                    .font(.system(size: idleGlyphSize, weight: .thin))
+                    .foregroundStyle(StyleGradient.gradient(for: "IPA").opacity(0.45))
+                Image(systemName: "mug.fill")
+                    .font(.system(size: idleGlyphSize * 0.45))
+                    .foregroundStyle(StyleGradient.gradient(for: "IPA"))
+            }
+            .accessibilityHidden(true)
 
-            VStack(spacing: 8) {
+            VStack(spacing: SipSpacing.s) {
                 Text("What Are You Drinking?")
                     .font(SipTypography.title)
                     .foregroundColor(SipColors.textPrimary)
 
-                Text("Snap a label. We'll tell you if it's worth your money.")
+                Text("Point it at any beer — verdict in seconds, no signal needed.")
                     .font(SipTypography.body)
                     .foregroundColor(SipColors.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, SipSpacing.xxl)
             }
 
             Button(action: {
                 requestCameraAndScan()
             }) {
-                HStack(spacing: 8) {
+                HStack(spacing: SipSpacing.s) {
                     Image(systemName: "camera.fill")
                     Text("Scan Label")
                 }
-                .font(SipTypography.headline)
-                .foregroundColor(SipColors.background)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(SipColors.primary)
-                )
             }
+            .buttonStyle(SipPrimaryButtonStyle())
+            // The app's one glow — soft teal halo on the primary scan CTA only.
+            .shadow(color: SipColors.accent.opacity(0.35), radius: 12, x: 0, y: 4)
+            .padding(.horizontal, SipSpacing.xxl)
             .accessibilityIdentifier("scanNowButton")
 
             Button(action: {
                 showingTextEntry = true
             }) {
-                HStack(spacing: 6) {
+                HStack(spacing: SipSpacing.s) {
                     Image(systemName: "keyboard")
                     Text("Enter beer name")
                 }
-                .font(SipTypography.subhead)
-                .foregroundColor(SipColors.primary)
             }
+            .buttonStyle(SipQuietButtonStyle())
             .accessibilityIdentifier("enterTextButton")
         }
     }
@@ -206,26 +213,27 @@ struct CheckTabView: View {
     // MARK: - Scanning Progress View
 
     private var scanningView: some View {
-        VStack(spacing: 28) {
+        VStack(spacing: SipSpacing.xl) {
             ZStack {
                 // Background ring
                 Circle()
-                    .stroke(SipColors.primary.opacity(0.2), lineWidth: 4)
+                    .stroke(SipColors.accent.opacity(0.2), lineWidth: 4)
                     .frame(width: 72, height: 72)
-                // Spinning arc
+                // Spinning arc — progress feedback, the one moving element here
                 Circle()
                     .trim(from: 0, to: 0.72)
                     .stroke(
-                        SipColors.primary,
+                        SipColors.accent,
                         style: StrokeStyle(lineWidth: 4, lineCap: .round)
                     )
                     .frame(width: 72, height: 72)
                     .rotationEffect(.degrees(spinnerDegrees))
-                // Beer icon center
+                // Beer icon center — same amber motif as the idle state
                 Image(systemName: "mug.fill")
-                    .font(.system(size: 24))
-                    .foregroundColor(SipColors.primary)
+                    .font(.system(size: spinnerIconSize))
+                    .foregroundStyle(StyleGradient.gradient(for: "IPA"))
             }
+            .accessibilityHidden(true)
             .onAppear {
                 withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
                     spinnerDegrees = 360
@@ -241,7 +249,7 @@ struct CheckTabView: View {
                     removal: .move(edge: .top).combined(with: .opacity)
                 ))
                 .id(scanningPhraseIndex)
-                .animation(.easeInOut(duration: 0.3), value: scanningPhraseIndex)
+                .animation(.smooth(duration: 0.3), value: scanningPhraseIndex)
         }
     }
 
@@ -253,7 +261,7 @@ struct CheckTabView: View {
                 timer.invalidate()
                 return
             }
-            withAnimation(.easeInOut(duration: 0.3)) {
+            withAnimation(.smooth(duration: 0.3)) {
                 scanningPhraseIndex = (scanningPhraseIndex + 1) % scanningPhrases.count
             }
         }
@@ -264,9 +272,9 @@ struct CheckTabView: View {
     private func errorBannerView(message: String) -> some View {
         VStack {
             Spacer()
-            HStack(spacing: 12) {
+            HStack(spacing: SipSpacing.m) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
+                    .foregroundColor(SipColors.warning)
                 Text(message)
                     .font(SipTypography.caption)
                     .foregroundColor(SipColors.textPrimary)
@@ -276,12 +284,18 @@ struct CheckTabView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .foregroundColor(SipColors.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Dismiss")
             }
-            .padding()
-            .background(SipColors.surface)
-            .cornerRadius(12)
-            .padding()
+            .padding(.vertical, SipSpacing.s)
+            .padding(.horizontal, SipSpacing.l)
+            .background(
+                RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                    .fill(SipColors.surfaceElevated)
+            )
+            .padding(SipSpacing.l)
         }
     }
 
@@ -289,42 +303,56 @@ struct CheckTabView: View {
 
     private var textEntrySheet: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(spacing: SipSpacing.xl) {
+                VStack(alignment: .leading, spacing: SipSpacing.s) {
                     Text("Enter beer name or description")
                         .font(SipTypography.subhead)
                         .foregroundColor(SipColors.textSecondary)
+                    // Elevated input well (crit note 6) — the field sits on a
+                    // surface-colored well, never a system light border.
                     TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $textEntryInput)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
+                        .font(SipTypography.body)
+                        .foregroundColor(SipColors.textPrimary)
+                        .tint(SipColors.accent)
                         .focused($textEntryFocused)
                         .submitLabel(.search)
                         .onSubmit {
                             submitTextEntry()
                         }
+                        .padding(SipSpacing.l)
+                        .background(
+                            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                                .fill(SipColors.surface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                                .strokeBorder(textEntryFocused ? SipColors.accent : SipColors.textSecondary.opacity(0.25), lineWidth: 1)
+                        )
+                        .animation(.snappy(duration: 0.25), value: textEntryFocused)
                         .accessibilityIdentifier("beerTextInput")
                 }
                 .padding(.horizontal)
 
+                Spacer()
+
+                // CTA rides just above the keyboard (crit note 6).
                 Button(action: {
                     submitTextEntry()
                 }) {
                     Text("Check This Beer")
-                        .font(SipTypography.headline)
-                        .foregroundColor(SipColors.background)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(textEntryInput.trimmingCharacters(in: .whitespaces).isEmpty ? SipColors.textSecondary : SipColors.primary)
-                        )
                 }
+                .buttonStyle(SipPrimaryButtonStyle())
                 .padding(.horizontal)
+                .padding(.bottom, SipSpacing.s)
                 .disabled(textEntryInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityIdentifier("checkBeerButton")
-
-                Spacer()
             }
-            .padding(.top, 24)
+            .padding(.top, SipSpacing.xl)
+            // Token canvas, not the system sheet background — a pure-#000
+            // sheet is banned (crit note 6: same fix as every other sheet).
+            // The surface-colored input well above still reads elevated on it.
+            .background(SipColors.background.ignoresSafeArea())
             .navigationTitle("Enter Beer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -593,7 +621,7 @@ struct CheckTabView: View {
                         NotificationService.shared.scheduleFollowUpIfAuthorized(for: current)
                     }
                 }
-                withAnimation(.easeInOut(duration: 0.35)) {
+                withAnimation(.smooth(duration: 0.35)) {
                     phase = .verdict(current, refining: false)
                 }
             }

@@ -7,12 +7,17 @@ struct JournalEntryDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     let entry: JournalEntry
+    /// Verdict from the scan this entry was logged from, when known —
+    /// display-only, used for the "We said TRY IT" loop-closer line.
+    let linkedVerdict: Verdict?
     @State private var rating: Int
     @State private var notes: String
     @State private var showingDeleteConfirm = false
+    @ScaledMetric(relativeTo: .title) private var starSize: CGFloat = 28
 
-    init(entry: JournalEntry) {
+    init(entry: JournalEntry, linkedVerdict: Verdict? = nil) {
         self.entry = entry
+        self.linkedVerdict = linkedVerdict
         _rating = State(initialValue: entry.rating)
         _notes = State(initialValue: entry.notes ?? "")
     }
@@ -30,25 +35,26 @@ struct JournalEntryDetailView: View {
         return parts.joined(separator: " \u{00B7} ")
     }
 
+    private var hasChanges: Bool {
+        rating != entry.rating || notes != (entry.notes ?? "")
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                SipColors.background
+                // Sheet surface separation: sheets rest one step above the canvas
+                SipColors.surface
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: SipSpacing.xl) {
                         // Header
                         VStack(spacing: 6) {
-                            ZStack {
-                                Circle()
-                                    .fill(SipColors.surface)
-                                    .frame(width: 72, height: 72)
-                                Image(systemName: "mug.fill")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(SipColors.primary)
-                            }
-                            .padding(.bottom, 6)
+                            // SRM style tile — a stout and a lager should look different
+                            RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
+                                .fill(StyleGradient.gradient(for: entry.style.isEmpty ? nil : entry.style))
+                                .frame(width: 72, height: 72)
+                                .padding(.bottom, 6)
 
                             Text(entry.beerName)
                                 .font(SipTypography.title)
@@ -71,24 +77,31 @@ struct JournalEntryDetailView: View {
                                 .font(SipTypography.caption)
                                 .foregroundColor(SipColors.textSecondary)
                         }
-                        .padding(.top, 8)
+                        .padding(.top, SipSpacing.s)
+
+                        // Loop-closer: what we predicted vs. how they rated it
+                        if let verdict = linkedVerdict {
+                            loopCloser(for: verdict)
+                        }
 
                         // Editable star rating
-                        HStack(spacing: 10) {
+                        HStack(spacing: SipSpacing.s) {
                             ForEach(1...5, id: \.self) { star in
                                 Button {
                                     rating = star
                                 } label: {
                                     Image(systemName: star <= rating ? "star.fill" : "star")
-                                        .font(.system(size: 28))
+                                        .font(.system(size: starSize))
                                         .foregroundColor(star <= rating ? SipColors.starFilled : SipColors.starEmpty)
+                                        .frame(width: 44, height: 44)
                                 }
                                 .accessibilityIdentifier("detailStar_\(star)")
+                                .accessibilityLabel("\(star) star\(star == 1 ? "" : "s")")
                             }
                         }
 
                         // Editable notes
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: SipSpacing.s) {
                             Text("Notes")
                                 .font(SipTypography.subhead)
                                 .foregroundColor(SipColors.textSecondary)
@@ -96,49 +109,52 @@ struct JournalEntryDetailView: View {
                                 .lineLimit(3...8)
                                 .font(SipTypography.body)
                                 .foregroundColor(SipColors.textPrimary)
-                                .padding(12)
-                                .background(SipColors.surface)
-                                .cornerRadius(12)
+                                .padding(SipSpacing.m)
+                                .background(
+                                    RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                                        .fill(SipColors.surfaceElevated)
+                                )
                                 .accessibilityIdentifier("detailNotes")
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                        // Delete
+                        // Delete — demoted to quiet red text; Save is the screen's hero
                         Button(role: .destructive) {
                             showingDeleteConfirm = true
                         } label: {
                             Text("Delete from Journal")
-                                .font(SipTypography.headline)
+                                .font(SipTypography.subhead)
                                 .foregroundColor(SipColors.destructive)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(SipColors.destructive, lineWidth: 1.5)
-                                )
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
                         }
                         .accessibilityIdentifier("detailDelete")
-                        .padding(.top, 8)
+                        .padding(.top, SipSpacing.s)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, SipSpacing.xl)
+                    .padding(.bottom, SipSpacing.xl)
                 }
+            }
+            .safeAreaInset(edge: .bottom) {
+                // Save promoted to the primary, always-visible action
+                Button("Save") {
+                    var updated = entry
+                    updated.rating = rating
+                    updated.notes = notes.isEmpty ? nil : notes
+                    journalStore.updateEntry(updated)
+                    dismiss()
+                }
+                .buttonStyle(SipPrimaryButtonStyle())
+                .disabled(!hasChanges)
+                .padding(.horizontal, SipSpacing.xl)
+                .padding(.vertical, SipSpacing.m)
+                .background(SipColors.surface)
             }
             .navigationTitle("Beer Details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        var updated = entry
-                        updated.rating = rating
-                        updated.notes = notes.isEmpty ? nil : notes
-                        journalStore.updateEntry(updated)
-                        dismiss()
-                    }
-                    .disabled(rating == entry.rating && notes == (entry.notes ?? ""))
                 }
             }
             .confirmationDialog(
@@ -154,18 +170,43 @@ struct JournalEntryDetailView: View {
             }
         }
     }
+
+    // MARK: - Loop closer ("We said TRY IT — you gave it ★★★★")
+
+    private func loopCloser(for verdict: Verdict) -> some View {
+        let style = VerdictStyle.style(for: verdict)
+        return HStack(spacing: SipSpacing.s) {
+            Image(systemName: style.symbol)
+                .font(SipTypography.caption)
+                .foregroundColor(style.color)
+
+            (Text("We said \(style.word) — you gave it ")
+                .foregroundColor(SipColors.textPrimary)
+             + Text(String(repeating: "\u{2605}", count: max(1, min(rating, 5))))
+                .foregroundColor(SipColors.starFilled))
+                .font(SipTypography.subhead)
+        }
+        .padding(.horizontal, SipSpacing.l)
+        .padding(.vertical, SipSpacing.s)
+        .background(Capsule().fill(SipColors.surfaceElevated))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("We said \(style.word), you gave it \(rating) of 5 stars")
+    }
 }
 
 struct JournalEntryDetailView_Previews: PreviewProvider {
     static var previews: some View {
-        JournalEntryDetailView(entry: JournalEntry(
-            beerName: "Guinness Draught",
-            brand: "Guinness",
-            style: "Stout",
-            abv: 4.2,
-            rating: 4,
-            notes: "Smooth, creamy."
-        ))
+        JournalEntryDetailView(
+            entry: JournalEntry(
+                beerName: "Guinness Draught",
+                brand: "Guinness",
+                style: "Stout",
+                abv: 4.2,
+                rating: 4,
+                notes: "Smooth, creamy."
+            ),
+            linkedVerdict: .tryIt
+        )
         .environmentObject(JournalStore(
             storageDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("preview-journal-detail"),
             useSeedData: false
