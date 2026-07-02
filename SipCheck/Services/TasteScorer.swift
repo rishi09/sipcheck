@@ -35,6 +35,17 @@ enum TasteScorer {
     private static let abvTolerance: Double = 3.0
     /// Upper bound on the ABV mismatch penalty, so one bad ABV can't dominate the score.
     private static let maxABVPenalty: Double = 2.0
+    /// Liked-weight for styles seeded from the onboarding "beers you've had"
+    /// picker — weaker than an explicit vibe answer (2.0), stronger than nothing.
+    private static let seedStyleWeight: Double = 1.5
+    /// Netted against rating-history liked weight when the same style also
+    /// carries a dislike signal. History weight caps at 3.0, so mixed evidence
+    /// lands in [-2.0, 0.0] — never a confident TRY, never the full -5 veto.
+    private static let mixedEvidenceOffset: Double = 3.0
+    /// Neutral-style nudges per the quiz's "How adventurous?" answer.
+    private static let neutralBonusCautious: Double = 0.0     // Stick to Favorites
+    private static let neutralBonusDefault: Double = 0.2      // Mix It Up / unanswered
+    private static let neutralBonusAdventurous: Double = 0.8  // Give Me the Weird Stuff
 
     // MARK: - Public API
 
@@ -63,16 +74,11 @@ enum TasteScorer {
         // contributes to the SCORE so menu ranking stays sane, but it can never
         // fake a confident verdict on its own.
         guard let resolvedStyle = style ?? inferStyle(from: name) else {
-            var abvScore = 0.0
-            if let abv {
-                let idealABV = profile.averageABV ?? defaultIdealABV
-                let gap = abs(abv - idealABV)
-                abvScore = gap <= abvTolerance ? 0.5 : -min(maxABVPenalty, 0.5 * (gap - abvTolerance))
-            }
+            let score = abv.map { abvScore($0, idealABV: idealABV(from: profile)) } ?? 0.0
             return Assessment(
                 verdict: .yourCall,
                 shortReason: "we couldn't tell the style — trust your gut",
-                score: abvScore
+                score: score
             )
         }
 
@@ -85,11 +91,14 @@ enum TasteScorer {
 
         let key = styleKey(resolvedStyle)
         if dislikedSet.contains(key) {
-            if let weight = likedWeights[key], weight > 0 {
-                // Mixed evidence: liked it plenty, but something also says avoid.
+            // Mixed evidence counts RATED history only: a vibe answer or a
+            // "beers you've had" seed is not a like, and must not soften a
+            // repeatedly-thumbs-downed style.
+            if let liked = profile.favoriteStyles.first(where: { $0.style.lowercased() == key }) {
                 // A single bad stout must not permanently veto a style the user
                 // has loved many times — net the signals instead.
-                score += weight - 3.0
+                let weight = min(3.0, 1.0 + Double(liked.count - 1) * 0.5)
+                score += weight - mixedEvidenceOffset
                 reasons.append("mixed history with \(reasonName(resolvedStyle))")
             } else {
                 score -= 5.0
@@ -105,16 +114,10 @@ enum TasteScorer {
         }
 
         // ---- ABV contribution ---------------------------------------------
-        let idealABV = profile.averageABV ?? defaultIdealABV
         if let abv {
-            let gap = abs(abv - idealABV)
-            if gap <= abvTolerance {
-                score += 0.5
-            } else {
-                // Clamp the penalty so a misparsed/extreme ABV can't single-handedly
-                // bury an otherwise-loved beer (max penalty ~ one disliked-style hit).
-                let penalty = min(maxABVPenalty, 0.5 * (gap - abvTolerance))
-                score -= penalty
+            let contribution = abvScore(abv, idealABV: idealABV(from: profile))
+            score += contribution
+            if contribution < 0 {
                 reasons.append("\(formattedABV(abv)) is off your usual strength")
             }
         }
@@ -122,6 +125,21 @@ enum TasteScorer {
         let verdict = verdict(for: score)
         let reason = reasons.isEmpty ? "fits your taste" : reasons.joined(separator: "; ")
         return Assessment(verdict: verdict, shortReason: reason, score: score)
+    }
+
+    /// The scorer's ABV anchor: liked-history average first, any-history
+    /// average second, sensible default last.
+    private static func idealABV(from profile: TasteProfile) -> Double {
+        profile.likedAverageABV ?? profile.averageABV ?? defaultIdealABV
+    }
+
+    /// The single ABV scoring curve — used by both the styled path and the
+    /// unknown-style path so menu ranking treats every candidate consistently.
+    /// Within tolerance of the ideal: small bonus; outside: clamped penalty so
+    /// a misparsed/extreme ABV can't single-handedly bury a loved beer.
+    private static func abvScore(_ abv: Double, idealABV: Double) -> Double {
+        let gap = abs(abv - idealABV)
+        return gap <= abvTolerance ? 0.5 : -min(maxABVPenalty, 0.5 * (gap - abvTolerance))
     }
 
     /// Map a raw score to a user-facing `Verdict`.
@@ -156,9 +174,9 @@ enum TasteScorer {
         }
 
         // 2. ABV proximity to ideal (smaller gap wins; unknown ABV ranks last).
-        let idealABV = profile.averageABV ?? defaultIdealABV
-        let gapA = a.abv.map { abs($0 - idealABV) } ?? Double.greatestFiniteMagnitude
-        let gapB = b.abv.map { abs($0 - idealABV) } ?? Double.greatestFiniteMagnitude
+        let ideal = idealABV(from: profile)
+        let gapA = a.abv.map { abs($0 - ideal) } ?? Double.greatestFiniteMagnitude
+        let gapB = b.abv.map { abs($0 - ideal) } ?? Double.greatestFiniteMagnitude
         if gapA != gapB {
             return gapA < gapB
         }
@@ -271,7 +289,7 @@ enum TasteScorer {
         // personalized before any ratings exist.
         for style in preferences.seedStyles {
             let key = style.lowercased()
-            weights[key] = max(weights[key] ?? 0, 1.5)
+            weights[key] = max(weights[key] ?? 0, seedStyleWeight)
         }
 
         return weights
@@ -281,9 +299,9 @@ enum TasteScorer {
     /// "How adventurous?" answer.
     private static func neutralStyleBonus(for adventure: String) -> Double {
         let lower = adventure.lowercased()
-        if lower.contains("stick") { return 0.0 }   // Stick to Favorites
-        if lower.contains("weird") { return 0.8 }   // Give Me the Weird Stuff
-        return 0.2                                  // Mix It Up / unanswered
+        if lower.contains("stick") { return neutralBonusCautious }
+        if lower.contains("weird") { return neutralBonusAdventurous }
+        return neutralBonusDefault
     }
 
     /// Build the set of disliked `styleKey`s from history + quiz dislikes.

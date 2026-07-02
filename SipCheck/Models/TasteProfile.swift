@@ -8,7 +8,13 @@ struct TasteProfile {
 
     var favoriteStyles: [(style: String, count: Int)] = []
     var dislikedStyles: [(style: String, count: Int)] = []
+    /// Mean ABV across ALL rated drinks — the honest "beers tried" statistic
+    /// shown in Stats and prompt summaries.
     var averageABV: Double?
+    /// Mean ABV across LIKED drinks only — the scorer's "ideal ABV" anchor.
+    /// Averaging in the 9% stout the user hated would drag their sweet spot
+    /// toward beers they avoid.
+    var likedAverageABV: Double?
 
     /// Build a taste profile from drink history
     static func build(from drinks: [Drink]) -> TasteProfile {
@@ -52,13 +58,11 @@ struct TasteProfile {
             .sorted { $0.value > $1.value }
             .map { (style: $0.key, count: $0.value) }
 
-        // "Ideal ABV" should anchor on beers the user LIKED — averaging in the
-        // 9% stout they hated drags the sweet spot toward beers they avoid.
-        // Fall back to all drinks only when nothing is rated liked yet.
-        if likedABVCount > 0 {
-            profile.averageABV = likedABVSum / Double(likedABVCount)
-        } else if abvCount > 0 {
+        if abvCount > 0 {
             profile.averageABV = abvSum / Double(abvCount)
+        }
+        if likedABVCount > 0 {
+            profile.likedAverageABV = likedABVSum / Double(likedABVCount)
         }
 
         return profile

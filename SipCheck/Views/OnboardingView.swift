@@ -69,6 +69,8 @@ private struct BeerPickerPage: View {
 
     @State private var selectedBeers: Set<String> = []
     @State private var showCoronaEgg = false
+    /// Monotonic guard: only the newest persistSelections snapshot may write.
+    @State private var persistGeneration = 0
 
     private let beerOptions = [
         "Modelo", "Corona", "Heineken", "Blue Moon",
@@ -183,6 +185,14 @@ private struct BeerPickerPage: View {
             }
         }
         .tag(tag)
+        .onAppear {
+            // Replay/reinstall: restore prior picks so the first new tap's
+            // write-through doesn't overwrite a multi-beer selection (and its
+            // synced seed styles) with a single beer.
+            if selectedBeers.isEmpty {
+                selectedBeers = Set(TastePreferences.savedKnownBeers).intersection(Set(beerOptions))
+            }
+        }
     }
 
     private func toggleBeer(_ beer: String) {
@@ -208,17 +218,24 @@ private struct BeerPickerPage: View {
     }
 
     /// Persist the picks AND the styles they resolve to — the seed the verdict
-    /// engine actually consumes. Resolution runs off-main (catalog decode).
+    /// engine actually consumes. Resolution runs off-main (catalog decode);
+    /// the generation guard makes the LATEST tap's snapshot win — unordered
+    /// task completion must not let a stale subset be the last write.
     private func persistSelections() {
+        persistGeneration += 1
+        let generation = persistGeneration
         let beers = Array(selectedBeers)
-        Task.detached(priority: .utility) {
-            let styles = Set(beers.compactMap { beer -> String? in
-                if let hit = BundledCatalog.shared.lookup(name: beer), let style = hit.style {
-                    return style.rawValue
-                }
-                return TasteScorer.inferStyle(from: beer)?.rawValue
-            })
-            TastePreferences.saveKnownBeers(beers, seedStyles: styles.sorted())
+
+        Task {
+            let styles: [String] = await Task.detached(priority: .utility) {
+                // Same catalog+inference fusion the scan path uses, so the
+                // seed style for a beer matches what scanning it would resolve.
+                Array(Set(beers.compactMap {
+                    BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style?.rawValue
+                })).sorted()
+            }.value
+            guard generation == persistGeneration else { return } // stale snapshot
+            TastePreferences.saveKnownBeers(beers, seedStyles: styles)
         }
     }
 

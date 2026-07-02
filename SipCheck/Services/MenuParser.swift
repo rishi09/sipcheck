@@ -150,9 +150,12 @@ enum MenuParser {
     /// Matches an ABV percentage, e.g. `6.7%`, `9 %`.
     private static let abvRegex = makeRegex("(\\d{1,2}(?:\\.\\d)?)\\s?%")
 
-    /// Matches all serving / price / ABV noise to strip from a name.
+    /// Matches all serving / price / ABV / IBU noise to strip from a name.
+    /// Includes the keyword ABV forms ("ABV: 7.0", "7 ABV") now that
+    /// extractABV accepts them — otherwise they'd survive into the display
+    /// name and break exact-match history lookups.
     private static let noiseRegex = makeRegex(
-        "(\\$\\s?\\d+(?:\\.\\d{2})?|\\d{1,2}(?:\\.\\d)?\\s?%|\\bpint\\b|\\bdraft\\b|\\b1/2\\b)"
+        "(\\$\\s?\\d+(?:\\.\\d{2})?|\\d{1,2}(?:\\.\\d)?\\s?%|abv[: \\t]{0,3}\\d{1,2}(?:\\.\\d)?|\\d{1,2}(?:\\.\\d)?[ \\t]{0,2}abv|ibu[: \\t]{0,3}\\d{1,3}|\\d{1,3}[ \\t]{0,2}ibu|\\babv\\b:?|\\bibu\\b:?|\\bpint\\b|\\bdraft\\b|\\b1/2\\b)"
     )
 
     /// Collapses runs of 2+ whitespace into a single space.
@@ -171,26 +174,42 @@ enum MenuParser {
         "specialty", "premium", "domestic", "import", "rotating", "guest"
     ]
 
-    /// True when every word of a short name is style/menu vocabulary
-    /// (plural-tolerant): "IPAs" → header; "Stone IPA" → beer.
+    /// True for section headers wearing a style: a single style word ("IPAs",
+    /// "Stout") or a style-only phrase with a PLURAL style word ("Belgian
+    /// Ales", "Wheat Beers"). Singular multi-word style phrases stay beers —
+    /// taprooms really do sell an "Amber Ale" or "Hazy IPA" by that exact name,
+    /// and dropping them broke price-less chalkboard menus entirely.
     private static func isStyleOnlyName(_ name: String) -> Bool {
         let tokens = name.lowercased()
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
             .map(String.init)
         guard !tokens.isEmpty, tokens.count <= 3 else { return false }
-        return tokens.allSatisfy { token in
+
+        var sawPlural = false
+        for token in tokens {
             let singular = token.hasSuffix("s") ? String(token.dropLast()) : token
-            return styleHeaderWords.contains(token) || styleHeaderWords.contains(singular)
+            guard styleHeaderWords.contains(token) || styleHeaderWords.contains(singular) else {
+                return false
+            }
+            if token.hasSuffix("s"), styleHeaderWords.contains(singular) { sawPlural = true }
         }
+        return tokens.count == 1 || sawPlural
     }
 
     /// Plausible ABV range for a beer. Bounds reject menu chrome such as
     /// "Save 50% today" or "20% off" being misread as a beer's strength.
     private static let plausibleABV: ClosedRange<Double> = 0.5...20.0
 
-    /// Matches "ABV 5.6" / "ABV: 5.6" / "5.6 ABV" — menus that skip the % sign.
-    private static let abvKeywordRegex = makeRegex(
-        "(?:abv[:\\s]{1,3}(\\d{1,2}(?:\\.\\d)?)|(\\d{1,2}(?:\\.\\d)?)\\s{0,2}abv)"
+    /// "ABV 5.6" / "ABV: 5.6" — the keyword LEADS, so an IBU number sitting
+    /// before the word ABV ("IBU 18 ABV 4.2") can't hijack the read. Spacing
+    /// is space/tab only: label blobs are multi-line, and \s would let "ABV\n12
+    /// FL OZ" bind the ounces as strength.
+    private static let abvLeadingKeywordRegex = makeRegex(
+        "abv[: \\t]{1,3}(\\d{1,2}(?:\\.\\d)?)"
+    )
+    /// "5.6 ABV" — checked only after the leading-keyword form.
+    private static let abvTrailingKeywordRegex = makeRegex(
+        "(\\d{1,2}(?:\\.\\d)?)[ \\t]{0,2}abv"
     )
 
     /// Extract the first *plausible* ABV percentage from a line, if present.
@@ -199,17 +218,9 @@ enum MenuParser {
     static func extractABV(from line: String) -> Double? {
         let fullRange = NSRange(line.startIndex..., in: line)
 
-        for match in abvRegex.matches(in: line, options: [], range: fullRange) {
-            if let captureRange = Range(match.range(at: 1), in: line),
-               let value = Double(line[captureRange]),
-               plausibleABV.contains(value) {
-                return value
-            }
-        }
-
-        if let match = abvKeywordRegex.firstMatch(in: line, range: fullRange) {
-            for group in 1...2 {
-                if let captureRange = Range(match.range(at: group), in: line),
+        for regex in [abvRegex, abvLeadingKeywordRegex, abvTrailingKeywordRegex] {
+            for match in regex.matches(in: line, options: [], range: fullRange) {
+                if let captureRange = Range(match.range(at: 1), in: line),
                    let value = Double(line[captureRange]),
                    plausibleABV.contains(value) {
                     return value

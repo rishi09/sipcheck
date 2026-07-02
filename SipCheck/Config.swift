@@ -22,15 +22,18 @@ enum Config {
 
     /// Placeholder values copied from Secrets.swift.example ("your-key-here")
     /// pass `!isEmpty` gates and put doomed network calls on the enrichment
-    /// path. Treat anything that can't be a real key as absent.
+    /// path. Structural checks only — no substring blocklists, which could
+    /// silently reject a real key that happens to contain "here"/"your".
+    private static let knownPlaceholders: Set<String> = [
+        "your-key-here", "your-api-key-here", "your-key", "replace-me",
+        "sk-your-key-here", "changeme"
+    ]
+
     private static func sanitized(_ raw: String) -> String {
         let key = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let lower = key.lowercased()
         guard key.count >= 20,
               !key.contains(" "),
-              !lower.contains("your"),
-              !lower.contains("replace"),
-              !lower.contains("here") else { return "" }
+              !knownPlaceholders.contains(key.lowercased()) else { return "" }
         return key
     }
 }

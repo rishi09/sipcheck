@@ -14,9 +14,15 @@ struct TastePreferences {
         let adventure = value(forKey: "tasteAdventure")
         let dislikesStr = value(forKey: "tasteDislikes")
         let dislikes = dislikesStr.isEmpty ? [] : dislikesStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        let seedStr = value(forKey: "tasteSeedStyles")
+        let seedStr = seedValue(forKey: "tasteSeedStyles")
         let seedStyles = seedStr.isEmpty ? [] : seedStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes, seedStyles: seedStyles)
+    }
+
+    /// The raw onboarding beer picks, for restoring the picker on replay.
+    static var savedKnownBeers: [String] {
+        let raw = seedValue(forKey: "knownBeers")
+        return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
     /// Test runs must be hermetic — mirror CloudKitSyncService's gate so the
@@ -62,9 +68,23 @@ struct TastePreferences {
         cloud.synchronize()
     }
 
+    /// Seed keys are a toggleable picker, not a one-shot quiz: deselect-all is
+    /// a real user action, so a PRESENT cloud value — even empty — is
+    /// authoritative, and stale locals are never mirrored back up (the quiz's
+    /// self-heal mirror would resurrect explicitly-cleared picks).
+    private static func seedValue(forKey key: String) -> String {
+        let local = UserDefaults.standard.string(forKey: key) ?? ""
+        guard !cloudDisabled else { return local }
+        if let synced = NSUbiquitousKeyValueStore.default.string(forKey: key) {
+            return synced
+        }
+        return local
+    }
+
     /// Persist the onboarding "beers you've had" cold-start seed: the raw picks
     /// (for future re-derivation) and the styles they resolve to (what the
-    /// scorer consumes). Same write-through-cloud policy as the quiz answers.
+    /// scorer consumes). Unlike the quiz's save(), empties ARE pushed to the
+    /// cloud — clearing the picker must propagate (see seedValue).
     static func saveKnownBeers(_ beers: [String], seedStyles: [String]) {
         let values = [
             "knownBeers": beers.sorted().joined(separator: ","),
@@ -75,7 +95,7 @@ struct TastePreferences {
         }
         guard !cloudDisabled else { return }
         let cloud = NSUbiquitousKeyValueStore.default
-        for (key, value) in values where !value.isEmpty {
+        for (key, value) in values {
             cloud.set(value, forKey: key)
         }
         cloud.synchronize()
