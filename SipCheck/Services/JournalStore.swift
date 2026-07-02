@@ -121,6 +121,9 @@ class JournalStore: ObservableObject {
         }
         guard let lossy = try? JSONDecoder().decode([Lossy].self, from: data) else { return nil }
         let values = lossy.compactMap(\.value)
+        // Every element failing is indistinguishable from total corruption —
+        // treat it as such so the restore path runs instead of a silent wipe.
+        if values.isEmpty && !lossy.isEmpty { return nil }
         if values.count != lossy.count {
             print("JournalStore: skipped \(lossy.count - values.count) corrupt record(s) in journal.json")
         }
@@ -136,7 +139,6 @@ class JournalStore: ObservableObject {
         }
 
         var records = Self.decodeTolerantly(data)
-        var goodBytes = data
         if records == nil {
             // Keep the corrupt file for forensics, then fall back to the
             // last-known-good backup instead of silently starting empty.
@@ -145,7 +147,6 @@ class JournalStore: ObservableObject {
                let restored = Self.decodeTolerantly(backup) {
                 print("JournalStore: journal.json unreadable — restored from backup")
                 records = restored
-                goodBytes = backup
                 try? backup.write(to: fileURL, options: .atomic)
             }
         }
@@ -158,8 +159,11 @@ class JournalStore: ObservableObject {
         }
         tombstones = all.filter { $0.isDeleted }
         entries = all.filter { !$0.isDeleted }
-        // Back up only bytes that decoded successfully (last-known-good).
-        try? goodBytes.write(to: backupURL, options: .atomic)
+        // Back up the re-encoded good records (not the raw bytes, which may
+        // still contain the corrupt element) — exactly the last-known-good state.
+        if let encoded = try? JSONEncoder().encode(all) {
+            try? encoded.write(to: backupURL, options: .atomic)
+        }
     }
 
     // MARK: - Queries

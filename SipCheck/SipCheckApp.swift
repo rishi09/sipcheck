@@ -86,6 +86,8 @@ private struct RootView: View {
     @State private var showingFollowUp = false
     @State private var showingAddBeer = false
     @State private var addBeerPrefill: AddBeerPrefill?
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var lastSyncAttempt: Date?
 
     var body: some View {
         Group {
@@ -96,6 +98,14 @@ private struct RootView: View {
             } else {
                 OnboardingView()
             }
+        }
+        // Launch sync fires once; if it failed (offline launch, e.g. inside a
+        // store), nothing retried for the rest of the session and offline
+        // saves stayed local. Re-sync on foreground, throttled.
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            if let last = lastSyncAttempt, Date().timeIntervalSince(last) < 300 { return }
+            Task { await performLaunchSync() }
         }
         .task {
             await performLaunchSync()
@@ -212,6 +222,7 @@ private struct RootView: View {
     // MARK: - CloudKit Launch Sync
 
     private func performLaunchSync() async {
+        lastSyncAttempt = Date()
         let result = await CloudKitSyncService.shared.fullSync(
             localDrinks: drinkStore.syncRecords,
             localScans: scanStore.syncRecords,

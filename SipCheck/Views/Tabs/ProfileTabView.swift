@@ -8,8 +8,11 @@ struct ProfileTabView: View {
     @State private var showingSettings = false
 
     private var personaLabel: String {
-        let vibe = UserDefaults.standard.string(forKey: "tasteVibe") ?? ""
-        let adventure = UserDefaults.standard.string(forKey: "tasteAdventure") ?? ""
+        // Read via TastePreferences (KVS-first) so the badge matches what the
+        // verdict engine actually uses — raw UserDefaults could disagree.
+        let prefs = TastePreferences.current
+        let vibe = prefs.vibe
+        let adventure = prefs.adventure
         switch vibe {
         case "Hoppy & Bitter": return "Hop Head"
         case "Dark & Roasty": return "Dark Arts"

@@ -120,6 +120,10 @@ struct AddBeerView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    // The save Task keeps running after dismissal — letting
+                    // Cancel fire mid-save looks like a cancel but still logs
+                    // the beer a moment later.
+                    .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -129,6 +133,7 @@ struct AddBeerView: View {
                     .accessibilityIdentifier("saveBeer")
                 }
             }
+            .interactiveDismissDisabled(isSaving)
             .onChange(of: capturedImage) { oldValue, newValue in
                 if let image = newValue, oldValue == nil {
                     processImageWithAI(image)

@@ -13,15 +13,25 @@ struct TastePreferences {
         return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes)
     }
 
+    /// Test runs must be hermetic — mirror CloudKitSyncService's gate so the
+    /// iCloud key-value store is never touched under test launch args.
+    private static var cloudDisabled: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        return args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
+    }
+
     /// Quiz answers previously lived only in this device's UserDefaults, so
     /// the two test iPhones disagreed on every verdict. Reads prefer the
     /// iCloud key-value store (synced) and fall back to local; writes go to
     /// both. Devices that answered the quiz before syncing existed self-heal:
     /// their local answers are mirrored up the first time they're read.
+    /// An EMPTY cloud value is treated as absent — "skip quiz" on one device
+    /// must never shadow real answers stored anywhere else.
     private static func value(forKey key: String) -> String {
-        let cloud = NSUbiquitousKeyValueStore.default
         let local = UserDefaults.standard.string(forKey: key) ?? ""
-        if let synced = cloud.string(forKey: key) {
+        guard !cloudDisabled else { return local }
+        let cloud = NSUbiquitousKeyValueStore.default
+        if let synced = cloud.string(forKey: key), !synced.isEmpty {
             return synced
         }
         if !local.isEmpty {
@@ -31,10 +41,16 @@ struct TastePreferences {
     }
 
     /// Write-through both stores. The KVS copy is what other devices see.
+    /// Empty values are written locally but never pushed to the cloud, so a
+    /// skipped quiz can't erase synced answers on other devices.
     static func save(vibe: String, adventure: String, dislikes: String) {
-        let cloud = NSUbiquitousKeyValueStore.default
-        for (key, value) in ["tasteVibe": vibe, "tasteAdventure": adventure, "tasteDislikes": dislikes] {
+        let values = ["tasteVibe": vibe, "tasteAdventure": adventure, "tasteDislikes": dislikes]
+        for (key, value) in values {
             UserDefaults.standard.set(value, forKey: key)
+        }
+        guard !cloudDisabled else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        for (key, value) in values where !value.isEmpty {
             cloud.set(value, forKey: key)
         }
         cloud.synchronize()
