@@ -11,9 +11,9 @@ struct JournalEntryRow: View {
 
     var body: some View {
         HStack(spacing: SipSpacing.m) {
-            // SRM style tile — the beer's color is the thumbnail
-            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                .fill(StyleGradient.gradient(for: entry.style.isEmpty ? nil : entry.style))
+            // SRM style tile — the beer's color is the thumbnail (shared
+            // swatch: hairline keeps stout tiles visible on the dark canvas)
+            SRMSwatch(style: entry.style.isEmpty ? nil : entry.style)
                 .frame(width: 44, height: 44)
 
             // Name on line 1; style + rating share the metadata baseline
@@ -42,11 +42,16 @@ struct JournalEntryRow: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Rated \(entry.rating) of 5")
 
-                    // "Not For Me" badge for low ratings
+                    // "Not For Me" badge for low ratings. verdictSkipText (not
+                    // verdictSkip) clears 4.5:1 on the tinted fill, and the
+                    // chip never wraps (round-2 crit #5: two-line chip inflated
+                    // the row and collided with the date column).
                     if entry.rating <= 2 {
                         Text("Not For Me")
                             .font(.caption2.weight(.medium))
-                            .foregroundColor(SipColors.verdictSkip)
+                            .foregroundColor(SipColors.verdictSkipText)
+                            .lineLimit(1)
+                            .fixedSize(horizontal: true, vertical: false)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
@@ -59,10 +64,11 @@ struct JournalEntryRow: View {
 
             Spacer()
 
-            // Date
+            // Date — wins the width fight; the style text truncates instead
             Text(formattedDate)
                 .font(SipTypography.caption)
                 .foregroundColor(SipColors.textSecondary)
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, SipSpacing.s)
         .padding(.horizontal, SipSpacing.l)

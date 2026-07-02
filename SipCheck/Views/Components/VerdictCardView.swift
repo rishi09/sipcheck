@@ -70,7 +70,7 @@ struct VerdictCardView: View {
                             .font(SipTypography.caption)
                             .foregroundColor(ratingColor(for: previous.rating))
                             .accessibilityHidden(true)
-                        Text("You've had this one — you rated it \(previous.rating.displayName.lowercased())")
+                        Text(historyLine(for: previous.rating))
                             .font(SipTypography.caption)
                             .foregroundColor(SipColors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -203,11 +203,26 @@ struct VerdictCardView: View {
                 }
                 .padding(.horizontal, SipSpacing.xl)
                 .padding(.top, SipSpacing.xxl)
-                // Clear the floating tab bar — 40 buried the buttons beneath it
-                .padding(.bottom, 110)
+                // Tab-bar clearance is inherited from MainTabView's shared
+                // .sipTabBarClearance() safe-area contract — no magic padding.
+                .padding(.bottom, SipSpacing.xl)
             }
         }
-        .background(SipColors.background.ignoresSafeArea())
+        .background(
+            ZStack {
+                SipColors.background
+                // Full-height verdict atmosphere: runs behind the status bar
+                // (round-2 crit #6 — the tint used to cut in at the safe-area
+                // seam) and fades out by mid-screen so the reading zone below
+                // stays canvas-dark.
+                LinearGradient(
+                    colors: [verdictStyle.color.opacity(0.22), Color.clear],
+                    startPoint: .top,
+                    endPoint: UnitPoint(x: 0.5, y: 0.5)
+                )
+            }
+            .ignoresSafeArea()
+        )
         .sheet(isPresented: $showingLogSheet) {
             AddBeerView(prefill: AddBeerPrefill(
                 name: scan.beerName,
@@ -236,15 +251,9 @@ struct VerdictCardView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, SipSpacing.xl)
-        .background(
-            // Verdict tint lives here only — contained to the hero, no bleed
-            // into the status bar, no second gradient competing with the header.
-            LinearGradient(
-                colors: [verdictStyle.color.opacity(0.22), Color.clear],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        // The verdict tint is the card's BACKGROUND layer (full height,
+        // behind the status bar) — no hero-local gradient, so there's no
+        // hard seam where the hero ends.
         .scaleEffect(heroRevealed ? 1 : 0.8)
         .opacity(heroRevealed ? 1 : 0)
         .animation(.bouncy, value: scan.verdict)
@@ -255,11 +264,18 @@ struct VerdictCardView: View {
 
     // MARK: - Identity Block (SRM gradient header — name printed exactly once)
 
+    /// SRM-surface ink pair (round-2 crit #2): dark warm ink on light beer
+    /// surfaces (the gray textSecondary token measured 1.9:1 on amber), cream
+    /// on mid/dark surfaces — where a bottom scrim keeps it legible instead.
+    private var identityInk: (primary: Color, secondary: Color) {
+        StyleGradient.ink(for: scan.style)
+    }
+
     private var identityBlock: some View {
         VStack(alignment: .leading, spacing: SipSpacing.xs) {
             Text(scan.beerName)
                 .font(SipTypography.title)
-                .foregroundColor(SipColors.textPrimary)
+                .foregroundColor(identityInk.primary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -267,7 +283,7 @@ struct VerdictCardView: View {
                 if !beerMetadata.isEmpty {
                     Text(beerMetadata)
                         .font(SipTypography.subhead)
-                        .foregroundColor(SipColors.textSecondary)
+                        .foregroundColor(identityInk.secondary)
                 }
                 // Refining rides the row it will patch — bottom-aligned with
                 // the metadata, not wedged between verdict and banner.
@@ -275,9 +291,10 @@ struct VerdictCardView: View {
                     HStack(spacing: SipSpacing.xs) {
                         ProgressView()
                             .controlSize(.small)
+                            .tint(identityInk.secondary)
                         Text("refining details…")
                             .font(SipTypography.caption)
-                            .foregroundColor(SipColors.textSecondary)
+                            .foregroundColor(identityInk.secondary)
                     }
                     .transition(.opacity)
                     .accessibilityIdentifier("refiningHint")
@@ -290,13 +307,16 @@ struct VerdictCardView: View {
         .background(
             ZStack {
                 StyleGradient.gradient(for: scan.style)
-                // Legibility scrim: cream text never sits raw on pale-gold SRM
-                // stops (slop watchlist: no white-on-gold).
-                LinearGradient(
-                    colors: [Color.clear, SipColors.background.opacity(0.65)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Legibility: LIGHT SRM surfaces carry dark ink directly (no
+                // scrim to fight it); mid/dark surfaces keep cream ink over
+                // this bottom scrim (slop watchlist: no white-on-gold).
+                if !StyleGradient.hasLightSurface(scan.style) {
+                    LinearGradient(
+                        colors: [Color.clear, SipColors.background.opacity(0.65)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: SipRadius.hero, style: .continuous))
@@ -317,6 +337,16 @@ struct VerdictCardView: View {
             parts.append(source.copy)
         }
         return parts.joined(separator: " \u{00B7} ")
+    }
+
+    /// Full sentence per rating — round-2 crit #7: interpolating the raw
+    /// rating name produced the truncated-sounding "you rated it like".
+    private func historyLine(for rating: Rating) -> String {
+        switch rating {
+        case .like:    return "You've had this one — you gave it a thumbs up."
+        case .dislike: return "You've had this one — you gave it a thumbs down."
+        case .neutral: return "You've had this one — you were on the fence."
+        }
     }
 
     private func ratingSymbol(for rating: Rating) -> String {

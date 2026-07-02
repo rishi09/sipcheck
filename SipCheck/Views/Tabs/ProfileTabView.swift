@@ -54,8 +54,8 @@ struct ProfileTabView: View {
                     // MARK: - Recent Scans
                     recentScansSection
 
-                    // Clear the floating tab bar so the last scan isn't buried
-                    Spacer(minLength: 110)
+                    // Tab-bar clearance is inherited from MainTabView's shared
+                    // .sipTabBarClearance() safe-area contract — no magic padding.
                 }
                 .padding(.top, SipSpacing.l)
             }
@@ -261,8 +261,7 @@ struct ProfileTabView: View {
         HStack(spacing: SipSpacing.m) {
             // SRM mini-tile when we know the style; verdict-colored dot otherwise.
             if let style = scan.style, !style.isEmpty {
-                RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous)
-                    .fill(StyleGradient.gradient(for: style))
+                SRMSwatch(style: style, cornerRadius: SipRadius.badge)
                     .frame(width: 36, height: 36)
             } else {
                 Circle()

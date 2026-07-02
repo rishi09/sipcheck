@@ -17,7 +17,7 @@ channel — don't make the user shuttle context between chats.
    `DESIGN_INSPIRATION.md`, and `E2E_FINDINGS.md` so you don't re-discover known
    bugs. Findings marked 🔵 in BUG_AUDIT.md are recommended pickups for the
    E2E/tactical track.
-4. Any `claude/*` branch push auto-builds to TestFlight (doc-only changes are excluded).
+4. Any `claude/*` branch push auto-BUILDS (compile/sign gate only, doc/script changes excluded). Only merges to `main` (or a manual dispatch) UPLOAD to TestFlight — Apple caps uploads per app per day, so never trigger uploads for intermediate work.
 
 **Active Tracks** (update when claiming/releasing):
 | Track | Branch | Reserved files |

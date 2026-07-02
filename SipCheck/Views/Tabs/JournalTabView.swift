@@ -72,8 +72,8 @@ struct JournalTabView: View {
                     // Tried section
                     triedSection
                 }
-                // Clear the floating tab bar so the last row isn't buried
-                .padding(.bottom, 110)
+                // Tab-bar clearance is inherited from MainTabView's shared
+                // .sipTabBarClearance() safe-area contract — no magic padding.
             }
             .compatScrollEdgeSoft()
         }
@@ -103,8 +103,18 @@ struct JournalTabView: View {
     // MARK: - Scan linkage (display-only lookup for the detail sheet's loop-closer line)
 
     private func linkedVerdict(for entry: JournalEntry) -> Verdict? {
-        guard let scanId = entry.linkedScanId else { return nil }
-        return scanStore.scans.first(where: { $0.id == scanId })?.verdict
+        if let scanId = entry.linkedScanId,
+           let verdict = scanStore.scans.first(where: { $0.id == scanId })?.verdict {
+            return verdict
+        }
+        // Manual logs carry no linkedScanId — fall back to an exact-name hit
+        // in scan history. Same trust bar as the verdict card's "you've had
+        // this one" banner: exact match only, never fuzzy.
+        let name = entry.beerName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return nil }
+        return scanStore.scans.first(where: {
+            $0.beerName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        })?.verdict
     }
 
     // MARK: - Search Bar
