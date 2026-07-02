@@ -12,8 +12,8 @@ struct FollowUpView: View {
             // Header
             VStack(spacing: SipSpacing.m) {
                 // SRM style tile — the beer's color, not a stock glyph
-                RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
-                    .fill(StyleGradient.gradient(for: scan.style))
+                // (shared swatch: hairline keeps stout tiles visible, crit #3)
+                SRMSwatch(style: scan.style, cornerRadius: SipRadius.card)
                     .frame(width: 72, height: 72)
                     .padding(.top, SipSpacing.xxl)
 

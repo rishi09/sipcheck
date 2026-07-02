@@ -176,7 +176,9 @@ struct CheckTabView: View {
                     .font(SipTypography.title)
                     .foregroundColor(SipColors.textPrimary)
 
-                Text("Point it at any beer — verdict in seconds, no signal needed.")
+                // Do-not-lose copy (round-2 crit #10): this exact tagline is a
+                // locked product line — never swap it for feature-speak.
+                Text("Snap a label. We'll tell you if it's worth your money.")
                     .font(SipTypography.body)
                     .foregroundColor(SipColors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -192,8 +194,10 @@ struct CheckTabView: View {
                 }
             }
             .buttonStyle(SipPrimaryButtonStyle())
-            // The app's one glow — soft teal halo on the primary scan CTA only.
-            .shadow(color: SipColors.accent.opacity(0.35), radius: 12, x: 0, y: 4)
+            // The app's one glow — a soft teal halo hugging the CTA. Kept
+            // small and dim (round-2 crit #10: at 0.35/12 the halo read as an
+            // overexposure band running to both screen edges).
+            .shadow(color: SipColors.accent.opacity(0.22), radius: 8, x: 0, y: 3)
             .padding(.horizontal, SipSpacing.xxl)
             .accessibilityIdentifier("scanNowButton")
 
@@ -308,8 +312,8 @@ struct CheckTabView: View {
                     Text("Enter beer name or description")
                         .font(SipTypography.subhead)
                         .foregroundColor(SipColors.textSecondary)
-                    // Elevated input well (crit note 6) — the field sits on a
-                    // surface-colored well, never a system light border.
+                    // Elevated input well (crit note 6) — the field sits one
+                    // step above the sheet surface, never a system light border.
                     TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $textEntryInput)
                         .textFieldStyle(.plain)
                         .font(SipTypography.body)
@@ -323,7 +327,7 @@ struct CheckTabView: View {
                         .padding(SipSpacing.l)
                         .background(
                             RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                                .fill(SipColors.surface)
+                                .fill(SipColors.surfaceElevated)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
@@ -333,6 +337,55 @@ struct CheckTabView: View {
                         .accessibilityIdentifier("beerTextInput")
                 }
                 .padding(.horizontal)
+
+                // Live catalog suggestions (round-2 crit #8): instant, local,
+                // free — fills the dead zone between field and CTA. Tapping a
+                // row runs the scan with the canonical catalog name.
+                if !textEntrySuggestions.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(textEntrySuggestions.enumerated()), id: \.offset) { index, suggestion in
+                            Button {
+                                submitSuggestion(suggestion.name)
+                            } label: {
+                                HStack(spacing: SipSpacing.m) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(SipTypography.caption)
+                                        .foregroundColor(SipColors.textSecondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(suggestion.name)
+                                            .font(SipTypography.subhead)
+                                            .foregroundColor(SipColors.textPrimary)
+                                            .lineLimit(1)
+                                        if let detail = suggestionDetail(suggestion) {
+                                            Text(detail)
+                                                .font(SipTypography.caption)
+                                                .foregroundColor(SipColors.textSecondary)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.vertical, SipSpacing.s)
+                                .padding(.horizontal, SipSpacing.m)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("suggestionRow_\(index)")
+
+                            if index < textEntrySuggestions.count - 1 {
+                                Divider()
+                                    .background(SipColors.textSecondary.opacity(0.2))
+                                    .padding(.leading, SipSpacing.m)
+                            }
+                        }
+                    }
+                    .background(
+                        RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                            .fill(SipColors.surfaceElevated)
+                    )
+                    .padding(.horizontal)
+                    .animation(.snappy(duration: 0.25), value: textEntrySuggestions.map(\.name))
+                }
 
                 Spacer()
 
@@ -349,10 +402,10 @@ struct CheckTabView: View {
                 .accessibilityIdentifier("checkBeerButton")
             }
             .padding(.top, SipSpacing.xl)
-            // Token canvas, not the system sheet background — a pure-#000
-            // sheet is banned (crit note 6: same fix as every other sheet).
-            // The surface-colored input well above still reads elevated on it.
-            .background(SipColors.background.ignoresSafeArea())
+            // Sheets rest one step above the canvas: elevated surface token,
+            // never raw #1A1A1E (round-2 crit #8) and never system/pure-#000.
+            // The input well + suggestion card use surfaceElevated on top.
+            .background(SipColors.surface.ignoresSafeArea())
             .navigationTitle("Enter Beer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -372,6 +425,31 @@ struct CheckTabView: View {
                 }
             }
         }
+    }
+
+    /// Up to 5 catalog candidates for the current input (≥2 chars). Pure and
+    /// synchronous — `BundledCatalog.matches` is an in-memory token-index
+    /// lookup (warmed in `.task`), so recomputing per keystroke is free.
+    private var textEntrySuggestions: [ResolvedBeer] {
+        let query = textEntryInput.trimmingCharacters(in: .whitespaces)
+        guard query.count >= 2 else { return [] }
+        return BundledCatalog.shared.matches(name: query, limit: 5)
+    }
+
+    /// "Sierra Nevada · Pale Ale" secondary line, nil when we know nothing.
+    private func suggestionDetail(_ beer: ResolvedBeer) -> String? {
+        var parts: [String] = []
+        if let brewery = beer.brewery, !brewery.isEmpty { parts.append(brewery) }
+        if let style = beer.style { parts.append(style.rawValue) }
+        return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
+    }
+
+    /// Tapped suggestion: same exit path as submit, but with the canonical
+    /// catalog name (which then exact-hits the catalog in the resolver).
+    private func submitSuggestion(_ canonicalName: String) {
+        showingTextEntry = false
+        textEntryInput = ""
+        runScan(text: canonicalName)
     }
 
     private func submitTextEntry() {

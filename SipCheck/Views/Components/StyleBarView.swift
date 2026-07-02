@@ -38,12 +38,13 @@ struct StyleBarView: View {
                         .frame(height: 24)
 
                     // Filled bar — SRM beer color for the style (30pt floor so
-                    // tiny slices stay visible)
+                    // tiny slices stay visible). 1px hairline matches SRMSwatch
+                    // so a stout bar never reads as an empty track (crit #3).
                     RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous)
                         .fill(barFill)
                         .overlay(
                             RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous)
-                                .strokeBorder(SipColors.textPrimary.opacity(0.12), lineWidth: 0.5)
+                                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
                         )
                         .frame(
                             width: maxPercentage > 0

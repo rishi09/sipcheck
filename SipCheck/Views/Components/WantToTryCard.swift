@@ -30,21 +30,17 @@ struct WantToTryCard: View {
 
     /// Dark ink on pale SRM tiles (pilsner gold etc.), cream on dark ones —
     /// keeps the initials off the slop watchlist's white-on-gold trap.
+    /// Single-sourced from the design system's SRM ink policy.
     private var tileTextColor: Color {
-        let raw = (scan.style ?? "").lowercased()
-        let lightFamilies = ["pilsner", "lager", "helles", "wheat", "hefeweizen",
-                             "wit", "ipa", "pale ale", "sour", "fruit"]
-        return lightFamilies.contains { raw.contains($0) }
-            ? SipColors.onVerdictNeutral
-            : SipColors.textPrimary
+        StyleGradient.ink(for: scan.style).primary
     }
 
     var body: some View {
         Button(action: { onTap?() }) {
             VStack(alignment: .leading, spacing: SipSpacing.xs) {
                 // SRM mini-tile — a stout and a light lager look different.
-                RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                    .fill(StyleGradient.gradient(for: scan.style))
+                // Shared swatch: hairline keeps dark pours visible (crit #3).
+                SRMSwatch(style: scan.style)
                     .frame(width: 100, height: 80)
                     .overlay(
                         ZStack {

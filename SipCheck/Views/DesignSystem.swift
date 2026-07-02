@@ -11,6 +11,11 @@ enum SipColors {
     // Text
     static let textPrimary      = Color(hex: "#F5F3F0")   // cream, never pure white
     static let textSecondary    = Color(hex: "#8E8E93")
+    // Ink for LIGHT SRM surfaces (pale-gold → amber beer headers). Round-2 crit
+    // #2: textSecondary gray measured 1.9:1 on the amber header — light SRM
+    // surfaces take this warm near-black instead (same dark-on-gold move as the
+    // YOUR CALL chip). Pair via StyleGradient.ink(for:), never ad hoc.
+    static let srmInk           = Color(hex: "#241505")
 
     // Brand ramp (teal)
     static let accent           = Color(hex: "#4ECDC4")
@@ -20,6 +25,10 @@ enum SipColors {
     // Verdict semantics (traffic ≠ brand)
     static let verdictTry       = Color(hex: "#4CAF50")
     static let verdictSkip      = Color(hex: "#E85D4A")   // warm ember, distinct from destructive
+    // Text-on-dark variant of verdictSkip: for "Not For Me"/skip chip TEXT on
+    // the dark tinted chip fill (verdictSkip.opacity(0.15) blends to ~#392425,
+    // where verdictSkip itself only reaches ~3:1 — round-2 crit #5). ~6.3:1.
+    static let verdictSkipText  = Color(hex: "#FF8A75")
     static let verdictNeutral   = Color(hex: "#E8A317")   // warm amber — intentionally NOT the star gold (crit watchlist: stars ≠ verdict hue)
     static let onVerdictNeutral = Color(hex: "#1A1A1E")   // dark text on amber — white-on-gold fix
 
@@ -106,11 +115,20 @@ struct SipPrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, SipSpacing.l)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(
+                // Disabled still reads as a BUTTON: elevated fill + hairline.
+                // (Round-2 crit #4: surface-on-surface made a disabled Save on
+                // a surface-colored sheet look like orphaned placeholder text.)
                 RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
                     .fill(isEnabled
                           ? (configuration.isPressed ? SipColors.accentPressed : SipColors.accent)
-                          : SipColors.surface)
+                          : SipColors.surfaceElevated)
             )
+            .overlay {
+                if !isEnabled {
+                    RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                        .strokeBorder(SipColors.textSecondary.opacity(0.35), lineWidth: 1)
+                }
+            }
             .animation(.snappy(duration: 0.25), value: configuration.isPressed)
     }
 }
@@ -195,7 +213,11 @@ enum StyleGradient {
         func has(_ keys: String...) -> Bool { keys.contains { raw.contains($0) } }
 
         if has("stout") {
-            return (Color(hex: "#2A1B12"), Color(hex: "#14100C"))   // near-black w/ warm edge
+            // Luminance floor (round-2 crit #3): the old #2A1B12→#14100C pour
+            // vanished into the #1A1A1E canvas — a stout swatch read as a
+            // failed image load and a stout bar as 0%. Still the darkest
+            // style, but never canvas-dark.
+            return (Color(hex: "#4A2F1D"), Color(hex: "#2B1D12"))
         }
         if has("porter", "brown") {
             return (Color(hex: "#6B3A22"), Color(hex: "#3A1E12"))
@@ -228,6 +250,101 @@ enum StyleGradient {
     /// Single representative beer color (top stop) — for dots, tints, mini accents.
     static func color(for style: String?) -> Color {
         stops(for: style).top
+    }
+
+    /// True when the style's SRM surface is LIGHT (pale gold → amber) and
+    /// therefore needs dark ink. Mid (amber/red, sour) and dark (stout,
+    /// porter, unknown) surfaces keep cream ink — their stops are too dark for
+    /// `srmInk` to clear 4.5:1.
+    ///
+    /// Mirrors `stops(for:)` bucket precedence EXACTLY: a "Red IPA" resolves
+    /// to the amber/red (mid) surface, so it must take cream ink, not dark.
+    static func hasLightSurface(_ style: String?) -> Bool {
+        guard let raw = style?.lowercased(), !raw.isEmpty else { return false }
+        func has(_ keys: String...) -> Bool { keys.contains { raw.contains($0) } }
+
+        if has("stout") { return false }
+        if has("porter", "brown") { return false }
+        if has("amber", "red", "märzen", "marzen") { return false }
+        if has("sour", "fruit") { return false }
+        if has("wheat", "hefeweizen", "wit") { return true }
+        if has("ipa", "pale ale") { return true }
+        if has("pilsner", "lager", "helles") { return true }
+        return false
+    }
+
+    /// Ink pair guaranteed legible on the style's SRM surface (round-2 crit #2
+    /// — the global textSecondary gray hit 1.9:1 on the amber verdict header).
+    /// Light surfaces: warm near-black, same dark-on-gold treatment as the
+    /// YOUR CALL chip. Everything else: cream — callers pair the cream branch
+    /// with a bottom legibility scrim.
+    static func ink(for style: String?) -> (primary: Color, secondary: Color) {
+        if hasLightSurface(style) {
+            return (SipColors.srmInk, SipColors.srmInk.opacity(0.85))
+        }
+        return (SipColors.textPrimary, SipColors.textPrimary.opacity(0.8))
+    }
+}
+
+// MARK: - SRM swatch (shared tile — hairline keeps dark pours visible)
+
+/// Standard SRM thumbnail/tile: the style gradient plus a 1px hairline stroke
+/// so dark pours (stout, porter) never dissolve into the dark canvas (round-2
+/// crit #3 — a hairline-less stout swatch read as a failed image load).
+/// Use this instead of a raw gradient-filled RoundedRectangle; size at the
+/// call site with `.frame(...)`.
+struct SRMSwatch: View {
+    let style: String?
+    var cornerRadius: CGFloat = SipRadius.control
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(StyleGradient.gradient(for: style))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            )
+    }
+}
+
+// MARK: - Floating tab-bar clearance (shared bottom-inset contract)
+
+/// Single clearance number every tab root inherits — round-2 crit #1 replaced
+/// the three per-screen 110pt magic paddings that kept drifting out of sync.
+/// The floating bar occupies y≈584–646 on a 375×667pt screen; 96pt of reserved
+/// inset rests scrolled-to-end content above the bar and hosts the fade scrim.
+enum SipTabBarInset {
+    static let height: CGFloat = 96
+}
+
+private struct SipTabBarClearanceModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            // Bottom fade scrim: drawn inside the reserved zone (under the
+            // glass bar, over passing content) so rows scrolling beneath the
+            // bar dim out instead of ghosting at full strength behind it.
+            LinearGradient(
+                colors: [
+                    SipColors.background.opacity(0),
+                    SipColors.background.opacity(0.85),
+                    SipColors.background
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: SipTabBarInset.height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+extension View {
+    /// Apply to every tab-root view in `MainTabView` (and nowhere else).
+    /// Child ScrollViews inherit the clearance through the safe area — never
+    /// add per-screen bottom paddings for the tab bar again.
+    func sipTabBarClearance() -> some View {
+        modifier(SipTabBarClearanceModifier())
     }
 }
 
@@ -328,6 +445,7 @@ struct DesignSystem_Previews: PreviewProvider {
                 HStack(spacing: SipSpacing.m) {
                     colorSwatch(SipColors.textPrimary, name: "textPrimary")
                     colorSwatch(SipColors.textSecondary, name: "textSecondary")
+                    colorSwatch(SipColors.srmInk, name: "srmInk")
                 }
 
                 // MARK: Verdict semantics
@@ -336,6 +454,7 @@ struct DesignSystem_Previews: PreviewProvider {
                     colorSwatch(SipColors.verdictTry, name: "verdictTry")
                     colorSwatch(SipColors.verdictSkip, name: "verdictSkip")
                     colorSwatch(SipColors.verdictNeutral, name: "verdictNeutral")
+                    colorSwatch(SipColors.verdictSkipText, name: "verdictSkipText")
                     colorSwatch(SipColors.destructive, name: "destructive")
                 }
                 HStack(spacing: SipSpacing.m) {

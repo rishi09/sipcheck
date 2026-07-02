@@ -50,9 +50,11 @@ struct JournalEntryDetailView: View {
                     VStack(spacing: SipSpacing.xl) {
                         // Header
                         VStack(spacing: 6) {
-                            // SRM style tile — a stout and a lager should look different
-                            RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
-                                .fill(StyleGradient.gradient(for: entry.style.isEmpty ? nil : entry.style))
+                            // SRM style tile — a stout and a lager should look
+                            // different (shared swatch: hairline keeps stout
+                            // visible on the dark sheet)
+                            SRMSwatch(style: entry.style.isEmpty ? nil : entry.style,
+                                      cornerRadius: SipRadius.card)
                                 .frame(width: 72, height: 72)
                                 .padding(.bottom, 6)
 
@@ -136,7 +138,10 @@ struct JournalEntryDetailView: View {
                 }
             }
             .safeAreaInset(edge: .bottom) {
-                // Save promoted to the primary, always-visible action
+                // Save promoted to the primary, always-visible action. Its
+                // disabled state now has real button chrome (elevated fill +
+                // hairline, from SipPrimaryButtonStyle) — round-2 crit #4: a
+                // surface-on-surface disabled Save read as placeholder text.
                 Button("Save") {
                     var updated = entry
                     updated.rating = rating
@@ -149,6 +154,13 @@ struct JournalEntryDetailView: View {
                 .padding(.horizontal, SipSpacing.xl)
                 .padding(.vertical, SipSpacing.m)
                 .background(SipColors.surface)
+                .overlay(alignment: .top) {
+                    // Hairline seam so the pinned bar reads as chrome, not
+                    // content floating at the sheet's bottom edge.
+                    Rectangle()
+                        .fill(SipColors.textSecondary.opacity(0.2))
+                        .frame(height: 0.5)
+                }
             }
             .navigationTitle("Beer Details")
             .navigationBarTitleDisplayMode(.inline)
