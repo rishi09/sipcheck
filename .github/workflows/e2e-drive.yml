@@ -20,6 +20,12 @@ on:
       launch_args:
         description: "App launch arguments"
         default: "--mock-ai --seed-data --isolated-storage"
+  # Git-based dispatch: pushing a change to .drive/request.json starts a
+  # session (the GitHub integration used by remote sessions lacks
+  # actions:write, so it cannot use workflow_dispatch directly).
+  push:
+    branches: ["claude/**"]
+    paths: [".drive/request.json"]
 
 permissions:
   contents: write # bridge state/cmd branches
@@ -34,6 +40,18 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve session config (inputs or .drive/request.json)
+        id: cfg
+        run: |
+          M="${{ inputs.minutes }}"
+          A="${{ inputs.launch_args }}"
+          if [ -f .drive/request.json ]; then
+            [ -z "$M" ] && M=$(python3 -c "import json; print(json.load(open('.drive/request.json')).get('minutes', 40))")
+            [ -z "$A" ] && A=$(python3 -c "import json; print(json.load(open('.drive/request.json')).get('launch_args', ''))")
+          fi
+          echo "minutes=${M:-40}" >> "$GITHUB_OUTPUT"
+          echo "args=${A:---mock-ai --seed-data --isolated-storage}" >> "$GITHUB_OUTPUT"
 
       - name: Select latest Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -107,7 +125,7 @@ jobs:
           APP=$(find DerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
           echo "installing $APP"
           xcrun simctl install "${{ steps.sim.outputs.udid }}" "$APP"
-          xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.rishishah.sipcheck ${{ inputs.launch_args }}
+          xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.rishishah.sipcheck ${{ steps.cfg.outputs.args }}
           sleep 3
 
       - name: Run interactive bridge
@@ -116,4 +134,4 @@ jobs:
         run: |
           python3 scripts/ci_bridge.py \
             --udid "${{ steps.sim.outputs.udid }}" \
-            --minutes "${{ inputs.minutes }}"
+            --minutes "${{ steps.cfg.outputs.minutes }}"

@@ -15,6 +15,7 @@ on:
       - "docs/**"
       - "plans/**"
       - "**.md"
+      - ".drive/**"
 
 permissions:
   contents: write # to push screenshots to the e2e-artifacts branch
