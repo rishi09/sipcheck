@@ -153,6 +153,10 @@ batches to `e2e-bridge-cmd`; ~30s per interaction, sessions up to ~45 min.
   `{"seq": N, "actions": [{"do":"tap","label":"Journal"}, {"do":"type","text":"..."},
   {"do":"swipe","x1":200,"y1":500,"x2":200,"y2":150}, {"do":"launch","args":[...]},
   {"do":"end"}]}` → single-commit force-push `cmd.json` to `e2e-bridge-cmd`.
+- Motion/animation verification (feel transitions, not just screenshots): wrap
+  a batch in `{"do":"record","seconds":N}` or send `{"do":"flow","name":"tab_tour"}`
+  to get video + frame dumps in the next state push; scripted tour lane is
+  "E2E Motion" (`e2e-motion.yml`) — see `plans/reports/MOTION_LAB.md`.
 - Screen is 375×667pt; the floating tab bar occupies y≈584-646 — keep gesture
   start points above y≈560 or you'll hit it.
 - Sessions launch with `--mock-ai --seed-data --isolated-storage` by default

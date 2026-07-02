@@ -1,0 +1,186 @@
+# E2E Motion — records the simulator while driving a fixed "transition tour"
+# (tab switches, Enter-Beer sheet, text scan -> verdict card, journal detail
+# open/close, save-for-later flip, first-launch onboarding pages), extracts
+# frames + an ffmpeg/ffprobe motion summary (scene-change scores, frame-timing
+# stats), and publishes everything under motion/ on the `e2e-artifacts` branch
+# so a Linux session can analyze real animation, frame by frame:
+#
+#   git fetch origin e2e-artifacts
+#   git show origin/e2e-artifacts:motion/index.json
+#   git show origin/e2e-artifacts:motion/tab_tour/motion.json
+#   git show origin/e2e-artifacts:motion/tab_tour/frames/f_00001.jpg
+#   python3 scripts/motion_report.py <pulled frames dir>
+#
+# The publish step preserves whatever the scripted E2E lane last pushed to
+# e2e-artifacts (screenshots/SUMMARY.md) and only replaces motion/. See
+# plans/reports/MOTION_LAB.md for the full agent workflow.
+#
+# Uses NO secrets: the app runs with --mock-ai and stubbed Secrets.swift.
+name: E2E Motion
+
+on:
+  workflow_dispatch:
+    inputs:
+      flows:
+        description: "Comma-separated flow names, or 'default' (tab_tour,text_verdict,save_for_later,journal_detail,onboarding)"
+        default: "default"
+  # Git-based dispatch for remote sessions without actions:write — push a
+  # change to .drive/motion-request.json on a claude/** branch:
+  #   {"flows": "tab_tour,text_verdict"}
+  push:
+    branches: ["claude/**"]
+    paths: [".drive/motion-request.json"]
+
+permissions:
+  contents: write # to push motion artifacts to the e2e-artifacts branch
+
+concurrency:
+  group: e2e-motion
+  cancel-in-progress: true
+
+jobs:
+  motion:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve flows (input or .drive/motion-request.json)
+        id: cfg
+        run: |
+          F="${{ inputs.flows }}"
+          if [ -z "$F" ] && [ -f .drive/motion-request.json ]; then
+            F=$(python3 -c "import json; print(json.load(open('.drive/motion-request.json')).get('flows', 'default'))")
+          fi
+          echo "flows=${F:-default}" >> "$GITHUB_OUTPUT"
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Generate stub Secrets.swift
+        run: |
+          cat > SipCheck/Secrets.swift <<'EOF'
+          import Foundation
+
+          enum Secrets {
+              static let openAIAPIKey = ""
+              static let manusAPIKey = ""
+              static let geminiAPIKey = ""
+          }
+          EOF
+
+      - name: Install AXe (simulator UI driver)
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          brew install cameroncooke/axe/axe
+          axe --version || true
+
+      - name: Pick and boot a simulator
+        id: sim
+        run: |
+          UDID=$(python3 <<'PY'
+          import json, subprocess, sys
+          out = subprocess.run(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"],
+              capture_output=True, text=True, check=True).stdout
+          data = json.loads(out)["devices"]
+          candidates = []
+          for runtime, devices in data.items():
+              if "iOS" not in runtime:
+                  continue
+              ver = tuple(int(p) for p in runtime.rsplit("iOS-", 1)[-1].split("-") if p.isdigit())
+              for d in devices:
+                  if d.get("isAvailable") and d["name"].startswith("iPhone"):
+                      candidates.append((ver, d["name"], d["udid"]))
+          candidates.sort()
+          if not candidates:
+              sys.exit("no available iPhone simulator found")
+          ver, name, udid = candidates[-1]
+          vs = ".".join(map(str, ver))
+          print(f"picked {name} (iOS {vs}) {udid}", file=sys.stderr)
+          print(udid)
+          PY
+          )
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Build SipCheck for simulator
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SipCheck.xcodeproj \
+            -scheme SipCheck \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath DerivedData \
+            build > build.log 2>&1 || { tail -100 build.log; exit 1; }
+          tail -5 build.log
+
+      - name: Install and launch app (hermetic)
+        run: |
+          APP=$(find DerivedData/Build/Products/Debug-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
+          echo "installing $APP"
+          xcrun simctl install "${{ steps.sim.outputs.udid }}" "$APP"
+          xcrun simctl launch "${{ steps.sim.outputs.udid }}" com.rishishah.sipcheck \
+            --mock-ai --seed-data --isolated-storage
+          sleep 3
+
+      - name: Record transition tour
+        run: |
+          python3 scripts/ci_bridge.py \
+            --udid "${{ steps.sim.outputs.udid }}" \
+            --tour "${{ steps.cfg.outputs.flows }}" \
+            --out publish/motion
+
+      - name: Write motion summary
+        if: always()
+        run: |
+          mkdir -p publish/motion
+          {
+            echo "# Motion run ${GITHUB_RUN_NUMBER}"
+            echo "- commit: ${GITHUB_SHA}"
+            echo "- branch: ${GITHUB_REF_NAME}"
+            echo "- flows: ${{ steps.cfg.outputs.flows }}"
+            echo "- run url: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## Recordings"
+            for d in publish/motion/*/; do
+              [ -d "$d" ] || continue
+              name=$(basename "$d")
+              frames=$(ls "$d/frames" 2>/dev/null | wc -l | tr -d ' ')
+              size=$(du -sh "$d" | cut -f1)
+              echo "- $name — $frames sampled frames, $size ($name/rec.mp4, $name/motion.json)"
+            done
+            echo ""
+            echo "Analyze on Linux: python3 scripts/motion_report.py motion/<flow>/frames --motion-json motion/<flow>/motion.json"
+          } > publish/motion/MOTION_SUMMARY.md
+
+      - name: Publish motion artifacts to e2e-artifacts branch
+        if: always()
+        run: |
+          # Preserve the scripted lane's latest artifacts (screenshots,
+          # SUMMARY.md) and only replace motion/ — both lanes stay
+          # single-commit force-pushes with the union of latest outputs.
+          set -e
+          URL="https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git"
+          mkdir -p merged
+          cd merged
+          if git clone -q --depth 1 --branch e2e-artifacts "$URL" .; then
+            rm -rf .git motion
+          else
+            echo "no existing e2e-artifacts branch — starting fresh"
+          fi
+          cp -R ../publish/motion motion
+          git init -b e2e-artifacts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Motion run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA}) flows=${{ steps.cfg.outputs.flows }}"
+          for i in 1 2 3; do
+            git push --force "$URL" e2e-artifacts && break
+            sleep $((2 ** i))
+          done

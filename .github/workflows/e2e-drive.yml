@@ -6,6 +6,9 @@
 # batches pushed to the `e2e-bridge-cmd` branch (tap/type/swipe/launch...).
 # This lets a remote Claude Code session read the screen, decide, and act —
 # using the app like a person, one interaction round-trip at a time.
+# Motion: batches can include {"do":"record","seconds":N} or
+# {"do":"flow","name":...} to capture video + frame dumps of transitions in
+# the next state push (see plans/reports/MOTION_LAB.md).
 #
 # Uses NO secrets: Secrets.swift is stubbed; the app is exercised with mock
 # launch args by default (overridable via the launch_args input).
