@@ -111,25 +111,55 @@ class JournalStore: ObservableObject {
         }
     }
 
+    /// Decodes element-by-element so one corrupt record is skipped instead of
+    /// failing the whole file. Returns nil only when the data isn't a
+    /// decodable array at all.
+    private static func decodeTolerantly(_ data: Data) -> [JournalEntry]? {
+        struct Lossy: Decodable {
+            let value: JournalEntry?
+            init(from decoder: Decoder) throws { value = try? JournalEntry(from: decoder) }
+        }
+        guard let lossy = try? JSONDecoder().decode([Lossy].self, from: data) else { return nil }
+        let values = lossy.compactMap(\.value)
+        if values.count != lossy.count {
+            print("JournalStore: skipped \(lossy.count - values.count) corrupt record(s) in journal.json")
+        }
+        return values
+    }
+
     private func loadEntries() {
+        let backupURL = storageDir.appendingPathComponent("journal_backup.json")
         guard let data = try? Data(contentsOf: fileURL) else {
             entries = []
             tombstones = []
             return
         }
-        // Write backup before decoding — protects against decode failure wiping the file on next save
-        let backupURL = storageDir.appendingPathComponent("journal_backup.json")
-        try? data.write(to: backupURL, options: .atomic)
 
-        do {
-            let all = try JSONDecoder().decode([JournalEntry].self, from: data)
-            tombstones = all.filter { $0.isDeleted }
-            entries = all.filter { !$0.isDeleted }
-        } catch {
-            print("JournalStore: failed to decode journal.json — keeping empty. Error: \(error)")
+        var records = Self.decodeTolerantly(data)
+        var goodBytes = data
+        if records == nil {
+            // Keep the corrupt file for forensics, then fall back to the
+            // last-known-good backup instead of silently starting empty.
+            try? data.write(to: storageDir.appendingPathComponent("journal_corrupt.json"), options: .atomic)
+            if let backup = try? Data(contentsOf: backupURL),
+               let restored = Self.decodeTolerantly(backup) {
+                print("JournalStore: journal.json unreadable — restored from backup")
+                records = restored
+                goodBytes = backup
+                try? backup.write(to: fileURL, options: .atomic)
+            }
+        }
+
+        guard let all = records else {
+            print("JournalStore: journal.json and backup both unreadable — starting empty")
             entries = []
             tombstones = []
+            return
         }
+        tombstones = all.filter { $0.isDeleted }
+        entries = all.filter { !$0.isDeleted }
+        // Back up only bytes that decoded successfully (last-known-good).
+        try? goodBytes.write(to: backupURL, options: .atomic)
     }
 
     // MARK: - Queries

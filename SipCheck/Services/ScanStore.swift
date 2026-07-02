@@ -82,6 +82,7 @@ class ScanStore: ObservableObject {
 
     /// Apply remote scans from CloudKit — bypasses CloudKit upload to avoid loops.
     @MainActor func applyRemoteScans(_ remoteScans: [Scan]) {
+        let previouslyVisible = Set(scans.map { $0.id })
         var byID: [UUID: Scan] = [:]
         for s in scans { byID[s.id] = s }
         for t in tombstones { byID[t.id] = t }
@@ -95,6 +96,12 @@ class ScanStore: ObservableObject {
         let all = Array(byID.values)
         tombstones = all.filter { $0.isDeleted }
         scans = all.filter { !$0.isDeleted }.sorted { $0.timestamp > $1.timestamp }
+        // A scan deleted on another device must also cancel this device's
+        // pending follow-up notification, or the push fires days later
+        // pointing at a record that no longer resolves.
+        for tombstone in tombstones where previouslyVisible.contains(tombstone.id) {
+            NotificationService.shared.cancelFollowUp(for: tombstone)
+        }
         saveScans()
     }
 
@@ -113,25 +120,55 @@ class ScanStore: ObservableObject {
         }
     }
 
+    /// Decodes element-by-element so one corrupt record is skipped instead of
+    /// failing the whole file. Returns nil only when the data isn't a
+    /// decodable array at all.
+    private static func decodeTolerantly(_ data: Data) -> [Scan]? {
+        struct Lossy: Decodable {
+            let value: Scan?
+            init(from decoder: Decoder) throws { value = try? Scan(from: decoder) }
+        }
+        guard let lossy = try? JSONDecoder().decode([Lossy].self, from: data) else { return nil }
+        let values = lossy.compactMap(\.value)
+        if values.count != lossy.count {
+            print("ScanStore: skipped \(lossy.count - values.count) corrupt record(s) in scans.json")
+        }
+        return values
+    }
+
     private func loadScans() {
+        let backupURL = storageDir.appendingPathComponent("scans_backup.json")
         guard let data = try? Data(contentsOf: fileURL) else {
             scans = []
             tombstones = []
             return
         }
-        // Write backup before decoding — protects against decode failure wiping the file on next save
-        let backupURL = storageDir.appendingPathComponent("scans_backup.json")
-        try? data.write(to: backupURL, options: .atomic)
 
-        do {
-            let all = try JSONDecoder().decode([Scan].self, from: data)
-            tombstones = all.filter { $0.isDeleted }
-            scans = all.filter { !$0.isDeleted }
-        } catch {
-            print("ScanStore: failed to decode scans.json — keeping empty. Error: \(error)")
+        var records = Self.decodeTolerantly(data)
+        var goodBytes = data
+        if records == nil {
+            // Keep the corrupt file for forensics, then fall back to the
+            // last-known-good backup instead of silently starting empty.
+            try? data.write(to: storageDir.appendingPathComponent("scans_corrupt.json"), options: .atomic)
+            if let backup = try? Data(contentsOf: backupURL),
+               let restored = Self.decodeTolerantly(backup) {
+                print("ScanStore: scans.json unreadable — restored from backup")
+                records = restored
+                goodBytes = backup
+                try? backup.write(to: fileURL, options: .atomic)
+            }
+        }
+
+        guard let all = records else {
+            print("ScanStore: scans.json and backup both unreadable — starting empty")
             scans = []
             tombstones = []
+            return
         }
+        tombstones = all.filter { $0.isDeleted }
+        scans = all.filter { !$0.isDeleted }
+        // Back up only bytes that decoded successfully (last-known-good).
+        try? goodBytes.write(to: backupURL, options: .atomic)
     }
 
     // MARK: - Queries

@@ -300,9 +300,12 @@ private struct TasteQuizPage: View {
     }
 
     private func saveAndContinue() {
-        UserDefaults.standard.set(selectedVibe ?? "", forKey: "tasteVibe")
-        UserDefaults.standard.set(selectedAdventure ?? "", forKey: "tasteAdventure")
-        UserDefaults.standard.set(selectedDislikes.joined(separator: ","), forKey: "tasteDislikes")
+        // Write-through TastePreferences so quiz answers sync across devices.
+        TastePreferences.save(
+            vibe: selectedVibe ?? "",
+            adventure: selectedAdventure ?? "",
+            dislikes: selectedDislikes.joined(separator: ",")
+        )
         hasCompletedOnboarding = true
     }
 }

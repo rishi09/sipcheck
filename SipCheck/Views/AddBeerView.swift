@@ -28,6 +28,7 @@ struct AddBeerView: View {
 
     @State private var isProcessingImage = false
     @State private var errorMessage: String?
+    @State private var isSaving = false
 
     init(prefill: AddBeerPrefill? = nil) {
         self.prefill = prefill
@@ -124,7 +125,7 @@ struct AddBeerView: View {
                     Button("Save") {
                         saveBeer()
                     }
-                    .disabled(!canSave)
+                    .disabled(!canSave || isSaving)
                     .accessibilityIdentifier("saveBeer")
                 }
             }
@@ -175,6 +176,12 @@ struct AddBeerView: View {
     }
 
     private func saveBeer() {
+        // The async save awaits photo compression (hundreds of ms) before
+        // dismissing; without this guard a double-tap created duplicate
+        // Drink + JournalEntry records that skewed the taste profile.
+        guard !isSaving else { return }
+        isSaving = true
+
         let drinkId = UUID()
         let abv = Double(abvText)
         let imageCopy = capturedImage

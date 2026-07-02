@@ -33,19 +33,32 @@ final class CloudKitSyncService {
     }
     private let writeQueue = WriteQueue()
 
-    /// Enqueue a serialized save. On CKError.serverRecordChanged (a concurrent
-    /// writer changed the record between fetch and save), refetch the server
-    /// record, reapply our fields (local is authoritative), and retry once.
-    private func saveRecord(_ recordType: String, _ id: UUID, _ populate: @escaping (CKRecord) -> Void) {
+    /// Enqueue a serialized save, guarded by last-write-wins: if the server
+    /// copy carries a newer `lastModifiedLocal` than the record we're
+    /// uploading, the save is dropped — a device whose fetch failed must not
+    /// blindly clobber a newer rating entered on another device. The
+    /// CKError.serverRecordChanged retry applies the same guard.
+    private func saveRecord(
+        _ recordType: String, _ id: UUID, modified localModified: Date,
+        _ populate: @escaping (CKRecord) -> Void
+    ) {
         guard !disabled else { return }
         Task { [self] in
             await writeQueue.enqueue {
                 do {
                     let record = try await self.fetchOrCreate(recordType: recordType, id: id)
+                    if let serverModified = record["lastModifiedLocal"] as? Date,
+                       serverModified > localModified {
+                        return
+                    }
                     populate(record)
                     try await self.db.save(record)
                 } catch let e as CKError where e.code == .serverRecordChanged {
                     if let server = try? await self.db.record(for: CKRecord.ID(recordName: id.uuidString)) {
+                        if let serverModified = server["lastModifiedLocal"] as? Date,
+                           serverModified > localModified {
+                            return
+                        }
                         populate(server)
                         _ = try? await self.db.save(server)
                     }
@@ -56,18 +69,42 @@ final class CloudKitSyncService {
         }
     }
 
+    /// Fetches every record of a type, following the query cursor to
+    /// exhaustion (CloudKit pages server-side; `resultsLimit` does not force a
+    /// single response). Returns nil on ANY error so callers can tell "remote
+    /// unknown" from "remote empty" — treating a failed fetch as empty made
+    /// fullSync re-upload a stale copy of every local record.
+    private func fetchAllRecords(ofType recordType: String) async -> [CKRecord]? {
+        do {
+            var records: [CKRecord] = []
+            let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+            var response = try await db.records(matching: query,
+                                                resultsLimit: CKQueryOperation.maximumResults)
+            while true {
+                records += response.matchResults.compactMap { try? $0.1.get() }
+                guard let cursor = response.queryCursor else { break }
+                response = try await db.records(continuingMatchFrom: cursor)
+            }
+            return records
+        } catch {
+            print("[CloudKit] fetch \(recordType) failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - Drink
 
     func save(_ drink: Drink) {
-        saveRecord("Drink", drink.id) { [self] record in populate(record, from: drink) }
+        saveRecord("Drink", drink.id, modified: drink.lastModifiedLocal) { [self] record in
+            populate(record, from: drink)
+        }
     }
 
-    func fetchAllDrinks() async -> [Drink] {
+    /// nil = fetch failed (remote state unknown); [] = remote truly empty.
+    func fetchAllDrinks() async -> [Drink]? {
         guard !disabled else { return [] }
-        let query = CKQuery(recordType: "Drink", predicate: NSPredicate(value: true))
-        guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
-        return results.matchResults.compactMap { (_, result) -> Drink? in
-            guard let record = try? result.get() else { return nil }
+        guard let records = await fetchAllRecords(ofType: "Drink") else { return nil }
+        return records.compactMap { record -> Drink? in
             return drinkFrom(record)
         }
     }
@@ -75,31 +112,31 @@ final class CloudKitSyncService {
     // MARK: - Scan
 
     func save(_ scan: Scan) {
-        saveRecord("Scan", scan.id) { [self] record in populate(record, from: scan) }
+        saveRecord("Scan", scan.id, modified: scan.lastModifiedLocal) { [self] record in
+            populate(record, from: scan)
+        }
     }
 
-    func fetchAllScans() async -> [Scan] {
+    /// nil = fetch failed (remote state unknown); [] = remote truly empty.
+    func fetchAllScans() async -> [Scan]? {
         guard !disabled else { return [] }
-        let query = CKQuery(recordType: "Scan", predicate: NSPredicate(value: true))
-        guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
-        return results.matchResults.compactMap { (_, result) -> Scan? in
-            guard let record = try? result.get() else { return nil }
-            return scanFrom(record)
-        }
+        guard let records = await fetchAllRecords(ofType: "Scan") else { return nil }
+        return records.compactMap { scanFrom($0) }
     }
 
     // MARK: - JournalEntry
 
     func save(_ entry: JournalEntry) {
-        saveRecord("JournalEntry", entry.id) { [self] record in populate(record, from: entry) }
+        saveRecord("JournalEntry", entry.id, modified: entry.lastModifiedLocal) { [self] record in
+            populate(record, from: entry)
+        }
     }
 
-    func fetchAllJournalEntries() async -> [JournalEntry] {
+    /// nil = fetch failed (remote state unknown); [] = remote truly empty.
+    func fetchAllJournalEntries() async -> [JournalEntry]? {
         guard !disabled else { return [] }
-        let query = CKQuery(recordType: "JournalEntry", predicate: NSPredicate(value: true))
-        guard let results = try? await db.records(matching: query, resultsLimit: 2000) else { return [] }
-        return results.matchResults.compactMap { (_, result) -> JournalEntry? in
-            guard let record = try? result.get() else { return nil }
+        guard let records = await fetchAllRecords(ofType: "JournalEntry") else { return nil }
+        return records.compactMap { record -> JournalEntry? in
             return journalEntryFrom(record)
         }
     }
@@ -120,22 +157,32 @@ final class CloudKitSyncService {
 
         let (remoteDrinks, remoteScans, remoteJournals) = await (remoteDrinksTask, remoteScansTask, remoteJournalsTask)
 
-        let mergedDrinks = merge(local: localDrinks, remote: remoteDrinks)
-        let mergedScans = merge(local: localScans, remote: remoteScans)
-        let mergedJournals = merge(local: localJournals, remote: remoteJournals)
+        // A nil fetch means the remote state is UNKNOWN (offline, iCloud
+        // signed out, schema error) — keep local as-is and, critically, skip
+        // the "upload missing" pass for that type: with an empty-looking
+        // remote it would re-upload a stale copy of every record.
+        let mergedDrinks = remoteDrinks.map { merge(local: localDrinks, remote: $0) } ?? localDrinks
+        let mergedScans = remoteScans.map { merge(local: localScans, remote: $0) } ?? localScans
+        let mergedJournals = remoteJournals.map { merge(local: localJournals, remote: $0) } ?? localJournals
 
-        // Upload any local records that were missing from remote
-        let remoteDrinkIDs = Set(remoteDrinks.map { $0.id })
-        for drink in localDrinks where !remoteDrinkIDs.contains(drink.id) {
-            save(drink)
+        // Upload any local records that were genuinely missing from remote
+        if let remoteDrinks {
+            let remoteDrinkIDs = Set(remoteDrinks.map { $0.id })
+            for drink in localDrinks where !remoteDrinkIDs.contains(drink.id) {
+                save(drink)
+            }
         }
-        let remoteScanIDs = Set(remoteScans.map { $0.id })
-        for scan in localScans where !remoteScanIDs.contains(scan.id) {
-            save(scan)
+        if let remoteScans {
+            let remoteScanIDs = Set(remoteScans.map { $0.id })
+            for scan in localScans where !remoteScanIDs.contains(scan.id) {
+                save(scan)
+            }
         }
-        let remoteJournalIDs = Set(remoteJournals.map { $0.id })
-        for entry in localJournals where !remoteJournalIDs.contains(entry.id) {
-            save(entry)
+        if let remoteJournals {
+            let remoteJournalIDs = Set(remoteJournals.map { $0.id })
+            for entry in localJournals where !remoteJournalIDs.contains(entry.id) {
+                save(entry)
+            }
         }
 
         return (mergedDrinks, mergedScans, mergedJournals)

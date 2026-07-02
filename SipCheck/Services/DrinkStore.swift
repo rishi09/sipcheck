@@ -122,25 +122,58 @@ class DrinkStore: ObservableObject {
         }
     }
 
+    /// Decodes element-by-element so one corrupt record is skipped instead of
+    /// failing the whole file (a single bad element must never wipe the taste
+    /// library). Returns nil only when the data isn't a decodable array at all.
+    private static func decodeTolerantly(_ data: Data) -> [Drink]? {
+        struct Lossy: Decodable {
+            let value: Drink?
+            init(from decoder: Decoder) throws { value = try? Drink(from: decoder) }
+        }
+        guard let lossy = try? JSONDecoder().decode([Lossy].self, from: data) else { return nil }
+        let values = lossy.compactMap(\.value)
+        if values.count != lossy.count {
+            print("DrinkStore: skipped \(lossy.count - values.count) corrupt record(s) in drinks.json")
+        }
+        return values
+    }
+
     private func loadDrinks() {
+        let backupURL = storageDir.appendingPathComponent("drinks_backup.json")
         guard let data = try? Data(contentsOf: fileURL) else {
             drinks = []
             tombstones = []
             return
         }
-        // Write backup before decoding — protects against decode failure wiping the file on next save
-        let backupURL = storageDir.appendingPathComponent("drinks_backup.json")
-        try? data.write(to: backupURL, options: .atomic)
 
-        do {
-            let all = try JSONDecoder().decode([Drink].self, from: data)
-            tombstones = all.filter { $0.isDeleted }
-            drinks = all.filter { !$0.isDeleted }
-        } catch {
-            print("DrinkStore: failed to decode drinks.json — keeping empty. Error: \(error)")
+        var records = Self.decodeTolerantly(data)
+        var goodBytes = data
+        if records == nil {
+            // Keep the corrupt file for forensics, then fall back to the
+            // last-known-good backup instead of silently starting empty
+            // (an empty load followed by any save destroys the history).
+            try? data.write(to: storageDir.appendingPathComponent("drinks_corrupt.json"), options: .atomic)
+            if let backup = try? Data(contentsOf: backupURL),
+               let restored = Self.decodeTolerantly(backup) {
+                print("DrinkStore: drinks.json unreadable — restored from backup")
+                records = restored
+                goodBytes = backup
+                try? backup.write(to: fileURL, options: .atomic)
+            }
+        }
+
+        guard let all = records else {
+            print("DrinkStore: drinks.json and backup both unreadable — starting empty")
             drinks = []
             tombstones = []
+            return
         }
+        tombstones = all.filter { $0.isDeleted }
+        drinks = all.filter { !$0.isDeleted }
+        // Back up only bytes that decoded successfully, so the backup always
+        // holds the last-known-good contents (writing before validation let a
+        // corrupt file clobber the only good copy on the next launch).
+        try? goodBytes.write(to: backupURL, options: .atomic)
     }
 
     // MARK: - Photo Management

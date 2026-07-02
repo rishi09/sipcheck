@@ -45,6 +45,19 @@ struct AgeGateView: View {
                             .font(SipTypography.body)
                             .foregroundColor(SipColors.textSecondary)
                             .multilineTextAlignment(.center)
+
+                        // A mis-tap must not brick the app — offer a way back.
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isLockedOut = false
+                            }
+                        }) {
+                            Text("I tapped by mistake — go back")
+                                .font(SipTypography.subhead)
+                                .foregroundColor(SipColors.primary)
+                        }
+                        .accessibilityIdentifier("ageGateGoBack")
+                        .padding(.top, 8)
                     }
                     .padding(.bottom, 60)
                 } else {

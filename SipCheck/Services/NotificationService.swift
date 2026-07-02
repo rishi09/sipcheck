@@ -112,7 +112,14 @@ class NotificationService: NSObject, ObservableObject {
 
     /// Cancel any pending follow-up notification for a scan
     func cancelFollowUp(for scan: Scan) {
-        center.removePendingNotificationRequests(withIdentifiers: [scan.id.uuidString])
+        cancelFollowUp(forScanID: scan.id)
+    }
+
+    /// ID-based variant for callers that no longer have the scan record
+    /// (e.g. a notification tap whose scan was deleted on another device).
+    func cancelFollowUp(forScanID id: UUID) {
+        center.removePendingNotificationRequests(withIdentifiers: [id.uuidString])
+        center.removeDeliveredNotifications(withIdentifiers: [id.uuidString])
     }
 }
 

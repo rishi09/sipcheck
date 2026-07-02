@@ -148,6 +148,11 @@ private struct RootView: View {
             if let scan = scanStore.scans.first(where: { $0.id == scanID }) {
                 followUpScan = scan
                 showingFollowUp = true
+            } else {
+                // The scan is gone (deleted here or on another device before
+                // the tombstone-cancel existed). Remove the orphaned pending
+                // notification instead of silently swallowing the tap forever.
+                notificationService.cancelFollowUp(forScanID: scanID)
             }
             // Clear the pending ID
             notificationService.pendingFollowUpScanID = nil
