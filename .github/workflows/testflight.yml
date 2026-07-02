@@ -93,6 +93,10 @@ jobs:
 
       - name: Build and upload to TestFlight
         env:
+          # Apple caps TestFlight uploads per app per day. Branch pushes are a
+          # COMPILE GATE only (SKIP_UPLOAD=true); merges to main and manual
+          # dispatches spend an upload. Keeps us far below the cap.
+          SKIP_UPLOAD: ${{ (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch') && 'false' || 'true' }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
