@@ -2,6 +2,9 @@ import SwiftUI
 
 struct VerdictCardView: View {
     let scan: Scan
+    /// Set when this beer matches one already in the user's history, so the
+    /// card can say "you've had this" instead of treating it as new.
+    var previousDrink: Drink? = nil
     var onSaveForLater: (() -> Void)?
     var onScanAnother: (() -> Void)?
 
@@ -40,6 +43,21 @@ struct VerdictCardView: View {
                     .foregroundColor(verdictColor)
                     .padding(.top, 8)
                     .accessibilityIdentifier("verdictText")
+
+                // MARK: - Already-Tried Banner
+                if let previous = previousDrink {
+                    HStack(spacing: 8) {
+                        Text(previous.rating.emoji)
+                        Text("You've had this one — you rated it \(previous.rating.displayName.lowercased())")
+                            .font(SipTypography.caption)
+                            .foregroundColor(SipColors.textPrimary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(SipColors.surface))
+                    .padding(.top, 12)
+                    .accessibilityIdentifier("alreadyTriedBanner")
+                }
 
                 // MARK: - Beer Info
                 VStack(spacing: 6) {
@@ -112,7 +130,8 @@ struct VerdictCardView: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
-                .padding(.bottom, 40)
+                // Clear the floating tab bar — 40 buried the buttons beneath it
+                .padding(.bottom, 110)
             }
         }
         .background(verdictGradientBackground)

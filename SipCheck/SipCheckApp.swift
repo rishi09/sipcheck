@@ -65,6 +65,9 @@ struct SipCheckApp: App {
                 .environmentObject(scanStore)
                 .environmentObject(journalStore)
                 .environmentObject(notificationService)
+                // The design system is dark-only (fixed hex colors); without
+                // this, system-styled surfaces (sheets, alerts) render light.
+                .preferredColorScheme(.dark)
         }
     }
 }

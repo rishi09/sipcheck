@@ -40,12 +40,34 @@ class NotificationService: NSObject, ObservableObject {
 
     // MARK: - Authorization
 
-    /// Request authorization to show notifications (call on first use)
-    func requestAuthorization() {
+    /// Request authorization to show notifications. Only call from a flow
+    /// carrying explicit user intent (e.g. Save for Later) — never as a side
+    /// effect of showing content, or the system prompt covers the content.
+    func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
                 print("NotificationService: authorization error: \(error.localizedDescription)")
             }
+            completion?(granted)
+        }
+    }
+
+    /// Schedule a follow-up only when permission was already granted — never
+    /// triggers the system prompt.
+    func scheduleFollowUpIfAuthorized(for scan: Scan) {
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .authorized
+                    || settings.authorizationStatus == .provisional else { return }
+            self.scheduleFollowUp(for: scan)
+        }
+    }
+
+    /// Ask for permission (contextual moment: the user explicitly wants a
+    /// reminder), then schedule if granted.
+    func requestAuthorizationAndScheduleFollowUp(for scan: Scan) {
+        requestAuthorization { granted in
+            guard granted else { return }
+            self.scheduleFollowUp(for: scan)
         }
     }
 
@@ -55,8 +77,6 @@ class NotificationService: NSObject, ObservableObject {
     /// Skips SKIP IT verdicts. Uses 48h for TRY IT, 72h for YOUR CALL.
     func scheduleFollowUp(for scan: Scan) {
         guard scan.verdict != .skipIt else { return }
-
-        requestAuthorization()
 
         let delay: TimeInterval = scan.verdict == .tryIt ? 48 * 3600 : 72 * 3600
 

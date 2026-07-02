@@ -12,10 +12,12 @@ struct CheckTabView: View {
     @State private var showingPermissionAlert = false
     @State private var showingTextEntry = false
     @State private var textEntryInput = ""
+    @FocusState private var textEntryFocused: Bool
 
     // Scan flow state
     @State private var isScanning = false
     @State private var scanError: String?
+    @State private var confirmationMessage: String?
 
     // Result state
     @State private var scanTask: Task<Void, Never>?
@@ -47,6 +49,7 @@ struct CheckTabView: View {
             } else if let scan = currentScan {
                 VerdictCardView(
                     scan: scan,
+                    previousDrink: drinkStore.findMatch(for: scan.beerName),
                     onSaveForLater: {
                         saveForLater(scan)
                     },
@@ -60,6 +63,10 @@ struct CheckTabView: View {
 
             if let errorMsg = scanError {
                 errorBannerView(message: errorMsg)
+            }
+
+            if let msg = confirmationMessage {
+                confirmationBannerView(message: msg)
             }
         }
         .accessibilityIdentifier("checkTab")
@@ -230,6 +237,25 @@ struct CheckTabView: View {
 
     // MARK: - Error Banner
 
+    private func confirmationBannerView(message: String) -> some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(SipColors.primary)
+                Text(message)
+                    .font(SipTypography.caption)
+                    .foregroundColor(SipColors.textPrimary)
+                Spacer()
+            }
+            .padding()
+            .background(SipColors.surface)
+            .cornerRadius(12)
+            .padding()
+        }
+        .accessibilityIdentifier("confirmationBanner")
+    }
+
     private func errorBannerView(message: String) -> some View {
         VStack {
             Spacer()
@@ -265,6 +291,15 @@ struct CheckTabView: View {
                         .foregroundColor(SipColors.textSecondary)
                     TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $textEntryInput)
                         .textFieldStyle(.roundedBorder)
+                        .focused($textEntryFocused)
+                        .submitLabel(.search)
+                        .onSubmit {
+                            let input = textEntryInput.trimmingCharacters(in: .whitespaces)
+                            guard !input.isEmpty else { return }
+                            showingTextEntry = false
+                            textEntryInput = ""
+                            runScan(text: input)
+                        }
                         .accessibilityIdentifier("beerTextInput")
                 }
                 .padding(.horizontal)
@@ -292,6 +327,7 @@ struct CheckTabView: View {
                 Spacer()
             }
             .padding(.top, 24)
+            .onAppear { textEntryFocused = true }
             .navigationTitle("Enter Beer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -445,7 +481,7 @@ struct CheckTabView: View {
 
     private func finalizeScan(_ scan: Scan) {
         scanStore.addScan(scan)
-        notificationService.scheduleFollowUp(for: scan)
+        notificationService.scheduleFollowUpIfAuthorized(for: scan)
         currentScan = scan
         isScanning = false
     }
@@ -454,7 +490,16 @@ struct CheckTabView: View {
         var updated = scan
         updated.wantToTry = true
         scanStore.updateScan(updated)
-        notificationService.scheduleFollowUp(for: updated)
+        notificationService.requestAuthorizationAndScheduleFollowUp(for: updated)
+
+        // Tapping Save previously left the card unchanged — no way to tell it
+        // worked. Return to the scan prompt and confirm briefly.
+        resetScanState()
+        confirmationMessage = "Saved — find it under Journal › Want to Try"
+        Task {
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            confirmationMessage = nil
+        }
     }
 
     private func resetScanState() {
