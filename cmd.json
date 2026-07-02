@@ -1,0 +1,1 @@
+{"seq": 3, "actions": [{"do": "tap", "label": "Allow"}, {"do": "wait", "seconds": 1}, {"do": "end"}]}
