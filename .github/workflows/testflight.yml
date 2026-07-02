@@ -8,6 +8,11 @@ name: TestFlight
 on:
   push:
     branches: [main, 'claude/**']
+    # Doc/report-only pushes don't need a 25-min macOS build + TestFlight upload.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'plans/**'
   workflow_dispatch:
 
 concurrency:

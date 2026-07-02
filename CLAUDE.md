@@ -3,6 +3,26 @@
 ## Project Overview
 SipCheck is an iOS beer tracking app with AI-powered recommendations using SwiftUI, JSON persistence, and a hybrid scanning stack.
 
+## Multi-Session Coordination (EVERY session: read before editing anything)
+Multiple Claude sessions work on this repo in parallel. The repo is the coordination
+channel — don't make the user shuttle context between chats.
+
+**Rules:**
+1. Before your first edit (and after any long gap): `git fetch origin main` and start
+   from / rebase onto latest `origin/main`. Merge small, merge often.
+2. Check the Active Tracks table below. Do NOT edit files reserved by another track.
+   When you claim or finish an area, update this table in your own merge.
+3. Shared findings live in `plans/reports/` — read `SPEED_PLAN.md` and
+   `DESIGN_INSPIRATION.md` before fixing UX/performance issues so you don't
+   re-discover known bugs (a verified bug-audit report will join them).
+4. Any `claude/*` branch push auto-builds to TestFlight (doc-only changes are excluded).
+
+**Active Tracks** (update when claiming/releasing):
+| Track | Branch | Reserved files |
+|---|---|---|
+| Audit + scan architecture (2026-07-02) | `claude/review-project-status-5ihff` | `SipCheck/Views/Tabs/CheckTabView.swift`, `SipCheck/Services/ScanningPipeline.swift` — verdict-first refactor per `plans/reports/SPEED_PLAN.md` §2. Tactical fixes to these two files must wait or be coordinated. |
+| Simulator E2E tap-and-fix (2026-07-02) | `claude/ios-simulator-e2e-testing-t5mxgm` | Everything else — small fixes, merge to main as found. |
+
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
 
