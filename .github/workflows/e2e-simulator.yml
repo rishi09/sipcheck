@@ -166,6 +166,12 @@ jobs:
       - name: Publish results to e2e-artifacts branch
         if: always()
         run: |
+          # Preserve the E2E Motion lane's motion/ artifacts (if any) so this
+          # lane's single-commit force-push doesn't wipe them.
+          git fetch origin e2e-artifacts:refs/heads/_prev-artifacts 2>/dev/null || true
+          if git rev-parse -q --verify _prev-artifacts >/dev/null 2>&1; then
+            git archive _prev-artifacts motion 2>/dev/null | tar -x -C publish/ || true
+          fi
           cd publish
           git init -b e2e-artifacts
           git config user.name "github-actions[bot]"
