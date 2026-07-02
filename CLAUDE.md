@@ -129,6 +129,33 @@ xcrun devicectl device install app --device 9D507846-A478-5220-B11A-B52B061B6E1C
 xcrun devicectl device process launch --terminate-existing --device 9D507846-A478-5220-B11A-B52B061B6E1C com.rishishah.sipcheck
 ```
 
+### CI Simulator E2E (no Mac needed — works from any session, incl. Linux/cloud)
+Two lanes, both on GitHub Actions macOS runners:
+
+**Scripted (regression net):** `.github/workflows/e2e-simulator.yml` runs the
+XCUITest flows on every code push and force-pushes step screenshots + results to
+the `e2e-artifacts` branch (single commit, latest run only):
+```bash
+git fetch origin e2e-artifacts
+git show origin/e2e-artifacts:SUMMARY.md          # pass/fail + screenshot list
+git show origin/e2e-artifacts:screenshots/<name>  # actual sim screenshots
+```
+
+**Interactive (drive the app like a user):** `.github/workflows/e2e-drive.yml` +
+`scripts/ci_bridge.py` — a git-based remote control. The runner posts
+`screen.png` + AXe accessibility dump to `e2e-bridge-state`; you push command
+batches to `e2e-bridge-cmd`; ~30s per interaction, sessions up to ~45 min.
+- Start a session: edit `.drive/request.json` on a `claude/**` branch and push
+  (or dispatch "E2E Drive" from the Actions tab).
+- Send a command (must echo the current `seq` from `meta.json`):
+  `{"seq": N, "actions": [{"do":"tap","label":"Journal"}, {"do":"type","text":"..."},
+  {"do":"swipe","x1":200,"y1":500,"x2":200,"y2":150}, {"do":"launch","args":[...]},
+  {"do":"end"}]}` → single-commit force-push `cmd.json` to `e2e-bridge-cmd`.
+- Screen is 375×667pt; the floating tab bar occupies y≈584-646 — keep gesture
+  start points above y≈560 or you'll hit it.
+- Sessions launch with `--mock-ai --seed-data --isolated-storage` by default
+  (hermetic: no network, no CloudKit, seeded journal).
+
 ### Automated UI Testing (XcodeBuildMCP + AXe)
 ```bash
 # Install XcodeBuildMCP (MCP server for Xcode builds + simulator control)
