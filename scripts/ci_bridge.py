@@ -326,6 +326,10 @@ class Bridge:
             return
         name = str(params.get("name") or f"seq{self.seq:03d}")
         name = re.sub(r"[^A-Za-z0-9._-]+", "_", name)
+        # A dots-only name ("." / "..") survives the charset filter and turns
+        # the copytree destination into the parent dir — kills the session.
+        if not name.strip("._-"):
+            name = f"seq{self.seq:03d}"
         taken = {n for n, _ in self.pending_motion}
         if name in taken:
             name = f"{name}_{len(self.pending_motion)}"
@@ -334,7 +338,17 @@ class Bridge:
             self.pending_motion.append((name, out))
             print(f"motion '{name}' ready ({dir_size(out)} bytes)", flush=True)
         except Exception as e:
+            # Degrade, don't discard: the captured mp4 is still worth shipping
+            # when frame extraction/analysis fails (e.g. ffprobe timeout).
             print(f"record_stop: processing failed: {e}", flush=True)
+            try:
+                salvage = tempfile.mkdtemp(prefix="motion-salvage-")
+                if os.path.exists(rec["path"]):
+                    shutil.copy2(rec["path"], os.path.join(salvage, "rec.mp4"))
+                    self.pending_motion.append((name, salvage))
+                    print(f"motion '{name}' salvaged as mp4-only", flush=True)
+            except Exception as e2:
+                print(f"record_stop: salvage failed too: {e2}", flush=True)
         finally:
             shutil.rmtree(rec["dir"], ignore_errors=True)
 
@@ -460,12 +474,32 @@ class Bridge:
         return out
 
     def prune_to_budget(self, out):
-        """Keep the artifact under MOTION_BUDGET_BYTES. Drop bursts first,
-        then thin sampled frames, then drop frames entirely. Never drop
-        rec.mp4 or motion.json."""
+        """Keep the artifact under MOTION_BUDGET_BYTES. Shrink an oversized
+        rec.mp4 first (an unbounded video can hard-fail the git push and hang
+        the session), then drop bursts, then thin sampled frames, then drop
+        frames entirely. motion.json is always kept; rec.mp4 is dropped only
+        as the very last resort."""
         pruned = []
         if dir_size(out) <= MOTION_BUDGET_BYTES:
             return pruned
+        video = os.path.join(out, "rec.mp4")
+        if os.path.exists(video) and os.path.getsize(video) > MOTION_BUDGET_BYTES // 2:
+            small = os.path.join(out, "rec_small.mp4")
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", video, "-vf", "scale=iw/2:-2",
+                     "-c:v", "libx264", "-crf", "32", "-preset", "veryfast",
+                     "-an", small],
+                    check=True, capture_output=True, timeout=240)
+                if os.path.getsize(small) < os.path.getsize(video):
+                    os.replace(small, video)
+                    pruned.append("rec.mp4 transcoded half-res (size budget)")
+                else:
+                    os.remove(small)
+            except Exception:
+                for leftover in (small,):
+                    if os.path.exists(leftover):
+                        os.remove(leftover)
         bursts = os.path.join(out, "bursts")
         if os.path.isdir(bursts):
             shutil.rmtree(bursts, ignore_errors=True)
@@ -480,6 +514,12 @@ class Bridge:
             for fname in frames[1::2]:
                 os.remove(os.path.join(frames_dir, fname))
             pruned.append(f"thinned frames to {len(frames) - len(frames[1::2])}")
+        video = os.path.join(out, "rec.mp4")
+        if dir_size(out) > MOTION_BUDGET_BYTES and os.path.exists(video):
+            # Last resort: analysis artifacts (motion.json) beat raw video —
+            # an over-budget push would hang the whole session.
+            os.remove(video)
+            pruned.append("rec.mp4 dropped (size budget, last resort)")
         return pruned
 
     def run_flow(self, action):

@@ -8,11 +8,15 @@ name: TestFlight
 on:
   push:
     branches: [main, 'claude/**']
-    # Doc/report-only pushes don't need a 25-min macOS build + TestFlight upload.
+    # Doc/report/tooling-only pushes don't need a 25-min macOS build +
+    # TestFlight upload. `.drive/**` is the E2E/motion session git-dispatch
+    # channel; `scripts/**` is CI tooling — neither ships in the app.
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - 'plans/**'
+      - 'scripts/**'
+      - '.drive/**'
   workflow_dispatch:
 
 concurrency:
