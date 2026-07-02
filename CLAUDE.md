@@ -21,7 +21,7 @@ channel — don't make the user shuttle context between chats.
 | Track | Branch | Reserved files |
 |---|---|---|
 | Audit + scan architecture (2026-07-02) | `claude/review-project-status-5ihff` | `SipCheck/Views/Tabs/CheckTabView.swift`, `SipCheck/Services/ScanningPipeline.swift` — verdict-first refactor per `plans/reports/SPEED_PLAN.md` §2. Tactical fixes to these two files must wait or be coordinated. |
-| Simulator E2E tap-and-fix (2026-07-02) | `claude/ios-simulator-e2e-testing-t5mxgm` | Everything else — small fixes, merge to main as found. |
+| Simulator E2E tap-and-fix (2026-07-02) | `claude/ios-simulator-e2e-testing-t5mxgm` | Everything else — small fixes, merge to main as found. Merged so far: CloudKit test-mode crash fix, dark scheme, VerdictCardView (previousDrink banner + padding), NotificationService prompt-timing APIs, JournalEntryDetailView + tappable rows, tab-bar clearance, rewritten UI tests, CI simulator E2E workflows. CheckTabView edits were reverted per reservation — absorption list in `plans/reports/E2E_FINDINGS.md`. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
