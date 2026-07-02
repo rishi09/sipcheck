@@ -377,7 +377,12 @@ struct CheckTabView: View {
                 }
             }
             .onAppear {
-                textEntryFocused = true
+                // Focusing during the sheet's presentation animation silently
+                // fails (verified on-simulator: keyboard never rose). Delay
+                // until the sheet has settled.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    textEntryFocused = true
+                }
             }
         }
     }
