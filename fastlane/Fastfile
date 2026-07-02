@@ -77,11 +77,23 @@ platform :ios do
     if ENV["SKIP_UPLOAD"] == "true"
       UI.important("SKIP_UPLOAD=true (branch build): compile/sign gate passed; not spending a TestFlight upload against Apple's daily cap.")
     else
-      upload_to_testflight(
-        api_key: api_key,
-        skip_waiting_for_build_processing: true,
-        skip_submission: true
-      )
+      begin
+        upload_to_testflight(
+          api_key: api_key,
+          skip_waiting_for_build_processing: true,
+          skip_submission: true
+        )
+        UI.success("UPLOAD_OK: build submitted to TestFlight.")
+      rescue => e
+        if e.message.include?("Upload limit reached")
+          # Apple's per-app daily cap: the archive is good, only the upload is
+          # deferred. Exit green so retry runs don't spam failure emails —
+          # a real failure (signing, compile, anything else) still raises.
+          UI.important("UPLOAD_DEFERRED: Apple daily upload cap (409). Archive succeeded; retry later.")
+        else
+          raise
+        end
+      end
     end
   end
 end
