@@ -4,25 +4,59 @@ struct WantToTryCard: View {
     let scan: Scan
     var onTap: (() -> Void)?
 
+    private var verdictStyle: VerdictStyle {
+        VerdictStyle.style(for: scan.verdict)
+    }
+
+    /// "TRY IT" → "Try it" — sentence-cased for VoiceOver.
+    private var spokenWord: String {
+        let lower = verdictStyle.word.lowercased()
+        return lower.prefix(1).uppercased() + lower.dropFirst()
+    }
+
+    /// Up to two initials from the beer name, skipping filler words —
+    /// "Pliny the Elder" → "PE".
+    private var initials: String {
+        let filler: Set<String> = ["the", "a", "an", "of", "de", "la", "le"]
+        let words = scan.beerName
+            .split(separator: " ")
+            .map(String.init)
+            .filter { !filler.contains($0.lowercased()) }
+        return words.prefix(2)
+            .compactMap { $0.first.map(String.init) }
+            .joined()
+            .uppercased()
+    }
+
+    /// Dark ink on pale SRM tiles (pilsner gold etc.), cream on dark ones —
+    /// keeps the initials off the slop watchlist's white-on-gold trap.
+    private var tileTextColor: Color {
+        let raw = (scan.style ?? "").lowercased()
+        let lightFamilies = ["pilsner", "lager", "helles", "wheat", "hefeweizen",
+                             "wit", "ipa", "pale ale", "sour", "fruit"]
+        return lightFamilies.contains { raw.contains($0) }
+            ? SipColors.onVerdictNeutral
+            : SipColors.textPrimary
+    }
+
     var body: some View {
         Button(action: { onTap?() }) {
-            VStack(alignment: .leading, spacing: 6) {
-                // Beer icon placeholder
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(SipColors.surface)
+            VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                // SRM mini-tile — a stout and a light lager look different.
+                RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                    .fill(StyleGradient.gradient(for: scan.style))
                     .frame(width: 100, height: 80)
                     .overlay(
                         ZStack {
-                            Image(systemName: "mug.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(SipColors.primary)
-                            // Verdict badge overlay
+                            Text(initials)
+                                .font(SipTypography.title)
+                                .foregroundColor(tileTextColor.opacity(0.85))
                             VStack {
                                 Spacer()
                                 HStack {
                                     Spacer()
-                                    verdictBadge
-                                        .padding(6)
+                                    miniVerdictBadge
+                                        .padding(SipSpacing.xs)
                                 }
                             }
                         }
@@ -47,32 +81,28 @@ struct WantToTryCard: View {
             .frame(width: 100)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("wantToTryCard_\(scan.id)")
+        .accessibilityLabel("\(scan.beerName), \(spokenWord), want to try")
     }
 
-    private var verdictBadge: some View {
-        let (text, color) = verdictInfo
-        return Text(text)
-            .font(.system(size: 9, weight: .bold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(
-                Capsule().fill(color)
-            )
-    }
-
-    private var verdictInfo: (String, Color) {
-        switch scan.verdict {
-        case .tryIt:    return ("TRY IT", SipColors.verdictTryIt)
-        case .skipIt:   return ("SKIP IT", SipColors.verdictSkipIt)
-        case .yourCall: return ("YOUR CALL", SipColors.verdictYourCall)
+    /// Compact triple-redundant badge: color + SF thumbs glyph + word,
+    /// `.caption2` minimum (never 9pt), dark-on-amber via `VerdictStyle.textColor`.
+    private var miniVerdictBadge: some View {
+        HStack(spacing: SipSpacing.xs) {
+            Image(systemName: verdictStyle.symbol)
+            Text(verdictStyle.word)
         }
+        .font(.caption2.weight(.bold))
+        .foregroundColor(verdictStyle.textColor)
+        .padding(.horizontal, SipSpacing.s)
+        .padding(.vertical, SipSpacing.xs)
+        .background(Capsule().fill(verdictStyle.color))
     }
 }
 
 struct WantToTryCard_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: SipSpacing.m) {
             WantToTryCard(scan: Scan(
                 beerName: "Pliny the Elder",
                 style: "Imperial IPA",

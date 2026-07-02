@@ -30,7 +30,7 @@ struct ProfileTabView: View {
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: SipSpacing.xl) {
                     // MARK: - Header
                     headerSection
 
@@ -57,8 +57,9 @@ struct ProfileTabView: View {
                     // Clear the floating tab bar so the last scan isn't buried
                     Spacer(minLength: 110)
                 }
-                .padding(.top, 16)
+                .padding(.top, SipSpacing.l)
             }
+            .compatScrollEdgeSoft()
         }
         // .contain keeps this container id from clobbering every child's
         // identifier (a bare container identifier overwrites them all).
@@ -82,10 +83,14 @@ struct ProfileTabView: View {
         .overlay(alignment: .trailing) {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 20))
+                    .font(SipTypography.title)
                     .foregroundColor(SipColors.textPrimary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
-            .padding(.trailing, 20)
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("settingsButton")
+            .padding(.trailing, SipSpacing.m)
         }
         .sheet(isPresented: $showingSettings) {
             SettingsTabView()
@@ -97,28 +102,30 @@ struct ProfileTabView: View {
 
     // MARK: - Persona Badge
 
+    // Inverted treatment (dark fill + teal text): the badge is a status label,
+    // not a tappable — solid teal fills stay reserved for actionable controls.
     private var personaBadge: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 18))
-                .foregroundColor(SipColors.background)
+        HStack(spacing: SipSpacing.s) {
+            Image(systemName: "mug.fill")
+                .font(SipTypography.headline)
+                .foregroundColor(SipColors.accent)
 
             Text(personaLabel)
                 .font(SipTypography.headline)
-                .foregroundColor(SipColors.background)
+                .foregroundColor(SipColors.accent)
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, SipSpacing.xl)
         .padding(.vertical, 10)
         .background(
             Capsule()
-                .fill(SipColors.primary)
+                .fill(SipColors.surfaceElevated)
         )
     }
 
     // MARK: - Stats Row
 
     private var statsRow: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: SipSpacing.l) {
             statBox(
                 value: journalStore.entries.count,
                 label: "Beers Logged",
@@ -134,10 +141,13 @@ struct ProfileTabView: View {
         .padding(.horizontal, 20)
     }
 
+    // Stat cards: elevated gray + heavy off-white numerals — keep this treatment.
     private func statBox(value: Int, label: String, accessibilityId: String) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: SipSpacing.xs) {
             Text("\(value)")
-                .font(SipTypography.display)
+                .font(SipTypography.numberHero)
+                .fontWidth(.compressed)
+                .monospacedDigit()
                 .foregroundColor(SipColors.textPrimary)
                 .accessibilityIdentifier(accessibilityId)
 
@@ -146,9 +156,9 @@ struct ProfileTabView: View {
                 .foregroundColor(SipColors.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 16)
+        .padding(.vertical, SipSpacing.l)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
                 .fill(SipColors.surface)
         )
     }
@@ -156,7 +166,7 @@ struct ProfileTabView: View {
     // MARK: - Top Styles
 
     private var topStylesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
             Text("Top Styles")
                 .font(SipTypography.headline)
                 .foregroundColor(SipColors.textPrimary)
@@ -168,13 +178,12 @@ struct ProfileTabView: View {
                     .foregroundColor(SipColors.textSecondary)
                     .padding(.horizontal, 20)
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: SipSpacing.s) {
                     ForEach(styleDistribution, id: \.style) { item in
-                        StyleBarView(
-                            style: item.style,
-                            percentage: item.percentage,
-                            maxPercentage: styleDistribution.first?.percentage ?? 100
-                        )
+                        // Shared component; maxPercentage defaults to the
+                        // absolute 100% basis, so bar widths actually encode
+                        // the printed percentages.
+                        StyleBarView(style: item.style, percentage: item.percentage)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -219,7 +228,7 @@ struct ProfileTabView: View {
     // MARK: - Recent Scans
 
     private var recentScansSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
             Text("Recent Scans")
                 .font(SipTypography.headline)
                 .foregroundColor(SipColors.textPrimary)
@@ -247,13 +256,20 @@ struct ProfileTabView: View {
         .accessibilityIdentifier("recentScans")
     }
 
+    // Rows stay non-tappable for now — revisitable scans is future work.
     private func scanRow(_ scan: Scan) -> some View {
-        HStack(spacing: 12) {
-            // Beer icon placeholder
-            Image(systemName: "mug.fill")
-                .font(.system(size: 24))
-                .foregroundColor(SipColors.primary)
-                .frame(width: 36, height: 36)
+        HStack(spacing: SipSpacing.m) {
+            // SRM mini-tile when we know the style; verdict-colored dot otherwise.
+            if let style = scan.style, !style.isEmpty {
+                RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous)
+                    .fill(StyleGradient.gradient(for: style))
+                    .frame(width: 36, height: 36)
+            } else {
+                Circle()
+                    .fill(VerdictStyle.style(for: scan.verdict).color)
+                    .frame(width: 8, height: 8)
+                    .frame(width: 36, height: 36)
+            }
 
             // Beer name
             Text(scan.beerName)

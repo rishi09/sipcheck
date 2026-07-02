@@ -4,6 +4,14 @@ struct TastePreferences {
     let vibe: String        // e.g. "Hoppy & Bitter"
     let adventure: String   // e.g. "Mix It Up"
     let dislikes: [String]  // e.g. ["Super Bitter", "Really Sour"]
+
+    // MARK: Quiz option strings (single source of truth)
+    // Consumed by both the onboarding TasteQuizPage and Settings'
+    // TastePreferencesEditorView — the saved answer strings must match
+    // wherever they're offered, or verdicts silently stop following answers.
+    static let vibeOptions = ["Crisp & Light", "Hoppy & Bitter", "Dark & Roasty", "Fruity & Easy", "Sour & Weird"]
+    static let adventureOptions = ["Stick to Favorites", "Mix It Up", "Give Me the Weird Stuff"]
+    static let dislikeOptions = ["Super Bitter", "Very Dark", "Really Sour", "Wheat-y / Cloudy"]
     /// Style rawValues seeded from the onboarding "beers you've had" picker —
     /// the cold-start signal so scan #1 is personalized before any ratings.
     /// Defaulted so existing 3-argument construction sites stay valid.

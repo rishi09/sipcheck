@@ -3,31 +3,48 @@ import SwiftUI
 struct RatingPicker: View {
     @Binding var rating: Rating
 
+    // Hero-ish glyph size scales with Dynamic Type (no hardcoded .system(size:)).
+    @ScaledMetric(relativeTo: .largeTitle) private var symbolSize: CGFloat = 36
+
+    /// Tinted SF symbols instead of raw emoji (crit watchlist: no raw 👍 next
+    /// to semantic color). View-layer mapping only — Rating.emoji is untouched
+    /// for any other consumer.
+    private func symbolName(for ratingOption: Rating) -> String {
+        switch ratingOption {
+        case .like:    return "hand.thumbsup.fill"
+        case .neutral: return "hand.raised.fill"
+        case .dislike: return "hand.thumbsdown.fill"
+        }
+    }
+
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: SipSpacing.l) {
             ForEach(Rating.allCases, id: \.self) { ratingOption in
                 Button {
                     rating = ratingOption
                 } label: {
-                    VStack(spacing: 4) {
-                        Text(ratingOption.emoji)
-                            .font(.system(size: 40))
+                    VStack(spacing: SipSpacing.xs) {
+                        Image(systemName: symbolName(for: ratingOption))
+                            .font(.system(size: symbolSize))
+                            .foregroundColor(rating == ratingOption ? SipColors.accent : SipColors.textSecondary)
                         Text(ratingOption.displayName)
-                            .font(.caption)
-                            .foregroundColor(rating == ratingOption ? .primary : .secondary)
+                            .font(SipTypography.caption)
+                            .foregroundColor(rating == ratingOption ? SipColors.textPrimary : SipColors.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .padding(.vertical, SipSpacing.m)
                     .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(rating == ratingOption ? Color.accentColor.opacity(0.2) : Color.clear)
+                        RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                            .fill(rating == ratingOption ? SipColors.accentSubtle : Color.clear)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(rating == ratingOption ? Color.accentColor : Color.gray.opacity(0.3), lineWidth: 2)
+                        RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                            .stroke(rating == ratingOption ? SipColors.accent : SipColors.starEmpty, lineWidth: 2)
                     )
                 }
                 .buttonStyle(.plain)
+                .animation(.snappy(duration: 0.25), value: rating)
+                .accessibilityLabel(ratingOption.displayName)
                 .accessibilityIdentifier("rating_\(ratingOption.rawValue)")
             }
         }
@@ -41,6 +58,8 @@ struct RatingPicker_Previews: PreviewProvider {
         var body: some View {
             RatingPicker(rating: $rating)
                 .padding()
+                .background(SipColors.background)
+                .preferredColorScheme(.dark)
         }
     }
 

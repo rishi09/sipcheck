@@ -10,11 +10,12 @@ struct FollowUpView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            VStack(spacing: 12) {
-                Image(systemName: "mug.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(SipColors.primary)
-                    .padding(.top, 32)
+            VStack(spacing: SipSpacing.m) {
+                // SRM style tile — the beer's color, not a stock glyph
+                RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
+                    .fill(StyleGradient.gradient(for: scan.style))
+                    .frame(width: 72, height: 72)
+                    .padding(.top, SipSpacing.xxl)
 
                 Text(scan.beerName)
                     .font(SipTypography.title)
@@ -23,32 +24,32 @@ struct FollowUpView: View {
 
                 VerdictBadge(verdict: scan.verdict)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 8)
+            .padding(.horizontal, SipSpacing.xl)
+            .padding(.bottom, SipSpacing.s)
 
             // Beer metadata
             if let meta = beerMetadata {
                 Text(meta)
                     .font(SipTypography.subhead)
                     .foregroundColor(SipColors.textSecondary)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, SipSpacing.xl)
             }
 
             Divider()
-                .padding(.horizontal, 24)
+                .padding(.horizontal, SipSpacing.xl)
 
             // Question
             Text("Did you end up trying this one?")
                 .font(SipTypography.headline)
                 .foregroundColor(SipColors.textPrimary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 24)
+                .padding(.horizontal, SipSpacing.xl)
+                .padding(.vertical, SipSpacing.xl)
 
             // Action buttons
-            VStack(spacing: 12) {
-                // Yes, I tried it
-                Button(action: {
+            VStack(spacing: SipSpacing.m) {
+                // Yes, I tried it — teal, not verdict green (traffic colors are answers, not chrome)
+                Button("Yes, I tried it") {
                     let prefill = AddBeerPrefill(
                         name: scan.beerName,
                         style: scan.style ?? BeerStyle.other.rawValue,
@@ -56,51 +57,31 @@ struct FollowUpView: View {
                         scanId: scan.id
                     )
                     onTried?(prefill)
-                }) {
-                    Text("Yes, I tried it")
-                        .font(SipTypography.headline)
-                        .foregroundColor(SipColors.background)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(SipColors.verdictTryIt)
-                        )
                 }
+                .buttonStyle(SipPrimaryButtonStyle())
                 .accessibilityIdentifier("followUpTriedIt")
 
                 // Not yet
-                Button(action: {
+                Button("Not yet") {
                     onNotYet?()
-                }) {
-                    Text("Not yet")
-                        .font(SipTypography.headline)
-                        .foregroundColor(SipColors.primary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(SipColors.primary, lineWidth: 2)
-                        )
                 }
+                .buttonStyle(SipSecondaryButtonStyle())
                 .accessibilityIdentifier("followUpNotYet")
 
                 // Not going to
-                Button(action: {
+                Button("Not going to") {
                     onNotGoing?()
-                }) {
-                    Text("Not going to")
-                        .font(SipTypography.subhead)
-                        .foregroundColor(SipColors.textSecondary)
                 }
+                .buttonStyle(SipQuietButtonStyle())
                 .accessibilityIdentifier("followUpNotGoing")
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, SipSpacing.xl)
 
             Spacer()
         }
         .background(
-            SipColors.background
+            // Sheet surface separation: one step above the canvas
+            SipColors.surface
                 .ignoresSafeArea()
         )
         .accessibilityIdentifier("followUpView")
