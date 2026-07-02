@@ -51,7 +51,8 @@ struct ProfileTabView: View {
                     // MARK: - Recent Scans
                     recentScansSection
 
-                    Spacer(minLength: 40)
+                    // Clear the floating tab bar so the last scan isn't buried
+                    Spacer(minLength: 110)
                 }
                 .padding(.top, 16)
             }

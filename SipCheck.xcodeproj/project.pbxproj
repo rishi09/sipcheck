@@ -52,6 +52,7 @@
 		B1000003 /* SipCheckUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003; };
 		D1000001 /* VerdictCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000001; };
 		D1000002 /* JournalEntryRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000002; };
+		D1000099 /* JournalEntryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000099; };
 		D1000003 /* WantToTryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000003; };
 		D1000004 /* StyleBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000004; };
 		D1000005 /* VerdictBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000005; };
@@ -135,6 +136,7 @@
 		B3000002 /* SipCheckUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SipCheckUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D2000001 /* VerdictCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictCardView.swift; sourceTree = "<group>"; };
 		D2000002 /* JournalEntryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryRow.swift; sourceTree = "<group>"; };
+		D2000099 /* JournalEntryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryDetailView.swift; sourceTree = "<group>"; };
 		D2000003 /* WantToTryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WantToTryCard.swift; sourceTree = "<group>"; };
 		D2000004 /* StyleBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleBarView.swift; sourceTree = "<group>"; };
 		D2000005 /* VerdictBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerdictBadge.swift; sourceTree = "<group>"; };
@@ -226,6 +228,7 @@
 				A2000005 /* AddBeerView.swift */,
 				A2000006 /* BeerListView.swift */,
 				A2000007 /* BeerDetailView.swift */,
+				D2000099 /* JournalEntryDetailView.swift */,
 				A2000013 /* CheckBeerView.swift */,
 				A2000024 /* StatsView.swift */,
 				A2000025 /* OnboardingView.swift */,
@@ -489,6 +492,7 @@
 				C1000005 /* JournalStore.swift in Sources */,
 				D1000001 /* VerdictCardView.swift in Sources */,
 				D1000002 /* JournalEntryRow.swift in Sources */,
+				D1000099 /* JournalEntryDetailView.swift in Sources */,
 				D1000003 /* WantToTryCard.swift in Sources */,
 				D1000004 /* StyleBarView.swift in Sources */,
 				D1000005 /* VerdictBadge.swift in Sources */,

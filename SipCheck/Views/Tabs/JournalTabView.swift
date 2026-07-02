@@ -15,6 +15,7 @@ struct JournalTabView: View {
     @State private var selectedFilter: JournalFilter = .all
     @State private var selectedWantToTryScan: Scan?
     @State private var showingAddBeer = false
+    @State private var selectedEntry: JournalEntry?
 
     private var filteredEntries: [JournalEntry] {
         var result = journalStore.entries
@@ -71,10 +72,15 @@ struct JournalTabView: View {
                     // Tried section
                     triedSection
                 }
-                .padding(.bottom, 20)
+                // Clear the floating tab bar so the last row isn't buried
+                .padding(.bottom, 110)
             }
         }
         .accessibilityIdentifier("journalTab")
+        .sheet(item: $selectedEntry) { entry in
+            JournalEntryDetailView(entry: entry)
+                .environmentObject(journalStore)
+        }
         .sheet(isPresented: $showingAddBeer) {
             if let scan = selectedWantToTryScan {
                 AddBeerView(prefill: AddBeerPrefill(
@@ -184,7 +190,12 @@ struct JournalTabView: View {
             } else {
                 LazyVStack(spacing: 0) {
                     ForEach(filteredEntries) { entry in
-                        JournalEntryRow(entry: entry)
+                        Button {
+                            selectedEntry = entry
+                        } label: {
+                            JournalEntryRow(entry: entry)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

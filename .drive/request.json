@@ -1,5 +1,5 @@
 {
-  "minutes": 45,
+  "minutes": 40,
   "launch_args": "--mock-ai --seed-data --isolated-storage",
-  "note": "session 2 \u2014 retest after CloudKit launch-crash fix"
+  "note": "session 3 \u2014 verify F4-F11 fixes"
 }
