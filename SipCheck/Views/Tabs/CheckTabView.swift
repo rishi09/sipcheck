@@ -101,6 +101,9 @@ struct CheckTabView: View {
                 errorBannerView(message: message)
             }
         }
+        // .contain keeps this container id from clobbering every child's
+        // identifier (E2E_FINDINGS.md F12 — matches journalTab/profileTab).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("checkTab")
         // Verdict lands: a felt cue before it's read. Confidence-gated — the
         // celebratory tap is reserved for TRY IT; others get a neutral bump.
