@@ -11,9 +11,20 @@ final class SipCheckUITests: XCTestCase {
         app.launch()
     }
 
+    /// Attach a named screenshot to the test report (kept even on pass) so CI
+    /// can export step-by-step images of each flow.
+    private func snap(_ name: String) {
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     // MARK: - Flow 1: Add Beer Manually
 
     func testAddBeerManually() {
+        snap("01-home")
+
         // Tap Add Beer
         app.buttons["addBeer"].tap()
 
@@ -29,12 +40,14 @@ final class SipCheckUITests: XCTestCase {
 
         // Tap thumbs up rating
         app.buttons["rating_like"].tap()
+        snap("02-form-filled")
 
         // Save
         app.buttons["saveBeer"].tap()
 
         // Verify we're back at home and beer appears in recent list
         XCTAssertTrue(app.staticTexts["Test Hazy IPA"].waitForExistence(timeout: 2))
+        snap("03-saved-on-home")
     }
 
     // MARK: - Flow 2: Check Beer Found
@@ -52,6 +65,7 @@ final class SipCheckUITests: XCTestCase {
         // Wait for mock AI response
         let triedText = app.staticTexts["You've tried this!"]
         XCTAssertTrue(triedText.waitForExistence(timeout: 5))
+        snap("01-result-found")
     }
 
     // MARK: - Flow 3: Check Beer Not Found + Add
@@ -68,12 +82,14 @@ final class SipCheckUITests: XCTestCase {
         // Wait for "Haven't tried yet"
         let notTriedText = app.staticTexts["Haven't tried yet"]
         XCTAssertTrue(notTriedText.waitForExistence(timeout: 5))
+        snap("01-result-not-found")
 
         // Add to my beers
         app.buttons["Add to my beers"].tap()
 
         // Should dismiss — verify we're back at home
         XCTAssertTrue(app.staticTexts["SipCheck"].waitForExistence(timeout: 2))
+        snap("02-added-back-home")
     }
 
     // MARK: - Flow 4: View Beer List
@@ -85,6 +101,7 @@ final class SipCheckUITests: XCTestCase {
             seeAll.tap()
             // Should see the list view with seed data
             XCTAssertTrue(app.navigationBars["All Beers"].waitForExistence(timeout: 2))
+            snap("01-beer-list")
         }
     }
 
@@ -108,5 +125,6 @@ final class SipCheckUITests: XCTestCase {
         // Verify beer still exists
         XCTAssertTrue(app.staticTexts["Persistence Test Beer"].waitForExistence(timeout: 3),
                       "Beer should persist after relaunch")
+        snap("01-after-relaunch")
     }
 }

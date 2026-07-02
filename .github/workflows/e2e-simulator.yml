@@ -1,0 +1,186 @@
+# E2E Simulator — runs the XCUITest flows on an iOS Simulator (macOS runner),
+# exports step-by-step screenshots from the result bundle, and force-pushes
+# them to the `e2e-artifacts` branch (single commit, latest run only) so a
+# remote/Linux Claude Code session can fetch and inspect the actual screens.
+#
+# Uses NO secrets: tests run with --mock-ai, and Secrets.swift is stubbed with
+# empty keys. Safe to trigger from any branch.
+name: E2E Simulator
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/**"]
+    paths-ignore:
+      - "docs/**"
+      - "plans/**"
+      - "**.md"
+
+permissions:
+  contents: write # to push screenshots to the e2e-artifacts branch
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # Secrets.swift is gitignored but is a required compile input. The E2E
+      # tests run with --mock-ai, so empty keys are fine.
+      - name: Generate stub Secrets.swift
+        run: |
+          cat > SipCheck/Secrets.swift <<'EOF'
+          import Foundation
+
+          enum Secrets {
+              static let openAIAPIKey = ""
+              static let manusAPIKey = ""
+              static let geminiAPIKey = ""
+          }
+          EOF
+
+      - name: Pick and boot a simulator
+        id: sim
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          data = json.load(sys.stdin)["devices"]
+          candidates = []
+          for runtime, devices in data.items():
+              if "iOS" not in runtime:
+                  continue
+              # runtime looks like com.apple.CoreSimulator.SimRuntime.iOS-18-1
+              ver = tuple(int(p) for p in runtime.rsplit("iOS-", 1)[-1].split("-") if p.isdigit())
+              for d in devices:
+                  if d.get("isAvailable") and d["name"].startswith("iPhone"):
+                      candidates.append((ver, d["name"], d["udid"]))
+          candidates.sort()
+          if not candidates:
+              sys.exit("no available iPhone simulator found")
+          ver, name, udid = candidates[-1]
+          print(f"picked {name} (iOS {'.'.join(map(str, ver))}) {udid}", file=sys.stderr)
+          print(udid)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+
+      - name: Run E2E UI tests
+        id: tests
+        run: |
+          set +e
+          xcodebuild test \
+            -project SipCheck.xcodeproj \
+            -scheme SipCheck \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:SipCheckUITests \
+            -resultBundlePath TestResults/e2e.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            > xcodebuild-full.log 2>&1
+          STATUS=$?
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "=== Test summary lines ==="
+          grep -E "Test Suite|Test Case|Testing failed|error:|Executed" xcodebuild-full.log | tail -80
+          echo "=== xcodebuild exit code: $STATUS ==="
+          exit 0
+
+      - name: Export screenshots and summary from result bundle
+        if: always()
+        run: |
+          set +e
+          mkdir -p publish/screenshots
+
+          # Test-result summary (JSON) — best effort across xcresulttool versions
+          xcrun xcresulttool get test-results summary --path TestResults/e2e.xcresult \
+            > publish/summary.json 2>/dev/null \
+            || xcrun xcresulttool get --format json --path TestResults/e2e.xcresult \
+            > publish/summary.json 2>/dev/null
+
+          # Attachment export (screenshots). Try modern xcresulttool, fall back to xcparse.
+          xcrun xcresulttool export attachments \
+            --path TestResults/e2e.xcresult --output-path publish/screenshots 2>/dev/null
+          if [ -z "$(ls -A publish/screenshots 2>/dev/null)" ]; then
+            brew install chargepoint/xcparse/xcparse
+            xcparse screenshots --test TestResults/e2e.xcresult publish/screenshots
+          fi
+
+          # Give exported files human-readable names when a manifest exists
+          python3 - <<'PY'
+          import json, os, re, glob
+          root = "publish/screenshots"
+          manifests = glob.glob(os.path.join(root, "**", "manifest.json"), recursive=True)
+          for mpath in manifests:
+              with open(mpath) as f:
+                  manifest = json.load(f)
+              def walk(node, test_id=""):
+                  if isinstance(node, dict):
+                      tid = node.get("testIdentifier") or node.get("testName") or test_id
+                      exported = node.get("exportedFileName")
+                      suggested = node.get("suggestedHumanReadableName") or node.get("name")
+                      if exported and suggested:
+                          src = os.path.join(os.path.dirname(mpath), exported)
+                          safe_tid = re.sub(r"[^A-Za-z0-9._-]+", "_", str(tid))
+                          safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", str(suggested))
+                          ext = os.path.splitext(exported)[1] or ".png"
+                          dst = os.path.join(root, f"{safe_tid}__{safe_name}{ext}")
+                          if os.path.exists(src) and src != dst:
+                              os.replace(src, dst)
+                      for v in node.values():
+                          walk(v, tid)
+                  elif isinstance(node, list):
+                      for v in node:
+                          walk(v, test_id)
+              walk(manifest)
+          PY
+
+          tail -3000 xcodebuild-full.log > publish/xcodebuild-tail.log
+          {
+            echo "# E2E run ${GITHUB_RUN_NUMBER}"
+            echo "- commit: ${GITHUB_SHA}"
+            echo "- branch: ${GITHUB_REF_NAME}"
+            echo "- xcodebuild exit code: ${{ steps.tests.outputs.status }}"
+            echo "- run url: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo ""
+            echo "## Screenshots"
+            for f in publish/screenshots/*; do
+              [ -f "$f" ] && echo "- $(basename "$f")"
+            done
+          } > publish/SUMMARY.md
+          exit 0
+
+      - name: Publish results to e2e-artifacts branch
+        if: always()
+        run: |
+          cd publish
+          git init -b e2e-artifacts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "E2E run ${GITHUB_RUN_NUMBER} (${GITHUB_SHA}) exit=${{ steps.tests.outputs.status }}"
+          git push --force \
+            "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" \
+            e2e-artifacts
+
+      - name: Upload result bundle artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results
+          path: |
+            TestResults/e2e.xcresult
+            xcodebuild-full.log
+          retention-days: 7
+
+      - name: Report status
+        if: always()
+        run: exit ${{ steps.tests.outputs.status }}
