@@ -228,8 +228,10 @@ private struct RootView: View {
             localScans: scanStore.syncRecords,
             localJournals: journalStore.syncRecords
         )
-        await drinkStore.applyRemoteDrinks(result.drinks)
-        await scanStore.applyRemoteScans(result.scans)
-        await journalStore.applyRemoteEntries(result.journals)
+        // Same-actor calls (@MainActor to @MainActor) — awaiting them suspends
+        // nothing and only produced compiler warnings.
+        drinkStore.applyRemoteDrinks(result.drinks)
+        scanStore.applyRemoteScans(result.scans)
+        journalStore.applyRemoteEntries(result.journals)
     }
 }
