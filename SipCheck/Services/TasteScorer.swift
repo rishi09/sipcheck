@@ -59,12 +59,20 @@ enum TasteScorer {
         // A graphic label whose OCR only yields brewery + fantasy name carries no
         // taste information — pretending otherwise ("SKIP IT") is worse than
         // admitting it (locked constraint: verdict must work from style alone,
-        // and no signal must still yield a usable verdict).
+        // and no signal must still yield a usable verdict). A known ABV still
+        // contributes to the SCORE so menu ranking stays sane, but it can never
+        // fake a confident verdict on its own.
         guard let resolvedStyle = style ?? inferStyle(from: name) else {
+            var abvScore = 0.0
+            if let abv {
+                let idealABV = profile.averageABV ?? defaultIdealABV
+                let gap = abs(abv - idealABV)
+                abvScore = gap <= abvTolerance ? 0.5 : -min(maxABVPenalty, 0.5 * (gap - abvTolerance))
+            }
             return Assessment(
                 verdict: .yourCall,
                 shortReason: "we couldn't tell the style — trust your gut",
-                score: 0.0
+                score: abvScore
             )
         }
 
@@ -78,10 +86,10 @@ enum TasteScorer {
         let key = styleKey(resolvedStyle)
         if dislikedSet.contains(key) {
             score -= 5.0
-            reasons.append("you usually avoid \(resolvedStyle.displayName.lowercased())")
+            reasons.append("you usually avoid \(reasonName(resolvedStyle))")
         } else if let weight = likedWeights[key] {
             score += weight
-            reasons.append("matches your love of \(resolvedStyle.displayName.lowercased())")
+            reasons.append("matches your love of \(reasonName(resolvedStyle))")
         } else {
             // Known style, neither loved nor avoided.
             score += 0.2
@@ -217,6 +225,13 @@ enum TasteScorer {
     /// (e.g. `BeerStyle.ipa` -> "ipa", `.brownAle` -> "brown ale").
     private static func styleKey(_ style: BeerStyle) -> String {
         style.rawValue.lowercased()
+    }
+
+    /// Style name as it should read inside sentence-cased copy: acronyms stay
+    /// uppercase ("Matches your love of IPA."), words go lowercase.
+    private static func reasonName(_ style: BeerStyle) -> String {
+        let display = style.displayName
+        return display == display.uppercased() ? display : display.lowercased()
     }
 
     /// Build a `styleKey -> weight` map of liked styles.

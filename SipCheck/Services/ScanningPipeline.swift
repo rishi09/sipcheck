@@ -58,15 +58,26 @@ class ScanningPipeline {
     /// hard time budget. Returns nil offline, with no provider, over budget, on
     /// cancellation, or when the model produced nothing usable — the caller's
     /// on-device verdict simply stands unrefined.
-    func enrich(text: String, deviceVerdict: Verdict, budgetSeconds: Double = 5.0) async -> Enrichment? {
+    ///
+    /// Pass `image` when the OCR text is weak/guessed: if the text prompt can't
+    /// identify the beer, the same budget covers a vision extraction so graphic
+    /// labels with garbage OCR can still be named.
+    func enrich(text: String, image: UIImage? = nil, deviceVerdict: Verdict, budgetSeconds: Double = 5.0) async -> Enrichment? {
         if OpenAIService.useMockResponses {
+            // Verdict-aware so mock copy never argues with the on-device badge.
+            let copy: String
+            switch deviceVerdict {
+            case .tryIt: copy = "Based on your taste profile, this looks like a solid match. Give it a shot!"
+            case .skipIt: copy = "Not your usual lane — probably one to skip."
+            case .yourCall: copy = "Could go either way for you — trust your gut."
+            }
             return Enrichment(
                 name: nil,
                 brand: "Mock Brewery",
                 style: .ipa,
                 abv: 6.5,
                 origin: "Mock Brewery was founded in 2005 in Portland, Oregon.",
-                explanation: "Based on your taste profile, this looks like a solid match. Give it a shot!"
+                explanation: copy
             )
         }
         guard canEnrich else { return nil }
@@ -87,6 +98,21 @@ class ScanningPipeline {
                let raw = try? await OpenAIService.shared.complete(prompt: prompt),
                let parsed = Self.parseEnrichment(raw) {
                 return parsed
+            }
+            if Task.isCancelled { return nil }
+            // Text failed to identify anything; if the caller shared the frame,
+            // let the vision API read the graphic label directly.
+            if let image, !Config.openAIAPIKey.isEmpty,
+               let vision = try? await OpenAIService.shared.extractBeerInfo(from: image) {
+                let fromVision = Enrichment(
+                    name: vision.name,
+                    brand: vision.brand,
+                    style: vision.style,
+                    abv: nil,
+                    origin: vision.origin,
+                    explanation: nil
+                )
+                if !fromVision.isEmpty { return fromVision }
             }
             return nil
         }

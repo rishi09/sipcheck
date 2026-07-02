@@ -29,6 +29,15 @@ enum BeerMatcher {
         return nil
     }
 
+    /// Strict variant for "you've had this one" claims: exact normalized-name
+    /// equality only. The loose substring/fuzzy `findMatch` produces false
+    /// banners ("Voodoo" ≠ "Voodoo Ranger Juice Force").
+    static func exactMatch(for query: String, in drinks: [Drink]) -> Drink? {
+        let normalizedQuery = normalize(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+        return drinks.first { normalize($0.name) == normalizedQuery }
+    }
+
     /// Normalize a string for comparison
     private static func normalize(_ string: String) -> String {
         string

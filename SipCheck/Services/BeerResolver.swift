@@ -169,6 +169,19 @@ final class BundledCatalog: BeerCatalog {
         "ipa", "lager", "stout", "porter", "pale", "with", "series"
     ]
 
+    /// Style vocabulary that must never anchor a match by itself: typing
+    /// "blonde ale" describes a style, not the alphabetically-first blonde in
+    /// the catalog. These still count toward containment/overlap once a real
+    /// identity token anchors the candidate.
+    private static let styleWords: Set<String> = [
+        "blonde", "blond", "brown", "wheat", "amber", "hazy", "juicy", "golden",
+        "sour", "cream", "black", "india", "double", "imperial", "session",
+        "hoppy", "dark", "light", "red", "white", "extra", "special",
+        "pilsner", "pils", "kolsch", "hefeweizen", "witbier", "saison",
+        "tripel", "dubbel", "gose", "helles", "vienna", "oktoberfest",
+        "marzen", "bock", "dunkel", "belgian", "irish", "west", "coast"
+    ]
+
     /// Minimum score for a fuzzy candidate to count as a match at all.
     private static let matchThreshold: Double = 0.6
 
@@ -209,8 +222,13 @@ final class BundledCatalog: BeerCatalog {
         let q = BundledCatalog.normalize(name)
         guard !q.isEmpty else { return [] }
 
-        // 1. Exact normalized hit.
-        if let i = exactIndex[q] { return [resolved(entries[i], confidence: 1.0)] }
+        // 1. Exact normalized hit — but only when the name carries at least one
+        //    identity token. An entry literally named "Pale Ale" matching the
+        //    typed style phrase "pale ale" would silently adopt that one
+        //    brewery's ABV; style inference handles those honestly instead.
+        if let i = exactIndex[q], hasIdentityToken(tokenSets[i]) {
+            return [resolved(entries[i], confidence: 1.0)]
+        }
 
         // 2. Candidate generation via the token index (distinctive tokens only).
         let querySet = Set(q.split(separator: " ").map(String.init))
@@ -241,10 +259,23 @@ final class BundledCatalog: BeerCatalog {
     // MARK: - Scoring
 
     /// A token specific enough to anchor a match: not a generic beer word, not
-    /// trivially short, and not present in a huge slice of the catalog.
+    /// style vocabulary, not trivially short (digit-bearing tokens like "512"
+    /// count — they're brand identity), and not present in a huge slice of the
+    /// catalog.
     private func isDistinctive(_ token: String) -> Bool {
-        guard token.count >= 4, !BundledCatalog.genericWords.contains(token) else { return false }
+        guard !BundledCatalog.genericWords.contains(token),
+              !BundledCatalog.styleWords.contains(token) else { return false }
+        let longEnough = token.count >= 4 || (token.count >= 3 && token.contains(where: \.isNumber))
+        guard longEnough else { return false }
         return (tokenIndex[token]?.count ?? 0) <= 150
+    }
+
+    /// Does this token set contain anything beyond style/generic vocabulary?
+    /// ("Bud Light" → yes via "bud"; "Pale Ale" → no.)
+    private func hasIdentityToken(_ tokens: Set<String>) -> Bool {
+        tokens.contains {
+            !BundledCatalog.genericWords.contains($0) && !BundledCatalog.styleWords.contains($0)
+        }
     }
 
     private func score(query q: String, querySet: Set<String>, entry n: String, entrySet: Set<String>) -> Double {
@@ -271,8 +302,10 @@ final class BundledCatalog: BeerCatalog {
             let jaccard = Double(querySet.intersection(entrySet).count) / Double(union.count)
             if jaccard >= 0.5 { s = 0.45 + 0.4 * jaccard }
         }
-        // Typo tolerance on the whole string ("hazy little thnig").
-        if abs(q.count - n.count) <= 3, max(q.count, n.count) <= 40 {
+        // Typo tolerance on the whole string ("hazy little thnig"). The length
+        // gap scales with the entry name so a typed partial with a typo can
+        // still reach an entry that carries an extra suffix word.
+        if abs(q.count - n.count) <= max(3, n.count / 5), max(q.count, n.count) <= 40 {
             let sim = BeerMatcher.calculateSimilarity(q, n)
             if sim >= 0.8 { s = max(s, sim * 0.92) }
         }
