@@ -85,14 +85,23 @@ enum TasteScorer {
 
         let key = styleKey(resolvedStyle)
         if dislikedSet.contains(key) {
-            score -= 5.0
-            reasons.append("you usually avoid \(reasonName(resolvedStyle))")
+            if let weight = likedWeights[key], weight > 0 {
+                // Mixed evidence: liked it plenty, but something also says avoid.
+                // A single bad stout must not permanently veto a style the user
+                // has loved many times — net the signals instead.
+                score += weight - 3.0
+                reasons.append("mixed history with \(reasonName(resolvedStyle))")
+            } else {
+                score -= 5.0
+                reasons.append("you usually avoid \(reasonName(resolvedStyle))")
+            }
         } else if let weight = likedWeights[key] {
             score += weight
             reasons.append("matches your love of \(reasonName(resolvedStyle))")
         } else {
-            // Known style, neither loved nor avoided.
-            score += 0.2
+            // Known style, neither loved nor avoided — the quiz's adventurousness
+            // answer (previously collected and ignored) decides the nudge.
+            score += neutralStyleBonus(for: preferences.adventure)
         }
 
         // ---- ABV contribution ---------------------------------------------
@@ -257,7 +266,24 @@ enum TasteScorer {
             weights[key] = max(weights[key] ?? 0, 2.0)
         }
 
+        // Cold-start seed from the onboarding "beers you've had" picker —
+        // weaker than the explicit vibe, stronger than nothing, so scan #1 is
+        // personalized before any ratings exist.
+        for style in preferences.seedStyles {
+            let key = style.lowercased()
+            weights[key] = max(weights[key] ?? 0, 1.5)
+        }
+
         return weights
+    }
+
+    /// How much a known-but-unloved style scores, per the quiz's
+    /// "How adventurous?" answer.
+    private static func neutralStyleBonus(for adventure: String) -> Double {
+        let lower = adventure.lowercased()
+        if lower.contains("stick") { return 0.0 }   // Stick to Favorites
+        if lower.contains("weird") { return 0.8 }   // Give Me the Weird Stuff
+        return 0.2                                  // Mix It Up / unanswered
     }
 
     /// Build the set of disliked `styleKey`s from history + quiz dislikes.
@@ -294,8 +320,13 @@ enum TasteScorer {
         if lower.contains("crisp") || lower.contains("light") || lower.contains("refresh") {
             keys.formUnion(["lager", "pilsner"])
         }
-        if lower.contains("fruit") || lower.contains("sour") || lower.contains("tart") {
-            keys.formUnion(["sour", "wheat"])
+        // "Fruity & Easy" and "Sour & Weird" are different palates — fruity
+        // leans wheat/witbier territory, sour/weird leans sours and wild ales.
+        if lower.contains("sour") || lower.contains("tart") || lower.contains("weird") {
+            keys.formUnion(["sour"])
+        }
+        if lower.contains("fruit") || lower.contains("easy") {
+            keys.formUnion(["wheat"])
         }
         return keys
     }

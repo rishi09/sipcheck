@@ -4,13 +4,19 @@ struct TastePreferences {
     let vibe: String        // e.g. "Hoppy & Bitter"
     let adventure: String   // e.g. "Mix It Up"
     let dislikes: [String]  // e.g. ["Super Bitter", "Really Sour"]
+    /// Style rawValues seeded from the onboarding "beers you've had" picker —
+    /// the cold-start signal so scan #1 is personalized before any ratings.
+    /// Defaulted so existing 3-argument construction sites stay valid.
+    var seedStyles: [String] = []
 
     static var current: TastePreferences {
         let vibe = value(forKey: "tasteVibe")
         let adventure = value(forKey: "tasteAdventure")
         let dislikesStr = value(forKey: "tasteDislikes")
         let dislikes = dislikesStr.isEmpty ? [] : dislikesStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes)
+        let seedStr = value(forKey: "tasteSeedStyles")
+        let seedStyles = seedStr.isEmpty ? [] : seedStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes, seedStyles: seedStyles)
     }
 
     /// Test runs must be hermetic — mirror CloudKitSyncService's gate so the
@@ -45,6 +51,25 @@ struct TastePreferences {
     /// skipped quiz can't erase synced answers on other devices.
     static func save(vibe: String, adventure: String, dislikes: String) {
         let values = ["tasteVibe": vibe, "tasteAdventure": adventure, "tasteDislikes": dislikes]
+        for (key, value) in values {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        guard !cloudDisabled else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        for (key, value) in values where !value.isEmpty {
+            cloud.set(value, forKey: key)
+        }
+        cloud.synchronize()
+    }
+
+    /// Persist the onboarding "beers you've had" cold-start seed: the raw picks
+    /// (for future re-derivation) and the styles they resolve to (what the
+    /// scorer consumes). Same write-through-cloud policy as the quiz answers.
+    static func saveKnownBeers(_ beers: [String], seedStyles: [String]) {
+        let values = [
+            "knownBeers": beers.sorted().joined(separator: ","),
+            "tasteSeedStyles": seedStyles.sorted().joined(separator: ",")
+        ]
         for (key, value) in values {
             UserDefaults.standard.set(value, forKey: key)
         }

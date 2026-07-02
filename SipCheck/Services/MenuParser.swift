@@ -61,7 +61,10 @@ enum MenuParser {
             // Keep the line only if it shows real beer signal: an inferable
             // style, OR an explicit ABV, OR a price. A line with none of these
             // is almost certainly menu chrome ("Happy Hour", "Cheers!", etc.).
-            guard style != nil || abv != nil || hasPrice else { continue }
+            // A line that is NOTHING BUT style vocabulary ("IPAs", "Sours",
+            // "Belgian Ales") is a section header wearing a style — it would
+            // otherwise outrank real beers whose style matches the user less.
+            guard abv != nil || hasPrice || (style != nil && !isStyleOnlyName(name)) else { continue }
 
             candidates.append(
                 BeerCandidate(rawLine: line, name: name, style: style, abv: abv)
@@ -159,19 +162,61 @@ enum MenuParser {
         sectionRegex.firstMatch(in: line) != nil
     }
 
+    /// Style/menu vocabulary that, alone, marks a section header rather than a
+    /// beer name ("IPAs", "Dark Beers", "Local Drafts").
+    private static let styleHeaderWords: Set<String> = [
+        "ipa", "stout", "porter", "sour", "lager", "pilsner", "pils", "ale",
+        "wheat", "belgian", "amber", "brown", "pale", "hazy", "dark", "light",
+        "beer", "draft", "bottle", "can", "seasonal", "local", "craft",
+        "specialty", "premium", "domestic", "import", "rotating", "guest"
+    ]
+
+    /// True when every word of a short name is style/menu vocabulary
+    /// (plural-tolerant): "IPAs" → header; "Stone IPA" → beer.
+    private static func isStyleOnlyName(_ name: String) -> Bool {
+        let tokens = name.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+        guard !tokens.isEmpty, tokens.count <= 3 else { return false }
+        return tokens.allSatisfy { token in
+            let singular = token.hasSuffix("s") ? String(token.dropLast()) : token
+            return styleHeaderWords.contains(token) || styleHeaderWords.contains(singular)
+        }
+    }
+
     /// Plausible ABV range for a beer. Bounds reject menu chrome such as
     /// "Save 50% today" or "20% off" being misread as a beer's strength.
     private static let plausibleABV: ClosedRange<Double> = 0.5...20.0
 
+    /// Matches "ABV 5.6" / "ABV: 5.6" / "5.6 ABV" — menus that skip the % sign.
+    private static let abvKeywordRegex = makeRegex(
+        "(?:abv[:\\s]{1,3}(\\d{1,2}(?:\\.\\d)?)|(\\d{1,2}(?:\\.\\d)?)\\s{0,2}abv)"
+    )
+
     /// Extract the first *plausible* ABV percentage from a line, if present.
+    /// Scans ALL %-tokens (not just the first — "20% off … 5.6%" must find the
+    /// 5.6) and falls back to keyword forms with no % sign ("ABV: 5.6").
     static func extractABV(from line: String) -> Double? {
-        guard let match = abvRegex.firstMatch(
-            in: line, range: NSRange(line.startIndex..., in: line)
-        ) else { return nil }
-        guard let captureRange = Range(match.range(at: 1), in: line),
-              let value = Double(line[captureRange]),
-              plausibleABV.contains(value) else { return nil }
-        return value
+        let fullRange = NSRange(line.startIndex..., in: line)
+
+        for match in abvRegex.matches(in: line, options: [], range: fullRange) {
+            if let captureRange = Range(match.range(at: 1), in: line),
+               let value = Double(line[captureRange]),
+               plausibleABV.contains(value) {
+                return value
+            }
+        }
+
+        if let match = abvKeywordRegex.firstMatch(in: line, range: fullRange) {
+            for group in 1...2 {
+                if let captureRange = Range(match.range(at: group), in: line),
+                   let value = Double(line[captureRange]),
+                   plausibleABV.contains(value) {
+                    return value
+                }
+            }
+        }
+        return nil
     }
 
     /// Remove price / ABV / serving noise from a line and collapse whitespace.

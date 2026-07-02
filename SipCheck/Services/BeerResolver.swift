@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// A beer resolved to just the fields the verdict needs: style (+ optional ABV).
 struct ResolvedBeer: Equatable {
@@ -194,6 +195,13 @@ final class BundledCatalog: BeerCatalog {
             loaded = decoded
         } else {
             loaded = []
+        }
+        if loaded.isEmpty {
+            // Loud diagnostic, not a crash: the app still works (style
+            // inference + network), but every catalog miss in the field would
+            // otherwise be indistinguishable from a silently absent catalog.
+            Logger(subsystem: "com.rishishah.sipcheck", category: "catalog")
+                .error("catalog.json missing or undecodable in \(bundle.bundlePath, privacy: .public) — offline name matching disabled")
         }
         self.entries = loaded
         (self.normalizedNames, self.tokenSets, self.exactIndex, self.tokenIndex) =

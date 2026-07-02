@@ -202,11 +202,28 @@ private struct BeerPickerPage: View {
                 }
             }
         }
+        // Write-through on every tap: swiping to the next page (instead of
+        // tapping Next) used to silently discard all picks.
+        persistSelections()
+    }
+
+    /// Persist the picks AND the styles they resolve to — the seed the verdict
+    /// engine actually consumes. Resolution runs off-main (catalog decode).
+    private func persistSelections() {
+        let beers = Array(selectedBeers)
+        Task.detached(priority: .utility) {
+            let styles = Set(beers.compactMap { beer -> String? in
+                if let hit = BundledCatalog.shared.lookup(name: beer), let style = hit.style {
+                    return style.rawValue
+                }
+                return TasteScorer.inferStyle(from: beer)?.rawValue
+            })
+            TastePreferences.saveKnownBeers(beers, seedStyles: styles.sorted())
+        }
     }
 
     private func advance() {
-        let joined = selectedBeers.sorted().joined(separator: ",")
-        UserDefaults.standard.set(joined, forKey: "knownBeers")
+        persistSelections()
         withAnimation {
             currentPage = 4
         }
@@ -297,15 +314,36 @@ private struct TasteQuizPage: View {
             .padding(.horizontal, 24)
         }
         .tag(tag)
+        .onAppear {
+            restoreSavedAnswers()
+        }
+        .onChange(of: selectedVibe) { _, _ in persistAnswers() }
+        .onChange(of: selectedAdventure) { _, _ in persistAnswers() }
+        .onChange(of: selectedDislikes) { _, _ in persistAnswers() }
     }
 
-    private func saveAndContinue() {
-        // Write-through TastePreferences so quiz answers sync across devices.
+    /// Restore any previously saved answers so replaying onboarding (or a
+    /// reinstall with iCloud KVS answers) starts from what the user already
+    /// said — and so "Skip for now" can never erase real answers with blanks.
+    private func restoreSavedAnswers() {
+        let saved = TastePreferences.current
+        if selectedVibe == nil, !saved.vibe.isEmpty { selectedVibe = saved.vibe }
+        if selectedAdventure == nil, !saved.adventure.isEmpty { selectedAdventure = saved.adventure }
+        if selectedDislikes.isEmpty, !saved.dislikes.isEmpty { selectedDislikes = Set(saved.dislikes) }
+    }
+
+    /// Write-through on every selection change: quiz answers survive swiping
+    /// away mid-quiz, backgrounding, or skipping the final button.
+    private func persistAnswers() {
         TastePreferences.save(
             vibe: selectedVibe ?? "",
             adventure: selectedAdventure ?? "",
             dislikes: selectedDislikes.joined(separator: ",")
         )
+    }
+
+    private func saveAndContinue() {
+        persistAnswers()
         hasCompletedOnboarding = true
     }
 }

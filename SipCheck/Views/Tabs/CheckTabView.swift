@@ -4,7 +4,6 @@ import AVFoundation
 struct CheckTabView: View {
     @EnvironmentObject var scanStore: ScanStore
     @EnvironmentObject var drinkStore: DrinkStore
-    @EnvironmentObject private var journalStore: JournalStore
 
     /// The scan flow's single source of truth (SPEED_PLAN §2).
     ///
@@ -55,10 +54,6 @@ struct CheckTabView: View {
     @State private var scanTask: Task<Void, Never>?
     @State private var refineTask: Task<Void, Never>?
 
-    // Follow-up / add-beer plumbing
-    @State private var showingFollowUp = false
-    @State private var showingAddBeer = false
-    @State private var addBeerPrefill: AddBeerPrefill?
 
     // Scanning animation state
     @State private var spinnerDegrees: Double = 0
@@ -124,42 +119,6 @@ struct CheckTabView: View {
         }
         .sheet(isPresented: $showingTextEntry) {
             textEntrySheet
-        }
-        .sheet(isPresented: $showingFollowUp) {
-            if let scan = currentScan ?? scanStore.scans.first {
-                FollowUpView(
-                    scan: scan,
-                    onTried: { prefill in
-                        showingFollowUp = false
-                        addBeerPrefill = prefill
-                        showingAddBeer = true
-                    },
-                    onNotYet: {
-                        showingFollowUp = false
-                    },
-                    onNotGoing: {
-                        showingFollowUp = false
-                        if let scan = currentScan ?? scanStore.scans.first {
-                            var updated = scan
-                            updated.wantToTry = false
-                            scanStore.updateScan(updated)
-                        }
-                    }
-                )
-            }
-        }
-        .sheet(isPresented: $showingAddBeer) {
-            if let prefill = addBeerPrefill {
-                AddBeerView(prefill: prefill)
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            } else {
-                AddBeerView()
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            }
         }
         .alert("Camera Access Required", isPresented: $showingPermissionAlert) {
             Button("Open Settings") {
@@ -581,9 +540,9 @@ struct CheckTabView: View {
         )
 
         scanStore.addScan(outcome.scan)
-        // E2E handoff F5: never pop the OS permission dialog over a verdict —
-        // schedule only if already authorized; Save for Later owns the ask.
-        NotificationService.shared.scheduleFollowUpIfAuthorized(for: outcome.scan)
+        // Follow-up notifications are earned by Save for Later, not by merely
+        // looking: browsing eight beers in an aisle must not queue eight
+        // "Did you try X?" pushes for beers the user walked past.
 
         savedForLater = false
         let willRefine = !outcome.isMenu && ScanningPipeline.shared.canEnrich
@@ -627,9 +586,10 @@ struct CheckTabView: View {
                     if current.origin == nil, let origin = e.origin { current.origin = origin }
                     if let explanation = e.explanation { current.explanation = explanation }
                     scanStore.updateScan(current)
-                    if nameChanged {
+                    if nameChanged, current.wantToTry {
                         // Same identifier → replaces the pending follow-up, so the
-                        // notification names the corrected beer.
+                        // notification names the corrected beer. Only saved beers
+                        // have a follow-up pending to correct.
                         NotificationService.shared.scheduleFollowUpIfAuthorized(for: current)
                     }
                 }

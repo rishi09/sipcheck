@@ -19,12 +19,18 @@ struct TasteProfile {
         var dislikedStyleCounts: [String: Int] = [:]
         var abvSum: Double = 0
         var abvCount: Int = 0
+        var likedABVSum: Double = 0
+        var likedABVCount: Int = 0
 
         for drink in drinks {
             switch drink.rating {
             case .like:
                 profile.likedCount += 1
                 likedStyleCounts[drink.style, default: 0] += 1
+                if let abv = drink.abv {
+                    likedABVSum += abv
+                    likedABVCount += 1
+                }
             case .dislike:
                 profile.dislikedCount += 1
                 dislikedStyleCounts[drink.style, default: 0] += 1
@@ -46,7 +52,12 @@ struct TasteProfile {
             .sorted { $0.value > $1.value }
             .map { (style: $0.key, count: $0.value) }
 
-        if abvCount > 0 {
+        // "Ideal ABV" should anchor on beers the user LIKED — averaging in the
+        // 9% stout they hated drags the sweet spot toward beers they avoid.
+        // Fall back to all drinks only when nothing is rated liked yet.
+        if likedABVCount > 0 {
+            profile.averageABV = likedABVSum / Double(likedABVCount)
+        } else if abvCount > 0 {
             profile.averageABV = abvSum / Double(abvCount)
         }
 
