@@ -78,6 +78,15 @@ jobs:
           brew install cameroncooke/axe/axe
           axe --version || true
 
+      # NOT preinstalled on macos-15 runners (run 5 lost every recording to
+      # "ffprobe: No such file or directory").
+      - name: Install ffmpeg
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          command -v ffprobe >/dev/null 2>&1 || brew install ffmpeg
+          ffprobe -version | head -1
+
       - name: Pick and boot a simulator
         id: sim
         run: |

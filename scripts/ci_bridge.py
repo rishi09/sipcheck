@@ -366,10 +366,27 @@ class Bridge:
 
     def process_recording(self, rec, params, name):
         """rec.mp4 -> output dir with video, sampled frames, action bursts,
-        and motion.json (scene-change + frame-timing analysis)."""
+        and motion.json (scene-change + frame-timing analysis).
+
+        Degrades to mp4-only when ffmpeg/ffprobe are missing on the host —
+        the captured video is the irreplaceable part (run 5 lost all five
+        recordings to a missing ffprobe; the salvage path couldn't fire
+        because the mp4 had already been moved out of rec["path"])."""
         out = tempfile.mkdtemp(prefix="motion-out-")
         video = os.path.join(out, "rec.mp4")
         shutil.move(rec["path"], video)
+
+        if shutil.which("ffprobe") is None or shutil.which("ffmpeg") is None:
+            with open(os.path.join(out, "motion.json"), "w") as f:
+                json.dump({
+                    "name": name,
+                    "created_epoch": int(time.time()),
+                    "video": "rec.mp4",
+                    "marks": rec["marks"],
+                    "degraded": "ffmpeg/ffprobe unavailable — video only, no frames/analysis",
+                }, f, indent=1)
+            print(f"motion '{name}': ffmpeg missing — shipping mp4-only", flush=True)
+            return out
 
         info = {"width": None, "height": None, "duration": None}
         r = sh(["ffprobe", "-v", "error", "-print_format", "json",
