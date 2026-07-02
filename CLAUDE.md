@@ -12,9 +12,11 @@ channel — don't make the user shuttle context between chats.
    from / rebase onto latest `origin/main`. Merge small, merge often.
 2. Check the Active Tracks table below. Do NOT edit files reserved by another track.
    When you claim or finish an area, update this table in your own merge.
-3. Shared findings live in `plans/reports/` — read `SPEED_PLAN.md` and
-   `DESIGN_INSPIRATION.md` before fixing UX/performance issues so you don't
-   re-discover known bugs (a verified bug-audit report will join them).
+3. Shared findings live in `plans/reports/` — read `BUG_AUDIT.md` (57 verified
+   findings with fix status — check it BEFORE fixing anything), `SPEED_PLAN.md`,
+   `DESIGN_INSPIRATION.md`, and `E2E_FINDINGS.md` so you don't re-discover known
+   bugs. Findings marked 🔵 in BUG_AUDIT.md are recommended pickups for the
+   E2E/tactical track.
 4. Any `claude/*` branch push auto-builds to TestFlight (doc-only changes are excluded).
 
 **Active Tracks** (update when claiming/releasing):

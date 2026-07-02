@@ -371,7 +371,11 @@ actor OpenAIService {
         guard maxSide > maxDimension else { return image }
         let scale = maxDimension / maxSide
         let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: newSize)
+        // Force 1x rendering: the default format inherits the device's screen
+        // scale (3x), which made this "1024px max" upload an actual 3072px JPEG.
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
         return renderer.image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
     }
 

@@ -191,12 +191,18 @@ enum TasteScorer {
     ///
     /// The longest matching keyword across all styles wins, so "double ipa"
     /// beats "pale" and "imperial stout" beats a bare "stout". Input is
-    /// diacritic-folded so "Märzen"/"Kölsch" match their keywords.
+    /// diacritic-folded ("Märzen"/"Kölsch" match) and keywords match only at
+    /// word starts — raw substring matching classified "Grasshopper" as an IPA
+    /// via "hop" and "Nepal" as a pale ale via "pale". Word-start (not
+    /// whole-word) so "hoppy"/"hops" still signal IPA.
     static func inferStyle(from name: String) -> BeerStyle? {
-        let lower = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        let folded = name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US"))
+        let collapsed = folded.map { c -> Character in (c.isLetter || c.isNumber) ? c : " " }
+        let normalized = " " + String(collapsed).split(separator: " ").joined(separator: " ")
+
         var best: (style: BeerStyle, length: Int)?
         for entry in styleKeywords {
-            for keyword in entry.keywords where lower.contains(keyword) {
+            for keyword in entry.keywords where normalized.contains(" " + keyword) {
                 if best == nil || keyword.count > best!.length {
                     best = (entry.style, keyword.count)
                 }
