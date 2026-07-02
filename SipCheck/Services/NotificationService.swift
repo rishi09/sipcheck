@@ -74,8 +74,12 @@ class NotificationService: NSObject, ObservableObject {
     // MARK: - Schedule / Cancel
 
     /// Schedule a follow-up notification after a scan.
-    /// Skips SKIP IT verdicts. Uses 48h for TRY IT, 72h for YOUR CALL.
+    /// Only for beers the user explicitly saved (wantToTry) — browsing eight
+    /// beers in an aisle must never queue eight pushes. Enforced HERE so no
+    /// future call site can reintroduce the spam. Skips SKIP IT verdicts.
+    /// Uses 48h for TRY IT, 72h for YOUR CALL.
     func scheduleFollowUp(for scan: Scan) {
+        guard scan.wantToTry else { return }
         guard scan.verdict != .skipIt else { return }
 
         let delay: TimeInterval = scan.verdict == .tryIt ? 48 * 3600 : 72 * 3600
