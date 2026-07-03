@@ -14,8 +14,9 @@ channel — don't make the user shuttle context between chats.
    When you claim or finish an area, update this table in your own merge.
 3. Shared findings live in `plans/reports/` — read `BUG_AUDIT.md` (57 verified
    findings with fix status — check it BEFORE fixing anything), `SPEED_PLAN.md`,
-   `DESIGN_INSPIRATION.md`, and `E2E_FINDINGS.md` so you don't re-discover known
-   bugs. Findings marked 🔵 in BUG_AUDIT.md are recommended pickups for the
+   `DESIGN_INSPIRATION.md`, `FOUNDER_TASTE.md` (run every user-facing surface
+   through its litmus questions BEFORE building), and `E2E_FINDINGS.md` so you
+   don't re-discover known bugs. Findings marked 🔵 in BUG_AUDIT.md are recommended pickups for the
    E2E/tactical track.
 4. Any `claude/*` branch push auto-BUILDS (compile/sign gate only, doc/script changes excluded). Only merges to `main` (or a manual dispatch) UPLOAD to TestFlight — Apple caps uploads per app per day, so never trigger uploads for intermediate work.
 

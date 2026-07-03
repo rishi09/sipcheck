@@ -140,17 +140,24 @@ dump_ui "01_launch"
 # Check if we see onboarding or tab bar
 if ui_has_id "checkTab" || ui_has_label "Check"; then
   report "App launches to tab bar" "PASS"
-elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Never Waste a Sip" || ui_has_label "Continue"; then
+elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Never Waste a Sip" || ui_contains "Buy better beer" || ui_has_label "Continue"; then
   report "App launches to onboarding" "PASS" "(expected for first-time)"
-  # New onboarding flow (design spec §4.2): three story pages advance with
-  # "Continue", the beer picker skips with "Skip", and the taste quiz skips
-  # with its long quiet-button label ("Get Started"/"See My Picks" gate on
-  # selections, so Skip is the reliable path).
+  # Onboarding Lab flows: three story pages advance with "Continue", then the
+  # go-to picker (or control's legacy had-before picker) skips with "Skip".
+  # The default goToStayAway flow ends on the stay-away page, whose quiet
+  # "Nothing's off the table" completes onboarding. Control/plusVibe end on
+  # the taste quiz instead — its primary "See my picks" gates on selections,
+  # so the quiet skip is the reliable path.
   tap_label "Continue" 2
   tap_label "Continue" 2
   tap_label "Continue" 2
   tap_label "Skip" 2
-  tap_label "Skip — you can tune this later" 2
+  if ui_has_label "Nothing's off the table"; then
+    tap_label "Nothing's off the table" 2
+  fi
+  if ui_has_label "Skip — you can tune this later"; then
+    tap_label "Skip — you can tune this later" 2
+  fi
   screenshot "01b_after_onboarding"
 else
   report "App launches to recognizable screen" "FAIL" "Unknown launch state"
