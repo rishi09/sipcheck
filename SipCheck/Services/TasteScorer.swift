@@ -42,6 +42,15 @@ enum TasteScorer {
     /// carries a dislike signal. History weight caps at 3.0, so mixed evidence
     /// lands in [-2.0, 0.0] — never a confident TRY, never the full -5 veto.
     private static let mixedEvidenceOffset: Double = 3.0
+    /// Penalty for a style the user explicitly marked "stay away" during
+    /// onboarding. Slightly stronger than the quiz-dislike -5.0 because a
+    /// stay-away pick names the exact style, while quiz dislikes are fuzzy
+    /// phrases keyword-mapped onto styles — so on an all-bad menu the explicit
+    /// pick deterministically ranks last. Mixed evidence (rated LIKE history on
+    /// the same style) nets against the shared 3.0 `mixedEvidenceOffset`
+    /// instead, so real ratings can walk an over-broad seed back (e.g. "avoid
+    /// Bud Light" penalizing all lagers until liked lagers net it out).
+    private static let avoidSeedPenalty: Double = 5.5
     /// Neutral-style nudges per the quiz's "How adventurous?" answer.
     private static let neutralBonusCautious: Double = 0.0     // Stick to Favorites
     private static let neutralBonusDefault: Double = 0.2      // Mix It Up / unanswered
@@ -88,18 +97,22 @@ enum TasteScorer {
         // ---- Style contribution -------------------------------------------
         let likedWeights = likedStyleWeights(from: profile, preferences: preferences)
         let dislikedSet = dislikedStyleKeys(from: profile, preferences: preferences)
+        let avoidSet = avoidSeedStyleKeys(from: preferences)
 
         let key = styleKey(resolvedStyle)
-        if dislikedSet.contains(key) {
+        if avoidSet.contains(key) || dislikedSet.contains(key) {
             // Mixed evidence counts RATED history only: a vibe answer or a
             // "beers you've had" seed is not a like, and must not soften a
-            // repeatedly-thumbs-downed style.
+            // repeatedly-thumbs-downed (or explicitly avoided) style.
             if let liked = profile.favoriteStyles.first(where: { $0.style.lowercased() == key }) {
                 // A single bad stout must not permanently veto a style the user
                 // has loved many times — net the signals instead.
                 let weight = min(3.0, 1.0 + Double(liked.count - 1) * 0.5)
                 score += weight - mixedEvidenceOffset
                 reasons.append("mixed history with \(reasonName(resolvedStyle))")
+            } else if avoidSet.contains(key) {
+                score -= avoidSeedPenalty
+                reasons.append("you steer clear of \(reasonName(resolvedStyle))")
             } else {
                 score -= 5.0
                 reasons.append("you usually avoid \(reasonName(resolvedStyle))")
@@ -284,6 +297,15 @@ enum TasteScorer {
             weights[key] = max(weights[key] ?? 0, 2.0)
         }
 
+        // Explicit go-to style chips from onboarding fill the vibe slot at the
+        // same 2.0 weight — a direct "I buy this" answer is as strong as a
+        // vibe. (assess() checks the avoid set before liked weights, so a
+        // stay-away pick on the same style always beats this weight.)
+        for style in preferences.goToStyles {
+            let key = style.lowercased()
+            weights[key] = max(weights[key] ?? 0, 2.0)
+        }
+
         // Cold-start seed from the onboarding "beers you've had" picker —
         // weaker than the explicit vibe, stronger than nothing, so scan #1 is
         // personalized before any ratings exist.
@@ -322,6 +344,17 @@ enum TasteScorer {
         quizDislikes.subtract(vibeStyleKeys(from: preferences.vibe))
 
         return disliked.union(quizDislikes)
+    }
+
+    /// Build the set of avoid `styleKey`s from the onboarding stay-away seed.
+    ///
+    /// Deliberately SEPARATE from `dislikedStyleKeys` and never vibe-subtracted:
+    /// the vibe-subtraction exists because quiz dislikes are fuzzy phrases
+    /// keyword-mapped onto styles ("Super Bitter" incidentally hits every IPA),
+    /// but a stay-away pick names the exact style — a "Dark & Roasty" vibe must
+    /// not cancel an explicit "stay away from stouts".
+    private static func avoidSeedStyleKeys(from preferences: TastePreferences) -> Set<String> {
+        Set(preferences.avoidStyles.map { $0.lowercased() })
     }
 
     /// Map a free-text quiz "vibe" string to liked style keys.

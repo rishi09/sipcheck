@@ -16,6 +16,18 @@ struct TastePreferences {
     /// the cold-start signal so scan #1 is personalized before any ratings.
     /// Defaulted so existing 3-argument construction sites stay valid.
     var seedStyles: [String] = []
+    /// Style rawValues the user explicitly picked as go-to chips on the
+    /// onboarding go-to picker — a direct "I buy this" answer, scored at the
+    /// vibe weight. Defaulted so existing construction sites stay valid.
+    var goToStyles: [String] = []
+    /// Style rawValues the user explicitly marked "stay away" during onboarding
+    /// (picked directly, or resolved from an avoided beer name — "Guinness" →
+    /// Stout). This is a SEPARATE channel from `dislikes`: it is never unioned
+    /// into the quiz dislike keys and never vibe-subtracted, because a
+    /// stay-away pick names the exact style while quiz dislikes are fuzzy
+    /// phrases keyword-mapped onto styles. Defaulted so existing construction
+    /// sites stay valid.
+    var avoidStyles: [String] = []
 
     static var current: TastePreferences {
         let vibe = value(forKey: "tasteVibe")
@@ -24,12 +36,25 @@ struct TastePreferences {
         let dislikes = dislikesStr.isEmpty ? [] : dislikesStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         let seedStr = seedValue(forKey: "tasteSeedStyles")
         let seedStyles = seedStr.isEmpty ? [] : seedStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-        return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes, seedStyles: seedStyles)
+        let goToStr = seedValue(forKey: "tasteGoToStyles")
+        let goToStyles = goToStr.isEmpty ? [] : goToStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let avoidStr = seedValue(forKey: "tasteAvoidStyles")
+        let avoidStyles = avoidStr.isEmpty ? [] : avoidStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes, seedStyles: seedStyles, goToStyles: goToStyles, avoidStyles: avoidStyles)
     }
 
     /// The raw onboarding beer picks, for restoring the picker on replay.
     static var savedKnownBeers: [String] {
         let raw = seedValue(forKey: "knownBeers")
+        return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    /// The raw onboarding stay-away picks — a MIXED list of beer names and
+    /// style rawValues — for restoring the stay-away picker on replay and for
+    /// future re-derivation. The scorer never reads this; it consumes the
+    /// resolved styles in `avoidStyles` (key "tasteAvoidStyles").
+    static var savedAvoidBeers: [String] {
+        let raw = seedValue(forKey: "avoidBeers")
         return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
@@ -109,15 +134,77 @@ struct TastePreferences {
         cloud.synchronize()
     }
 
+    /// Persist the onboarding go-to picker: the raw beer picks, the styles they
+    /// resolve to, and the explicit go-to style chips. Same seed-save semantics
+    /// as `saveKnownBeers` — empties ARE pushed to the cloud, because clearing
+    /// a toggleable picker must propagate (see seedValue). Kept separate from
+    /// `saveKnownBeers` so the legacy (control) picker never blanks
+    /// "tasteGoToStyles" it doesn't know about.
+    static func saveGoTo(beers: [String], styleChips: [String], seedStyles: [String]) {
+        let values = [
+            "knownBeers": beers.sorted().joined(separator: ","),
+            "tasteSeedStyles": seedStyles.sorted().joined(separator: ","),
+            "tasteGoToStyles": styleChips.sorted().joined(separator: ",")
+        ]
+        for (key, value) in values {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        guard !cloudDisabled else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        for (key, value) in values {
+            cloud.set(value, forKey: key)
+        }
+        cloud.synchronize()
+    }
+
+    /// Persist the onboarding stay-away picker: the raw picks (beer names and
+    /// style rawValues, mixed — for restoring the picker and future
+    /// re-derivation) and the styles they resolve to (what the scorer's avoid
+    /// channel consumes). Seed-save semantics: empties ARE pushed to the
+    /// cloud — clearing the picker must propagate (see seedValue).
+    static func saveAvoidBeers(_ picks: [String], avoidStyles: [String]) {
+        let values = [
+            "avoidBeers": picks.sorted().joined(separator: ","),
+            "tasteAvoidStyles": avoidStyles.sorted().joined(separator: ",")
+        ]
+        for (key, value) in values {
+            UserDefaults.standard.set(value, forKey: key)
+        }
+        guard !cloudDisabled else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        for (key, value) in values {
+            cloud.set(value, forKey: key)
+        }
+        cloud.synchronize()
+    }
+
+    /// Persist ONLY the adventure answer (the go-to page's optional row)
+    /// without touching vibe/dislikes — routing through the 3-key save() would
+    /// blank a real vibe answer. Quiz-save semantics, not seed-save: local
+    /// always, cloud only when non-empty, so an unanswered row on one device
+    /// can't erase a synced answer elsewhere.
+    static func saveAdventure(_ value: String) {
+        UserDefaults.standard.set(value, forKey: "tasteAdventure")
+        guard !cloudDisabled, !value.isEmpty else { return }
+        let cloud = NSUbiquitousKeyValueStore.default
+        cloud.set(value, forKey: "tasteAdventure")
+        cloud.synchronize()
+    }
+
     var isEmpty: Bool { vibe.isEmpty && adventure.isEmpty }
 
     /// A compact natural-language summary for injection into prompts
     var promptSummary: String {
-        guard !isEmpty else { return "" }
+        // isEmpty (vibe/adventure) is deliberately unchanged for its other
+        // callers, but the default onboarding flow never asks the vibe quiz —
+        // go-to/stay-away picks alone must still reach the prompt.
+        guard !(isEmpty && goToStyles.isEmpty && avoidStyles.isEmpty) else { return "" }
         var parts: [String] = []
         if !vibe.isEmpty { parts.append("prefers \(vibe) beers") }
         if !adventure.isEmpty { parts.append("adventure level: \(adventure)") }
         if !dislikes.isEmpty { parts.append("dislikes: \(dislikes.joined(separator: ", "))") }
+        if !goToStyles.isEmpty { parts.append("go-to styles: \(goToStyles.joined(separator: ", "))") }
+        if !avoidStyles.isEmpty { parts.append("always stays away from: \(avoidStyles.joined(separator: ", "))") }
         return "User taste profile: " + parts.joined(separator: "; ") + "."
     }
 }
