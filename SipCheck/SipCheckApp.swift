@@ -83,8 +83,6 @@ private struct RootView: View {
     @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     @State private var followUpScan: Scan?
-    @State private var showingFollowUp = false
-    @State private var showingAddBeer = false
     @State private var addBeerPrefill: AddBeerPrefill?
     @Environment(\.scenePhase) private var scenePhase
     @State private var lastSyncAttempt: Date?
@@ -110,39 +108,36 @@ private struct RootView: View {
         .task {
             await performLaunchSync()
         }
-        .sheet(isPresented: $showingFollowUp) {
-            if let scan = followUpScan {
-                FollowUpView(
-                    scan: scan,
-                    onTried: { prefill in
-                        showingFollowUp = false
+        // item-driven, not isPresented + if-let: the same two-state race that
+        // blanked the Journal's want-to-try sheet applies here.
+        .sheet(item: $followUpScan) { scan in
+            FollowUpView(
+                scan: scan,
+                onTried: { prefill in
+                    followUpScan = nil
+                    // Momentary gap lets the follow-up sheet finish dismissing
+                    // before the add-beer sheet presents (same-transaction
+                    // dismiss+present drops the second sheet).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         addBeerPrefill = prefill
-                        showingAddBeer = true
-                    },
-                    onNotYet: {
-                        showingFollowUp = false
-                    },
-                    onNotGoing: {
-                        showingFollowUp = false
-                        var updated = scan
-                        updated.wantToTry = false
-                        scanStore.updateScan(updated)
                     }
-                )
-            }
+                },
+                onNotYet: {
+                    followUpScan = nil
+                },
+                onNotGoing: {
+                    followUpScan = nil
+                    var updated = scan
+                    updated.wantToTry = false
+                    scanStore.updateScan(updated)
+                }
+            )
         }
-        .sheet(isPresented: $showingAddBeer) {
-            if let prefill = addBeerPrefill {
-                AddBeerView(prefill: prefill)
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            } else {
-                AddBeerView()
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            }
+        .sheet(item: $addBeerPrefill) { prefill in
+            AddBeerView(prefill: prefill)
+                .environmentObject(drinkStore)
+                .environmentObject(journalStore)
+                .environmentObject(scanStore)
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
             guard let scanID = scanID else { return }
@@ -154,10 +149,9 @@ private struct RootView: View {
                 notificationService.pendingFollowUpScanID = nil
                 return
             }
-            // Find the scan in the store
+            // Find the scan in the store; setting the item presents the sheet.
             if let scan = scanStore.scans.first(where: { $0.id == scanID }) {
                 followUpScan = scan
-                showingFollowUp = true
             } else {
                 // The scan is gone (deleted here or on another device before
                 // the tombstone-cancel existed). Remove the orphaned pending

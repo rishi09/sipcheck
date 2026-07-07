@@ -133,9 +133,12 @@ enum MenuParser {
     }()
 
     /// Characters trimmed from the edges of a recovered beer name.
+    /// Includes list punctuation — "HAZY IPA, 6.5%" left a trailing comma
+    /// after noise-stripping and shipped "HAZY IPA," as the beer's name
+    /// (founder bug video 2026-07-07).
     private static let nameTrimSet: CharacterSet = {
         var set = CharacterSet.whitespaces
-        set.insert(charactersIn: ".-—|")
+        set.insert(charactersIn: ".-—|,;:•·")
         return set
     }()
 

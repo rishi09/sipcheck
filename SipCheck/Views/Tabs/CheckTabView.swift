@@ -709,6 +709,10 @@ struct CheckTabView: View {
     /// Choose what to show as the beer's name, and whether it's a guess that
     /// network refinement is allowed to replace. Trust is graded by catalog
     /// confidence — a 0.6 fuzzy hit must not permanently rename the scan.
+    /// Trailing list punctuation on a derived name ("HAZY IPA,") reads as a
+    /// bug everywhere the name renders — shed it from every non-catalog name.
+    private static let nameEdgeNoise = CharacterSet(charactersIn: " \t.,;:-—|•·")
+
     private static func displayName(fromText text: String, resolved: ResolvedBeer, path: String) -> (name: String, isGuess: Bool) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -722,7 +726,8 @@ struct CheckTabView: View {
         // No catalog hit. Typed input is the user's own words — trust it.
         // A single-line OCR read is still machine output, so it stays replaceable.
         if !trimmed.contains("\n") {
-            return (String(trimmed.prefix(60)), path == "image")
+            let cleaned = String(trimmed.prefix(60)).trimmingCharacters(in: nameEdgeNoise)
+            return (cleaned.isEmpty ? String(trimmed.prefix(60)) : cleaned, path == "image")
         }
 
         // Multi-line OCR blob (that didn't parse as a menu): best-guess the
@@ -731,7 +736,8 @@ struct CheckTabView: View {
             .components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .first { !$0.isEmpty } ?? trimmed
-        return (String(firstLine.prefix(60)), true)
+        let cleaned = String(firstLine.prefix(60)).trimmingCharacters(in: nameEdgeNoise)
+        return (cleaned.isEmpty ? String(firstLine.prefix(60)) : cleaned, true)
     }
 
     /// "matches your love of IPA" → "Matches your love of IPA."

@@ -14,7 +14,6 @@ struct JournalTabView: View {
     @State private var searchText = ""
     @State private var selectedFilter: JournalFilter = .all
     @State private var selectedWantToTryScan: Scan?
-    @State private var showingAddBeer = false
     @State private var selectedEntry: JournalEntry?
 
     private var filteredEntries: [JournalEntry] {
@@ -85,18 +84,19 @@ struct JournalTabView: View {
             JournalEntryDetailView(entry: entry, linkedVerdict: linkedVerdict(for: entry))
                 .environmentObject(journalStore)
         }
-        .sheet(isPresented: $showingAddBeer) {
-            if let scan = selectedWantToTryScan {
-                AddBeerView(prefill: AddBeerPrefill(
-                    name: scan.beerName,
-                    style: scan.style ?? BeerStyle.other.rawValue,
-                    abv: scan.abv,
-                    scanId: scan.id
-                ))
-                .environmentObject(drinkStore)
-                .environmentObject(journalStore)
-                .environmentObject(scanStore)
-            }
+        // item-driven, not isPresented + if-let: the two-state write raced the
+        // sheet's first render and presented a completely BLANK sheet (founder
+        // bug video 2026-07-07). sheet(item:) can't render without its scan.
+        .sheet(item: $selectedWantToTryScan) { scan in
+            AddBeerView(prefill: AddBeerPrefill(
+                name: scan.beerName,
+                style: scan.style ?? BeerStyle.other.rawValue,
+                abv: scan.abv,
+                scanId: scan.id
+            ))
+            .environmentObject(drinkStore)
+            .environmentObject(journalStore)
+            .environmentObject(scanStore)
         }
     }
 
@@ -183,7 +183,6 @@ struct JournalTabView: View {
                     ForEach(scanStore.wantToTryScans) { scan in
                         WantToTryCard(scan: scan) {
                             selectedWantToTryScan = scan
-                            showingAddBeer = true
                         }
                     }
                 }
