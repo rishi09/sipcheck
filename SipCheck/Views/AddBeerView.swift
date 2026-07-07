@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Pre-populated data for AddBeerView, typically sourced from a prior scan
-struct AddBeerPrefill {
+/// Pre-populated data for AddBeerView, typically sourced from a prior scan.
+/// Identifiable so presenters can use sheet(item:) — the isPresented + if-let
+/// pattern raced state writes and presented blank sheets.
+struct AddBeerPrefill: Identifiable {
+    let id = UUID()
     var name: String = ""
     var style: String = BeerStyle.other.rawValue
     var abv: Double? = nil

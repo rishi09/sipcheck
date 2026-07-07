@@ -83,7 +83,6 @@ private struct RootView: View {
     @AppStorage("hasConfirmedAge") private var hasConfirmedAge = false
 
     @State private var followUpScan: Scan?
-    @State private var showingAddBeer = false
     @State private var addBeerPrefill: AddBeerPrefill?
     @Environment(\.scenePhase) private var scenePhase
     @State private var lastSyncAttempt: Date?
@@ -116,8 +115,12 @@ private struct RootView: View {
                 scan: scan,
                 onTried: { prefill in
                     followUpScan = nil
-                    addBeerPrefill = prefill
-                    showingAddBeer = true
+                    // Momentary gap lets the follow-up sheet finish dismissing
+                    // before the add-beer sheet presents (same-transaction
+                    // dismiss+present drops the second sheet).
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        addBeerPrefill = prefill
+                    }
                 },
                 onNotYet: {
                     followUpScan = nil
@@ -130,18 +133,11 @@ private struct RootView: View {
                 }
             )
         }
-        .sheet(isPresented: $showingAddBeer) {
-            if let prefill = addBeerPrefill {
-                AddBeerView(prefill: prefill)
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            } else {
-                AddBeerView()
-                    .environmentObject(drinkStore)
-                    .environmentObject(journalStore)
-                    .environmentObject(scanStore)
-            }
+        .sheet(item: $addBeerPrefill) { prefill in
+            AddBeerView(prefill: prefill)
+                .environmentObject(drinkStore)
+                .environmentObject(journalStore)
+                .environmentObject(scanStore)
         }
         .onChange(of: notificationService.pendingFollowUpScanID) { _, scanID in
             guard let scanID = scanID else { return }

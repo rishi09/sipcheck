@@ -23,8 +23,13 @@ struct SettingsTabView: View {
     @State private var showResetOnboardingAlert = false
     @State private var showClearDataAlert = false
     @State private var showingTasteEditor = false
-    @State private var showingExportSheet = false
-    @State private var exportURL: URL?
+    /// Identifiable wrapper so the export uses sheet(item:) — isPresented +
+    /// if-let raced the URL write and could present a blank share sheet.
+    private struct ExportItem: Identifiable {
+        let url: URL
+        var id: String { url.absoluteString }
+    }
+    @State private var exportItem: ExportItem?
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -203,10 +208,8 @@ struct SettingsTabView: View {
             .sheet(isPresented: $showingTasteEditor) {
                 TastePreferencesEditorView()
             }
-            .sheet(isPresented: $showingExportSheet) {
-                if let url = exportURL {
-                    ShareSheet(activityItems: [url])
-                }
+            .sheet(item: $exportItem) { item in
+                ShareSheet(activityItems: [item.url])
             }
             // Onboarding Lab preview: fullScreenCover so the flow renders at real
             // geometry. onFinish dismisses the cover instead of flipping
@@ -231,8 +234,7 @@ struct SettingsTabView: View {
 
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.json")
         try? data.write(to: tempURL)
-        exportURL = tempURL
-        showingExportSheet = true
+        exportItem = ExportItem(url: tempURL)
     }
 
     private func exportAsCSV() {
@@ -248,8 +250,7 @@ struct SettingsTabView: View {
 
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.csv")
         try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
-        exportURL = tempURL
-        showingExportSheet = true
+        exportItem = ExportItem(url: tempURL)
     }
 }
 
