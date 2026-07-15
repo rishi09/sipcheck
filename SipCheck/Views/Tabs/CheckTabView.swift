@@ -10,9 +10,9 @@ struct CheckTabView: View {
     /// Legal transitions: idle → recognizing → verdict(refining: true|false),
     /// and verdict(refining: true) → verdict(refining: false). The network can
     /// never move the machine backwards — a refinement failure just flips
-    /// `refining` off and the on-device verdict stands. `.failed` is reachable
-    /// only from `.recognizing` (nothing readable in frame), never from
-    /// refinement.
+    /// `refining` off and the on-device verdict stands. New facts are re-scored
+    /// locally, so the model never supplies the personalized verdict. `.failed`
+    /// is reachable only from `.recognizing`, never from refinement.
     private enum ScanPhase: Equatable {
         case idle
         case recognizing
@@ -693,16 +693,16 @@ struct CheckTabView: View {
         preferences prefs: TastePreferences
     ) -> ScanOutcome {
         let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
-        let baseAssessment = TasteScorer.assess(
-            name: resolved.name,
+        let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
+        let assessment = TasteScorer.assessWithExactHistory(
+            name: name,
             style: resolved.style,
             abv: resolved.abv,
+            drinks: drinks,
             profile: profile,
-            preferences: prefs
+            preferences: prefs,
+            allowExactMatch: path == "text" || !nameIsGuess
         )
-        let exactRating = BeerMatcher.exactMatch(for: resolved.name, in: drinks)?.rating
-        let assessment = TasteScorer.applyingExactRating(exactRating, to: baseAssessment)
-        let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
 
         let scan = Scan(
             beerName: name,
@@ -761,9 +761,14 @@ struct CheckTabView: View {
 
         savedForLater = false
         menuRunnerUp = outcome.menuRunnerUp
-        let willRefine = !outcome.isMenu && (
-            ScanningPipeline.shared.canEnrichOnline
-                || (outcome.startedStyleless && OnDeviceBeerKnowledge.isAvailable)
+        let willRefine = EnrichmentPolicy.shouldStart(
+            nameIsGuess: outcome.nameIsGuess,
+            startedStyleless: outcome.startedStyleless,
+            isMenu: outcome.isMenu,
+            onDeviceAvailable: OnDeviceBeerKnowledge.isAvailable,
+            onlineAvailable: outcome.nameIsGuess
+                ? ScanningPipeline.shared.canEnrichVision
+                : ScanningPipeline.shared.canEnrichOnline
         )
         withAnimation { phase = .verdict(outcome.scan, refining: willRefine) }
         if willRefine {
@@ -791,8 +796,8 @@ struct CheckTabView: View {
         }
     }
 
-    /// Stage 2: bounded background enrichment. Patches blanks and upgrades the
-    /// explanation copy in place; the verdict and the phase kind never change.
+    /// Stage 2: bounded background enrichment. The provider supplies facts only;
+    /// those facts are re-scored locally before the visible scan is updated.
     private func startRefinement(for scan: Scan, text: String, outcome: ScanOutcome, image: UIImage?) {
         let nameIsGuess = outcome.nameIsGuess
         let startedStyleless = outcome.startedStyleless
@@ -803,7 +808,10 @@ struct CheckTabView: View {
             let sendImage = (nameIsGuess || text.count < 15) ? image : nil
             let enrichment = await ScanningPipeline.shared.enrich(
                 text: text,
+                candidateName: scan.beerName,
                 image: sendImage,
+                nameIsGuess: nameIsGuess,
+                startedStyleless: startedStyleless,
                 deviceVerdict: scan.verdict
             )
             if Task.isCancelled { return }
@@ -812,19 +820,39 @@ struct CheckTabView: View {
                 // Only patch the scan that's still on screen.
                 guard case .verdict(var current, _) = phase, current.id == scan.id else { return }
                 if let e = enrichment {
-                    var nameChanged = false
-                    if nameIsGuess, let name = e.name, name != current.beerName {
-                        current.beerName = name
-                        nameChanged = true
+                    let correctedName = nameIsGuess ? e.name : nil
+                    let nameChanged = correctedName != nil && correctedName != current.beerName
+                    if let correctedName {
+                        // Replace the guessed identity as one unit. Keeping a
+                        // stale catalog style/ABV beside a corrected name can
+                        // produce a confidently wrong recommendation.
+                        current.beerName = correctedName
+                        current.brand = e.brand
+                        current.style = e.style?.rawValue
+                        current.abv = e.abv
+                        current.origin = e.origin
+                    } else {
+                        if current.brand == nil, let brand = e.brand { current.brand = brand }
+                        if current.style == nil, let style = e.style { current.style = style.rawValue }
+                        if current.abv == nil, let abv = e.abv { current.abv = abv }
+                        if current.origin == nil, let origin = e.origin { current.origin = origin }
                     }
-                    if current.brand == nil, let brand = e.brand { current.brand = brand }
-                    // Facts and copy move together: never render "IPA · 6.5%"
-                    // above copy that still says "couldn't tell the style".
-                    let canPatchFacts = !startedStyleless || e.explanation != nil
-                    if canPatchFacts, current.style == nil, let style = e.style { current.style = style.rawValue }
-                    if canPatchFacts, current.abv == nil, let abv = e.abv { current.abv = abv }
-                    if current.origin == nil, let origin = e.origin { current.origin = origin }
-                    if let explanation = e.explanation { current.explanation = explanation }
+
+                    let resolvedStyle = current.style.flatMap { rawValue in
+                        BeerStyle.allCases.first {
+                            $0.rawValue.caseInsensitiveCompare(rawValue) == .orderedSame
+                        }
+                    }
+                    let assessment = TasteScorer.assessWithExactHistory(
+                        name: current.beerName,
+                        style: resolvedStyle,
+                        abv: current.abv,
+                        drinks: drinkStore.drinks,
+                        profile: TasteProfile.build(from: drinkStore.drinks),
+                        preferences: TastePreferences.current
+                    )
+                    current.verdict = assessment.verdict
+                    current.explanation = Self.sentenceCase(assessment.shortReason)
                     scanStore.updateScan(current)
                     if nameChanged, current.wantToTry {
                         // Same identifier → replaces the pending follow-up, so the

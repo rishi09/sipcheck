@@ -72,9 +72,9 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(porter.score, 2.0, accuracy: 0.0001)
     }
 
-    // MARK: - 3. Rated LIKE history nets the avoid seed to mixed evidence
+    // MARK: - 3. Stay-away remains a hard constraint
 
-    func testRatedLikeHistoryNetsAvoidSeedToMixed() {
+    func testRatedLikeHistoryDoesNotSoftenHardAvoidSeed() {
         var profile = TasteProfile()
         profile.favoriteStyles = [(style: "Stout", count: 5)]
 
@@ -85,11 +85,10 @@ final class TasteScorerSeedTests: XCTestCase {
             profile: profile,
             preferences: prefs(avoidStyles: ["Stout"])
         )
-        // Liked weight caps at 3.0; netted against the shared 3.0 offset -> 0.0.
-        XCTAssertEqual(assessment.score, 0.0, accuracy: 0.0001)
-        XCTAssertEqual(assessment.verdict, .yourCall)
+        XCTAssertEqual(assessment.score, -5.5, accuracy: 0.0001)
+        XCTAssertEqual(assessment.verdict, .skipIt)
         XCTAssertTrue(
-            assessment.shortReason.contains("mixed history with stout"),
+            assessment.shortReason.contains("you steer clear of stout"),
             "Got reason: \(assessment.shortReason)"
         )
     }
@@ -341,5 +340,241 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(TasteScorer.applyingExactRating(.dislike, to: base).verdict, .skipIt)
         XCTAssertEqual(TasteScorer.applyingExactRating(.neutral, to: base).verdict, .yourCall)
         XCTAssertEqual(TasteScorer.applyingExactRating(nil, to: base).verdict, base.verdict)
+    }
+
+    func testExactLikeCannotOverrideExplicitStayAwayStyle() {
+        let hardAvoid = TasteScorer.assess(
+            name: "Known Sour",
+            style: .sour,
+            abv: nil,
+            profile: TasteProfile(),
+            preferences: prefs(avoidStyles: [BeerStyle.sour.rawValue])
+        )
+
+        let result = TasteScorer.applyingExactRating(.like, to: hardAvoid)
+        XCTAssertEqual(result.verdict, .skipIt)
+        XCTAssertEqual(result.score, hardAvoid.score, accuracy: 0.0001)
+        XCTAssertTrue(result.shortReason.contains("steer clear"))
+    }
+
+    // MARK: - Behavioral persona stress tests
+
+    func testAddingPositiveRatingNeverLowersGoToRecommendation() {
+        let preferences = prefs(goToStyles: ["IPA"])
+        let before = TasteScorer.assess(
+            name: "House IPA", style: .ipa, abv: nil,
+            profile: TasteProfile(), preferences: preferences
+        )
+        let after = TasteScorer.assess(
+            name: "House IPA", style: .ipa, abv: nil,
+            profile: TasteProfile.build(from: [
+                Drink(name: "Liked IPA", style: "IPA", rating: .like)
+            ]),
+            preferences: preferences
+        )
+
+        XCTAssertEqual(before.verdict, .tryIt)
+        XCTAssertEqual(after.verdict, .tryIt)
+        XCTAssertGreaterThanOrEqual(after.score, before.score)
+    }
+
+    func testAddingDislikeNeverRaisesRecommendation() {
+        let before = TasteScorer.assess(
+            name: "House Porter", style: .porter, abv: nil,
+            profile: TasteProfile(), preferences: prefs()
+        )
+        let after = TasteScorer.assess(
+            name: "House Porter", style: .porter, abv: nil,
+            profile: TasteProfile.build(from: [
+                Drink(name: "Missed Porter", style: "Porter", rating: .dislike)
+            ]),
+            preferences: prefs()
+        )
+
+        XCTAssertLessThanOrEqual(after.score, before.score)
+        XCTAssertEqual(after.verdict, .skipIt)
+    }
+
+    func testAddingDislikeCannotSoftenQuizDislike() {
+        let preferences = prefs(dislikes: ["Really Sour"])
+        let before = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: nil,
+            profile: TasteProfile(), preferences: preferences
+        )
+        let drinks = [Drink(name: "Missed Sour", style: "Sour", rating: .dislike)]
+        let after = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: nil,
+            profile: TasteProfile.build(from: drinks), preferences: preferences
+        )
+
+        XCTAssertLessThanOrEqual(after.score, before.score)
+        XCTAssertEqual(after.verdict, .skipIt)
+    }
+
+    func testUntrustedNameCannotApplyExactHistoryOverride() {
+        let drinks = [Drink(name: "Centennial IPA", style: "IPA", rating: .like)]
+        let assessment = TasteScorer.assessWithExactHistory(
+            name: "Centennial IPA",
+            style: .paleAle,
+            abv: nil,
+            drinks: drinks,
+            profile: TasteProfile(),
+            preferences: prefs(),
+            allowExactMatch: false
+        )
+
+        XCTAssertEqual(assessment.verdict, .yourCall)
+        XCTAssertFalse(assessment.shortReason.contains("exact beer"))
+    }
+
+    func testOnboardingBeerConflictsUseResolvedStyle() {
+        XCTAssertTrue(TastePreferences.onboardingBeer("Bud Light", conflictsWith: ["Lager"]))
+        XCTAssertTrue(TastePreferences.onboardingBeer("Modelo", conflictsWith: ["Lager"]))
+        XCTAssertFalse(TastePreferences.onboardingBeer("Guinness", conflictsWith: ["Lager"]))
+    }
+
+    func testFamiliarityFirstLagerLoyalistTriesAdjacentPilsnerAndSkipsSour() {
+        let history = (0..<8).map { index in
+            Drink(name: "Light Lager \(index)", style: "Light Lager", rating: .like, abv: 4.2)
+        }
+        let profile = TasteProfile.build(from: history)
+        let preferences = prefs(
+            adventure: "Stick to Favorites",
+            goToStyles: [BeerStyle.lager.rawValue]
+        )
+
+        let craftPilsner = TasteScorer.assess(
+            name: "Craft Pilsner", style: .pilsner, abv: 4.8,
+            profile: profile, preferences: preferences
+        )
+        let fruitSour = TasteScorer.assess(
+            name: "Raspberry Sour", style: .sour, abv: 5.0,
+            profile: profile, preferences: preferences
+        )
+
+        XCTAssertEqual(craftPilsner.verdict, .tryIt)
+        XCTAssertEqual(fruitSour.verdict, .skipIt)
+        XCTAssertTrue(fruitSour.shortReason.contains("outside the styles"))
+    }
+
+    func testCautiousLightLagerLoyalistDoesNotTreatPaleAleAsAdjacent() {
+        let profile = TasteProfile.build(from: (0..<8).map { index in
+            Drink(name: "Light Lager \(index)", style: "Light Lager", rating: .like, abv: 4.2)
+        })
+        let assessment = TasteScorer.assess(
+            name: "Bitter American Pale Ale",
+            style: .paleAle,
+            abv: 5.5,
+            profile: profile,
+            preferences: prefs(
+                adventure: "Stick to Favorites",
+                goToStyles: [BeerStyle.lager.rawValue]
+            )
+        )
+
+        XCTAssertEqual(assessment.verdict, .skipIt)
+        XCTAssertTrue(assessment.shortReason.contains("outside the styles"))
+    }
+
+    func testNewlyResolvedSourReScoresUnknownVerdictForLagerLoyalist() {
+        let drinks = (0..<8).map { index in
+            Drink(name: "Light Lager \(index)", style: "Light Lager", rating: .like, abv: 4.2)
+        }
+        let profile = TasteProfile.build(from: drinks)
+        let preferences = prefs(
+            adventure: "Stick to Favorites",
+            goToStyles: [BeerStyle.lager.rawValue]
+        )
+
+        let initial = TasteScorer.assessWithExactHistory(
+            name: "Raspberry Eclipse",
+            style: nil,
+            abv: nil,
+            drinks: drinks,
+            profile: profile,
+            preferences: preferences
+        )
+        let enriched = TasteScorer.assessWithExactHistory(
+            name: "Raspberry Eclipse",
+            style: .sour,
+            abv: 5.0,
+            drinks: drinks,
+            profile: profile,
+            preferences: preferences
+        )
+
+        XCTAssertEqual(initial.verdict, .yourCall)
+        XCTAssertEqual(enriched.verdict, .skipIt)
+    }
+
+    func testDarkMaltRegularTriesPorterAndSkipsDistantStyles() {
+        let preferences = prefs(
+            adventure: "Stick to Favorites",
+            goToStyles: [BeerStyle.stout.rawValue],
+            avoidStyles: [BeerStyle.sour.rawValue]
+        )
+
+        let porter = TasteScorer.assess(
+            name: "Dock Porter", style: .porter, abv: nil,
+            profile: TasteProfile(), preferences: preferences
+        )
+        let ipa = TasteScorer.assess(
+            name: "West Coast IPA", style: .ipa, abv: nil,
+            profile: TasteProfile(), preferences: preferences
+        )
+        let sour = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: nil,
+            profile: TasteProfile(), preferences: preferences
+        )
+
+        XCTAssertEqual(porter.verdict, .tryIt)
+        XCTAssertEqual(ipa.verdict, .skipIt)
+        XCTAssertEqual(sour.verdict, .skipIt)
+    }
+
+    func testSourPreferenceIsIndependentFromGenericAdventure() {
+        let genericExplorer = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: 5.0,
+            profile: TasteProfile(),
+            preferences: prefs(adventure: "Give Me the Weird Stuff")
+        )
+        let sourSpecialist = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: 5.0,
+            profile: TasteProfile(),
+            preferences: prefs(
+                adventure: "Give Me the Weird Stuff",
+                goToStyles: [BeerStyle.sour.rawValue]
+            )
+        )
+
+        XCTAssertEqual(genericExplorer.verdict, .yourCall)
+        XCTAssertEqual(sourSpecialist.verdict, .tryIt)
+    }
+
+    func testSparseHistoryDoesNotCreateConfidentDistantStyleRejection() {
+        let profile = TasteProfile.build(from: [
+            Drink(name: "One Wheat", style: "Wheat", rating: .like, abv: 5.2)
+        ])
+        let assessment = TasteScorer.assess(
+            name: "House Sour", style: .sour, abv: 5.0,
+            profile: profile,
+            preferences: prefs(adventure: "Stick to Favorites")
+        )
+
+        XCTAssertEqual(assessment.verdict, .yourCall)
+    }
+
+    func testHistoricalStyleAliasesContributeToRecommendations() {
+        let profile = TasteProfile.build(from: [
+            Drink(name: "Light One", style: "Light Lager", rating: .like, abv: 4.2),
+            Drink(name: "Light Two", style: "Light Lager", rating: .like, abv: 4.4)
+        ])
+        let assessment = TasteScorer.assess(
+            name: "Crisp Lager", style: .lager, abv: 4.5,
+            profile: profile, preferences: prefs()
+        )
+
+        XCTAssertEqual(assessment.verdict, .tryIt)
+        XCTAssertTrue(assessment.shortReason.contains("matches your history"))
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UserNotifications
 
 @main
@@ -119,6 +120,7 @@ private struct RootView: View {
         .task {
             #if DEBUG
             await runDeviceSmokeTestIfRequested()
+            await runDeviceImageBatchTestIfRequested()
             #endif
             await performLaunchSync()
         }
@@ -277,6 +279,186 @@ private struct RootView: View {
             print("DEVICE_SMOKE model name=\(name) brand=\(brand) style=\(style) abv=\(abv)")
         } else {
             print("DEVICE_SMOKE model response=nil")
+        }
+    }
+
+    private struct DeviceImageBatchResult: Encodable {
+        let file: String
+        let ocrText: String
+        let ocrConfidence: Float
+        let localName: String
+        let localBrand: String?
+        let localStyle: String?
+        let localABV: Double?
+        let localSource: String
+        let catalogConfidence: Double?
+        let modelName: String?
+        let modelBrand: String?
+        let modelStyle: String?
+        let modelABV: Double?
+        let modelOrigin: String?
+        let onlineName: String?
+        let onlineBrand: String?
+        let onlineStyle: String?
+        let onlineOrigin: String?
+        let finalName: String
+        let finalStyle: String?
+        let elapsedMs: Int
+        let error: String?
+    }
+
+    /// Runs the real Vision + offline resolver stack over images copied into
+    /// Documents/ValidationSamples. Foundation Models may refine uncertain
+    /// names. Paid vision runs only when the explicit
+    /// `--device-image-batch-online` development flag is also present.
+    private func runDeviceImageBatchTestIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("--device-image-batch-test") else { return }
+        let includeOnlineVision = ProcessInfo.processInfo.arguments.contains("--device-image-batch-online")
+        let includeOnDeviceModel = ProcessInfo.processInfo.arguments.contains("--device-image-batch-model")
+
+        let fileManager = FileManager.default
+        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("DEVICE_BATCH error=documents-unavailable")
+            return
+        }
+        let samplesDirectory = documents.appendingPathComponent("ValidationSamples", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: samplesDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("DEVICE_BATCH error=samples-directory-unavailable description=\(error)")
+            return
+        }
+        let allowedExtensions = Set(["heic", "jpeg", "jpg", "png"])
+        let directorySampleURLs = ((try? fileManager.contentsOfDirectory(
+            at: samplesDirectory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? [])
+            .filter { allowedExtensions.contains($0.pathExtension.lowercased()) }
+        // Never fall back to arbitrary Documents images: online mode must only
+        // upload the deliberately prepared validation corpus.
+        let sampleURLs = directorySampleURLs
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+
+        guard !sampleURLs.isEmpty else {
+            print("DEVICE_BATCH error=no-images path=\(samplesDirectory.path)")
+            return
+        }
+
+        print("DEVICE_BATCH start count=\(sampleURLs.count) paidAPIs=\(includeOnlineVision)")
+        var results: [DeviceImageBatchResult] = []
+        results.reserveCapacity(sampleURLs.count)
+
+        for (index, url) in sampleURLs.enumerated() {
+            let startedAt = Date()
+            guard let image = UIImage(contentsOfFile: url.path) else {
+                results.append(
+                    DeviceImageBatchResult(
+                        file: url.lastPathComponent,
+                        ocrText: "",
+                        ocrConfidence: 0,
+                        localName: "",
+                        localBrand: nil,
+                        localStyle: nil,
+                        localABV: nil,
+                        localSource: ResolvedBeer.Source.unresolved.rawValue,
+                        catalogConfidence: nil,
+                        modelName: nil,
+                        modelBrand: nil,
+                        modelStyle: nil,
+                        modelABV: nil,
+                        modelOrigin: nil,
+                        onlineName: nil,
+                        onlineBrand: nil,
+                        onlineStyle: nil,
+                        onlineOrigin: nil,
+                        finalName: "",
+                        finalStyle: nil,
+                        elapsedMs: 0,
+                        error: "image-load-failed"
+                    )
+                )
+                continue
+            }
+
+            let ocr = await VisionOCRService.extractText(from: image)
+            let resolved = BeerResolver.resolve(recognizedText: ocr.text, using: BundledCatalog.shared)
+            let shouldUseModel = resolved.style == nil
+            let model = shouldUseModel && includeOnDeviceModel && !includeOnlineVision
+                ? await OnDeviceBeerKnowledge.enrich(
+                    text: ocr.text,
+                    candidateName: resolved.name,
+                    deviceVerdict: .yourCall
+                )
+                : nil
+            let online: OpenAIService.BeerExtractionResult?
+            if includeOnlineVision {
+                do {
+                    online = try await OpenAIService.shared.extractBeerInfo(
+                        from: image,
+                        ocrText: ocr.text,
+                        candidateName: resolved.name
+                    )
+                } catch {
+                    online = nil
+                    print("DEVICE_BATCH online-error file=\(url.lastPathComponent) description=\(error.localizedDescription)")
+                }
+            } else {
+                online = nil
+            }
+            let elapsedMs = Int(Date().timeIntervalSince(startedAt) * 1_000)
+            let finalName = online?.name ?? model?.name ?? resolved.name
+            let finalStyle = online?.style ?? model?.style ?? resolved.style
+
+            results.append(
+                DeviceImageBatchResult(
+                    file: url.lastPathComponent,
+                    ocrText: ocr.text,
+                    ocrConfidence: ocr.confidence,
+                    localName: resolved.name,
+                    localBrand: resolved.brewery,
+                    localStyle: resolved.style?.rawValue,
+                    localABV: resolved.abv,
+                    localSource: resolved.source.rawValue,
+                    catalogConfidence: resolved.confidence,
+                    modelName: model?.name,
+                    modelBrand: model?.brand,
+                    modelStyle: model?.style?.rawValue,
+                    modelABV: model?.abv,
+                    modelOrigin: model?.origin,
+                    onlineName: online?.name,
+                    onlineBrand: online?.brand,
+                    onlineStyle: online?.style?.rawValue,
+                    onlineOrigin: online?.origin,
+                    finalName: finalName,
+                    finalStyle: finalStyle?.rawValue,
+                    elapsedMs: elapsedMs,
+                    error: nil
+                )
+            )
+            let confidenceText = String(format: "%.2f", ocr.confidence)
+            let modelName = model?.name ?? "-"
+            let onlineName = online?.name ?? "-"
+            let styleName = finalStyle?.rawValue ?? "-"
+            print(
+                "DEVICE_BATCH item=\(index + 1)/\(sampleURLs.count) file=\(url.lastPathComponent) "
+                    + "ocr=\(confidenceText) local=\(resolved.name) "
+                    + "model=\(modelName) online=\(onlineName) final=\(finalName) style=\(styleName) "
+                    + "ms=\(elapsedMs)"
+            )
+        }
+
+        let reportName = includeOnlineVision
+            ? "device-image-batch-results-online.json"
+            : "device-image-batch-results.json"
+        let reportURL = documents.appendingPathComponent(reportName)
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(results).write(to: reportURL, options: .atomic)
+            print("DEVICE_BATCH complete count=\(results.count) report=\(reportURL.path)")
+        } catch {
+            print("DEVICE_BATCH error=report-write-failed description=\(error)")
         }
     }
     #endif

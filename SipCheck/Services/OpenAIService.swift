@@ -27,7 +27,11 @@ actor OpenAIService {
     }
 
     /// Extract beer information from an image using Vision API
-    func extractBeerInfo(from image: UIImage) async throws -> BeerExtractionResult {
+    func extractBeerInfo(
+        from image: UIImage,
+        ocrText: String? = nil,
+        candidateName: String? = nil
+    ) async throws -> BeerExtractionResult {
         if Self.useMockResponses {
             return BeerExtractionResult(name: "Mock IPA", brand: "Mock Brewery", style: .ipa, origin: "Mock Brewery was founded in 2005 in Portland, Oregon. They've been brewing bold IPAs ever since.")
         }
@@ -44,6 +48,8 @@ actor OpenAIService {
 
         let base64Image = imageData.base64EncodedString()
 
+        let ocrContext = ocrText.map { String($0.prefix(1_000)) } ?? "(none)"
+        let candidateContext = candidateName ?? "(none)"
         let requestBody: [String: Any] = [
             "model": "gpt-4o",
             "messages": [
@@ -53,15 +59,25 @@ actor OpenAIService {
                         [
                             "type": "text",
                             "text": """
-                            Analyze this beer label image. Extract the following information:
+                            Identify the primary beer shown in this image. The visual package
+                            is authoritative; OCR hints can be incomplete or wrong, especially
+                            for large logos, vertical lettering, glare, and background products.
+
+                            OCR-derived name candidate: \(candidateContext)
+                            OCR text:
+                            \(ocrContext)
+
+                            Extract the following information:
                             1. Beer name
                             2. Brewery/Brand name
                             3. Beer style (choose from: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other)
-                            4. A short origin story (1-2 sentences about the brewery's history or location — not flavor description)
+                            4. Country or city of origin, if visible or confidently known
 
                             Respond ONLY with a JSON object in this exact format:
-                            {"name": "beer name", "brand": "brewery name", "style": "style from list", "origin": "short story or null"}
+                            {"name": "beer name", "brand": "brewery name", "style": "style from list", "origin": "country or city or null"}
 
+                            Do not use shelf signs or neighboring products as the beer name.
+                            Words such as "hops" in ingredients do not mean the style is IPA.
                             If you cannot determine a field, use null for that field.
                             """
                         ],
@@ -74,7 +90,8 @@ actor OpenAIService {
                     ]
                 ]
             ],
-            "max_tokens": 300
+            "max_tokens": 140,
+            "temperature": 0
         ]
 
         let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
@@ -111,7 +128,8 @@ actor OpenAIService {
         let requestBody: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 300
+            "max_tokens": 120,
+            "temperature": 0
         ]
 
         let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
@@ -149,7 +167,8 @@ actor OpenAIService {
         let requestBody: [String: Any] = [
             "model": "gpt-4o-mini",
             "messages": [["role": "user", "content": prompt]],
-            "max_tokens": 300
+            "max_tokens": 120,
+            "temperature": 0
         ]
         let responseData = try await makeRequest(endpoint: "/chat/completions", body: requestBody)
         return try parseRecommendationResponse(responseData)

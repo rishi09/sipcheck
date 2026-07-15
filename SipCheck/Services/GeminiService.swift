@@ -181,6 +181,10 @@ class GeminiService: LLMProvider {
                         ["text": prompt]
                     ]
                 ]
+            ],
+            "generationConfig": [
+                "temperature": 0,
+                "maxOutputTokens": 120
             ]
         ]
 

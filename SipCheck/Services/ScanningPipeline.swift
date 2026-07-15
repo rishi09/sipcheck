@@ -21,9 +21,9 @@ struct ScanResult {
 
 // MARK: - Post-Verdict Enrichment
 
-/// Network-sourced extras for a verdict already on screen. There is no verdict
-/// field on purpose: the verdict is decided on-device and must never flip after
-/// it has rendered (locked constraint — the network refines, it never decides).
+/// Model-sourced beer facts for a verdict already on screen. There is no verdict
+/// field on purpose: after facts arrive, the app runs the deterministic local
+/// scorer again. The model resolves the beer; it never personalizes the answer.
 struct Enrichment {
     var name: String?
     var brand: String?
@@ -35,6 +35,20 @@ struct Enrichment {
     /// True when the model produced nothing usable.
     var isEmpty: Bool {
         name == nil && brand == nil && style == nil && abv == nil && origin == nil && explanation == nil
+    }
+
+    func addingLocalExplanation(for verdict: Verdict) -> Enrichment {
+        guard explanation == nil, let style else { return self }
+        var result = self
+        switch verdict {
+        case .tryIt:
+            result.explanation = "Looks like a \(style.displayName) — that lines up with your taste."
+        case .skipIt:
+            result.explanation = "Looks like a \(style.displayName), which is outside your usual lane."
+        case .yourCall:
+            result.explanation = "Looks like a \(style.displayName), but your history doesn't point strongly either way."
+        }
+        return result
     }
 }
 
@@ -78,13 +92,38 @@ enum OnDeviceBeerKnowledge {
         #endif
     }
 
-    static func enrich(text: String, deviceVerdict: Verdict) async -> Enrichment? {
+    static func enrich(text: String, candidateName: String? = nil, deviceVerdict: Verdict) async -> Enrichment? {
         #if canImport(FoundationModels)
         guard #available(iOS 26.0, *), isAvailable else { return nil }
-        return await FoundationModelBeerResolver.shared.enrich(text: text, verdict: deviceVerdict)
+        return await FoundationModelBeerResolver.shared.enrich(
+            text: text,
+            candidateName: candidateName,
+            verdict: deviceVerdict
+        )
         #else
         return nil
         #endif
+    }
+}
+
+/// Keeps optional model work proportional to uncertainty. A clean printed
+/// style or high-confidence catalog hit is already final and must not spend a
+/// paid request merely to decorate the card.
+enum EnrichmentPolicy {
+    static func shouldStart(
+        nameIsGuess: Bool,
+        startedStyleless: Bool,
+        isMenu: Bool,
+        onDeviceAvailable: Bool,
+        onlineAvailable: Bool
+    ) -> Bool {
+        guard !isMenu else { return false }
+        // Text-only Foundation Models proved unreliable for graphic-label OCR
+        // in physical tests. Guessed camera identities require an image-aware
+        // provider; trusted typed/catalog names can still use the free model.
+        if nameIsGuess { return onlineAvailable }
+        if startedStyleless { return onDeviceAvailable || onlineAvailable }
+        return false
     }
 }
 
@@ -93,52 +132,51 @@ enum OnDeviceBeerKnowledge {
 private actor FoundationModelBeerResolver {
     static let shared = FoundationModelBeerResolver()
 
-    private let session = LanguageModelSession(instructions: """
-        You identify beer from OCR text or a typed name. Return facts only when
-        reasonably confident. Never invent an ABV. The app's supplied verdict
-        is final; any explanation must support it without changing it.
-        """)
+    private static let instructions = """
+        You identify beer from OCR text or a typed name. Return only compact
+        facts when reasonably confident. OCR fragments can be wrong. Never
+        repeat gibberish as a beer name and never invent an ABV.
+        """
+    private let warmupSession = LanguageModelSession(instructions: instructions)
 
     func prewarm() {
-        session.prewarm()
+        warmupSession.prewarm()
     }
 
-    func enrich(text: String, verdict: Verdict) async -> Enrichment? {
-        let verdictText: String
-        switch verdict {
-        case .tryIt: verdictText = "TRY IT"
-        case .skipIt: verdictText = "SKIP IT"
-        case .yourCall: verdictText = "YOUR CALL"
-        }
-
+    func enrich(text: String, candidateName: String?, verdict: Verdict) async -> Enrichment? {
+        let candidateContext = candidateName.map {
+            "OCR-derived name candidate (possibly partial or wrong): \($0)\n"
+        } ?? ""
         let prompt = """
-            Label text or beer name:
+            \(candidateContext)OCR context:
             \(text)
 
-            The app already showed \(verdictText). Respond with only one JSON object:
-            {"name":"beer name or null","brand":"brewery or null","style":"IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other, or null","abv":5.5,"origin":"short brewery fact or null","explanation":"one short sentence consistent with \(verdictText) or null"}
-            Use null when uncertain. Do not add a verdict field or markdown.
+            Respond with only one compact JSON object:
+            {"name":"canonical beer name or null","brand":"brewery or null","style":"IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other, or null","abv":5.5,"origin":"country or city or null"}
+            Prefer an explicit printed style. Ingredient words such as "hops"
+            do not imply IPA. Use null when uncertain. Do not add an explanation,
+            markdown, or text outside the JSON.
             """
 
         do {
+            // LanguageModelSession keeps a transcript. A fresh session per
+            // lookup prevents a run of IPA scans from biasing the next beer.
+            let session = LanguageModelSession(instructions: Self.instructions)
             let response = try await session.respond(
                 to: prompt,
-                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 180)
+                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 120)
             )
-            guard var enrichment = ScanningPipeline.parseEnrichment(response.content) else { return nil }
-            if enrichment.explanation == nil, let style = enrichment.style {
-                let styleName = style.displayName
-                switch verdict {
-                case .tryIt:
-                    enrichment.explanation = "Looks like a \(styleName) — that lines up with your taste."
-                case .skipIt:
-                    enrichment.explanation = "Looks like a \(styleName), which is outside your usual lane."
-                case .yourCall:
-                    enrichment.explanation = "Looks like a \(styleName), but your history doesn't point strongly either way."
-                }
+            guard let enrichment = ScanningPipeline.parseEnrichment(response.content) else {
+                #if DEBUG
+                print("FOUNDATION_MODEL parse failed content=\(response.content)")
+                #endif
+                return nil
             }
-            return enrichment
+            return enrichment.addingLocalExplanation(for: verdict)
         } catch {
+            #if DEBUG
+            print("FOUNDATION_MODEL error type=\(type(of: error)) description=\(error)")
+            #endif
             return nil
         }
     }
@@ -168,6 +206,11 @@ class ScanningPipeline {
         return !Config.geminiAPIKey.isEmpty || !Config.openAIAPIKey.isEmpty
     }
 
+    var canEnrichVision: Bool {
+        if OpenAIService.useMockResponses { return true }
+        return NetworkMonitor.shared.isSatisfied && !Config.openAIAPIKey.isEmpty
+    }
+
     /// One merged network round trip (extraction + explanation copy) inside a
     /// hard time budget. Returns nil offline, with no provider, over budget, on
     /// cancellation, or when the model produced nothing usable — the caller's
@@ -176,7 +219,15 @@ class ScanningPipeline {
     /// Pass `image` when the OCR text is weak/guessed: if the text prompt can't
     /// identify the beer, the same budget covers a vision extraction so graphic
     /// labels with garbage OCR can still be named.
-    func enrich(text: String, image: UIImage? = nil, deviceVerdict: Verdict, budgetSeconds: Double = 5.0) async -> Enrichment? {
+    func enrich(
+        text: String,
+        candidateName: String? = nil,
+        image: UIImage? = nil,
+        nameIsGuess: Bool = false,
+        startedStyleless: Bool = false,
+        deviceVerdict: Verdict,
+        budgetSeconds: Double = 5.0
+    ) async -> Enrichment? {
         if OpenAIService.useMockResponses {
             // Verdict-aware so mock copy never argues with the on-device badge.
             let copy: String
@@ -195,19 +246,43 @@ class ScanningPipeline {
             )
         }
 
-        if let local = await OnDeviceBeerKnowledge.enrich(text: text, deviceVerdict: deviceVerdict) {
-            return local
+        // A guessed graphic label must be resolved visually. Physical tests
+        // showed that text-only Foundation Models confidently mislabeled
+        // Orion, Tusker, and Tyskie from OCR fragments. If visual resolution
+        // fails, preserve the honest instant verdict instead of accepting a
+        // partial text guess.
+        if nameIsGuess {
+            guard let image, canEnrichVision else { return nil }
+            let fromVision: Enrichment? = await Self.withTimeout(seconds: budgetSeconds) {
+                guard let vision = try? await OpenAIService.shared.extractBeerInfo(
+                    from: image,
+                    ocrText: text,
+                    candidateName: candidateName
+                ) else { return nil }
+                return Self.visualIdentityEnrichment(from: vision, verdict: deviceVerdict)
+            }
+            return fromVision
+        }
+
+        if startedStyleless {
+            if let local = await OnDeviceBeerKnowledge.enrich(
+                text: text,
+                candidateName: candidateName,
+                deviceVerdict: deviceVerdict
+            ), local.style != nil || local.abv != nil {
+                return local
+            }
         }
         guard canEnrichOnline else { return nil }
 
-        let prompt = Self.enrichmentPrompt(text: text, verdict: deviceVerdict)
+        let prompt = Self.enrichmentPrompt(text: text, candidateName: candidateName)
 
         return await Self.withTimeout(seconds: budgetSeconds) {
             // Gemini gets the first slice of the budget; OpenAI is the fallback.
             if !Config.geminiAPIKey.isEmpty {
                 let fromGemini: Enrichment? = await Self.withTimeout(seconds: min(3.0, budgetSeconds)) {
                     guard let raw = try? await GeminiService.shared.complete(prompt: prompt) else { return nil }
-                    return Self.parseEnrichment(raw)
+                    return Self.parseEnrichment(raw)?.addingLocalExplanation(for: deviceVerdict)
                 }
                 if let fromGemini { return fromGemini }
             }
@@ -215,13 +290,17 @@ class ScanningPipeline {
             if !Config.openAIAPIKey.isEmpty,
                let raw = try? await OpenAIService.shared.complete(prompt: prompt),
                let parsed = Self.parseEnrichment(raw) {
-                return parsed
+                return parsed.addingLocalExplanation(for: deviceVerdict)
             }
             if Task.isCancelled { return nil }
             // Text failed to identify anything; if the caller shared the frame,
             // let the vision API read the graphic label directly.
             if let image, !Config.openAIAPIKey.isEmpty,
-               let vision = try? await OpenAIService.shared.extractBeerInfo(from: image) {
+               let vision = try? await OpenAIService.shared.extractBeerInfo(
+                   from: image,
+                   ocrText: text,
+                   candidateName: candidateName
+               ) {
                 let fromVision = Enrichment(
                     name: vision.name,
                     brand: vision.brand,
@@ -230,33 +309,26 @@ class ScanningPipeline {
                     origin: vision.origin,
                     explanation: nil
                 )
-                if !fromVision.isEmpty { return fromVision }
+                if !fromVision.isEmpty { return fromVision.addingLocalExplanation(for: deviceVerdict) }
             }
             return nil
         }
     }
 
-    private static func enrichmentPrompt(text: String, verdict: Verdict) -> String {
-        let verdictText: String
-        switch verdict {
-        case .tryIt: verdictText = "TRY IT"
-        case .skipIt: verdictText = "SKIP IT"
-        case .yourCall: verdictText = "YOUR CALL"
-        }
-        let tasteContext = TastePreferences.current.promptSummary
-
+    private static func enrichmentPrompt(text: String, candidateName: String?) -> String {
+        let candidateContext = candidateName.map {
+            "OCR-derived name candidate (possibly partial or wrong): \($0)\n"
+        } ?? ""
         return """
-        You are a friendly beer expert. The app has already shown the user its verdict \
-        for this beer: \(verdictText) (decided on-device from their taste history). \
-        Do not contradict or change that verdict.
-
-        \(tasteContext.isEmpty ? "" : "\(tasteContext)\n\n")Beer (label text or typed name):
+        Identify this beer using compact facts only.
+        \(candidateContext)OCR context:
         \(text)
 
-        Extract facts and write copy. Respond ONLY with a JSON object exactly like:
-        {"name": "beer name or null", "brand": "brewery name or null", "style": "one of: IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other — or null", "abv": 5.5, "origin": "1-2 sentence brewery origin story or null", "explanation": "1-2 friendly sentences written directly to the user, consistent with the verdict \(verdictText)"}
-
-        Use null for anything you cannot determine. Do not include a verdict field.
+        Respond ONLY with one JSON object:
+        {"name":"canonical beer name or null","brand":"brewery or null","style":"IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other, or null","abv":5.5,"origin":"country or city or null"}
+        Prefer an explicit printed style. Ingredient words such as "hops" do
+        not imply IPA. Use null when uncertain. No explanation, markdown, or
+        text outside the JSON.
         """
     }
 
@@ -283,6 +355,24 @@ class ScanningPipeline {
         result.explanation = nonEmpty(parsed["explanation"] as? String)
 
         return result.isEmpty ? nil : result
+    }
+
+    /// A guessed camera label is corrected only when the visual provider can
+    /// actually name the package. Style-only partial responses are not enough
+    /// to replace an honest unresolved verdict.
+    static func visualIdentityEnrichment(
+        from vision: OpenAIService.BeerExtractionResult,
+        verdict: Verdict
+    ) -> Enrichment? {
+        guard let name = nonEmpty(vision.name) else { return nil }
+        return Enrichment(
+            name: name,
+            brand: vision.brand,
+            style: vision.style,
+            abv: nil,
+            origin: vision.origin,
+            explanation: nil
+        ).addingLocalExplanation(for: verdict)
     }
 
     private static func nonEmpty(_ s: String?) -> String? {

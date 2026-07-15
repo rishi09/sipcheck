@@ -86,9 +86,10 @@ overlap, blank frames, transition continuity, and text clipping. The simulator
 recorder did not produce 30 unique source frames each second, so the exports are
 30 fps CFR rather than evidence of device rendering cadence.
 
-**Still physical-device-only:** live camera ergonomics, DataScanner point-and-read,
-Apple Foundation Models availability/wording, and real aisle/menu lighting. These
-remain explicit device test items; they were not represented as simulator-verified.
+**Originally physical-device-only:** live camera ergonomics, DataScanner
+point-and-read, Apple Foundation Models availability/wording, and real aisle/menu
+lighting were not represented as simulator-verified. The continuation below records
+the later iPhone 15 Pro checks.
 
 ## Physical-device hardening follow-up (2026-07-15)
 
@@ -130,7 +131,34 @@ per second, so this is flow/transition evidence rather than a claim about device
 cadence. The contact sheet was inspected for missed taps, blank frames, clipping, and
 state continuity.
 
-**Physical-device result:** CoreDevice discovers the paired iPhone 15 Pro, but its
-network tunnel repeatedly times out before lock-state/install/launch. DataScanner and
-real Foundation Models output therefore remain explicitly unverified on hardware; the
-signed build, guards, simulator UI, pure helpers, and integration paths are verified.
+**Initial physical-device attempt:** CoreDevice discovered the paired iPhone 15 Pro,
+but its network tunnel repeatedly timed out before lock-state/install/launch. The
+device was subsequently unlocked, kept awake, and connected for the completed checks
+below.
+
+## Physical-device validation continuation (2026-07-15)
+
+**Branch:** `claude/codex-physical-validation`
+
+- Installed and launched the debug build on the iPhone 15 Pro (iOS 26.5.2).
+- DataScanner reported supported and available, recognized a real Bia Viet display,
+  and handed a 1.6 MB captured frame through the app's persistence path.
+- Foundation Models reported available. A compact, stateless facts prompt returned
+  `Guinness Draught Stout / Guinness / Stout`; the earlier shared session had leaked
+  prior IPA context, so enrichment now creates a fresh session for every lookup.
+- Ran 17 real photographs through Vision OCR plus the free resolver on-device. All
+  six owner grocery photos and 14/17 overall produced a style-level offline verdict.
+  Median processing time was 235 ms; 16/17 completed in 525 ms or less, with a
+  1,217 ms cold first scan.
+- Giant logos and multi-product displays confirmed that exact identity is a harder
+  problem than style extraction. Uncertain visual scans now route directly to the
+  optional image-aware OpenAI correction instead of accepting a text-only rename.
+- The final signed Debug build was installed and launched again after the
+  recommendation fixes. DataScanner remained supported/available, Foundation Models
+  remained available, and the device returned `Guinness Draught stout / Guinness /
+  Stout / 5.5%` from the compact facts prompt.
+- Final local verification: **112 unit/integration tests passed**, plus simulator
+  Release, generic iOS Release, and signed physical-device Debug builds.
+
+Detailed results and public-photo attribution are in
+`plans/reports/REAL_PHOTO_SCAN_VALIDATION.md`.

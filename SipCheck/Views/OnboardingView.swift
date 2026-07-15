@@ -550,14 +550,15 @@ private struct GoToPickerPage: View {
     // pages and fires their appearance early, so a stored snapshot would
     // freeze pre-answer state and the locks would never track real picks.
     private var lockedBeers: Set<String> {
-        Set(TastePreferences.savedAvoidBeers).intersection(Set(onboardingBeerOptions))
+        let exact = Set(TastePreferences.savedAvoidBeers).intersection(Set(onboardingBeerOptions))
+        let styles = TastePreferences.current.avoidStyles
+        let sameStyle = onboardingBeerOptions.filter {
+            TastePreferences.onboardingBeer($0, conflictsWith: styles)
+        }
+        return exact.union(sameStyle)
     }
-    /// Explicit stay-away style CHIPS only (the style rawValues inside the
-    /// mixed picks list) — beer-derived style collisions ("avoid Guinness" →
-    /// Stout) stay at the scorer level; the UI never locks a chip the user
-    /// didn't explicitly claim. Mirrors the stay-away page's lock source.
     private var lockedStyles: Set<BeerStyle> {
-        Set(TastePreferences.savedAvoidBeers.compactMap { BeerStyle(rawValue: $0) })
+        Set(TastePreferences.current.avoidStyles.compactMap { BeerStyle(rawValue: $0) })
     }
 
     private var title: String {
@@ -661,10 +662,13 @@ private struct GoToPickerPage: View {
     private func restoreSavedSelections() {
         let current = TastePreferences.current
         if selectedBeers.isEmpty {
-            selectedBeers = Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
+            selectedBeers = Set(TastePreferences.savedKnownBeers)
+                .intersection(Set(onboardingBeerOptions))
+                .subtracting(lockedBeers)
         }
         if selectedGoToStyles.isEmpty {
             selectedGoToStyles = Set(current.goToStyles.compactMap { BeerStyle(rawValue: $0) })
+                .subtracting(lockedStyles)
         }
         if selectedAdventure == nil, !current.adventure.isEmpty {
             selectedAdventure = current.adventure
@@ -758,7 +762,12 @@ private struct StayAwayPickerPage: View {
     // fires their appearance early — a stored snapshot would freeze the
     // pre-answer state and never reflect the go-to picks the user just made.
     private var lockedBeers: Set<String> {
-        Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
+        let exact = Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
+        let styles = TastePreferences.current.goToStyles
+        let sameStyle = onboardingBeerOptions.filter {
+            TastePreferences.onboardingBeer($0, conflictsWith: styles)
+        }
+        return exact.union(sameStyle)
     }
     private var lockedStyles: Set<BeerStyle> {
         Set(TastePreferences.current.goToStyles.compactMap { BeerStyle(rawValue: $0) })

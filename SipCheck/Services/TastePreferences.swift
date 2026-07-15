@@ -35,11 +35,17 @@ struct TastePreferences {
         let dislikesStr = value(forKey: "tasteDislikes")
         let dislikes = dislikesStr.isEmpty ? [] : dislikesStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         let seedStr = seedValue(forKey: "tasteSeedStyles")
-        let seedStyles = seedStr.isEmpty ? [] : seedStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let rawSeedStyles = seedStr.isEmpty ? [] : seedStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         let goToStr = seedValue(forKey: "tasteGoToStyles")
-        let goToStyles = goToStr.isEmpty ? [] : goToStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let rawGoToStyles = goToStr.isEmpty ? [] : goToStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
         let avoidStr = seedValue(forKey: "tasteAvoidStyles")
         let avoidStyles = avoidStr.isEmpty ? [] : avoidStr.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        // A legacy or cross-device race can leave the same style in both
+        // channels. The explicit hard avoid is authoritative until the user
+        // clears it, so contradictory positive seeds are ignored at read time.
+        let avoidKeys = Set(avoidStyles.map { $0.lowercased() })
+        let seedStyles = rawSeedStyles.filter { !avoidKeys.contains($0.lowercased()) }
+        let goToStyles = rawGoToStyles.filter { !avoidKeys.contains($0.lowercased()) }
         return TastePreferences(vibe: vibe, adventure: adventure, dislikes: dislikes, seedStyles: seedStyles, goToStyles: goToStyles, avoidStyles: avoidStyles)
     }
 
@@ -72,6 +78,13 @@ struct TastePreferences {
         case "sierra nevada": return .paleAle
         case "lagunitas", "hazy little thing", "dogfish head", "stone ipa", "goose island": return .ipa
         default: return nil
+        }
+    }
+
+    static func onboardingBeer(_ beer: String, conflictsWith styles: [String]) -> Bool {
+        guard let beerStyle = styleForOnboardingBeer(beer) else { return false }
+        return styles.contains {
+            $0.caseInsensitiveCompare(beerStyle.rawValue) == .orderedSame
         }
     }
 

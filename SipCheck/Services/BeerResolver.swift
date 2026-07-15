@@ -110,7 +110,7 @@ enum BeerResolver {
         let boilerplate = [
             "alc", "alcohol", "vol", "abv", "beer", "biere", "brew", "brewed",
             "craft", "draft", "ingredients", "bottled", "original", "product of",
-            "best before", "mfg", "batch", "serial", "warning", "drink and drive",
+            "best before", "mfg", "batch", "serial", "since", "warning", "drink and drive",
             "ml", "cl", "fl oz", "fluid ounce", "imported", "distributed", "pride of"
         ]
 
@@ -128,18 +128,35 @@ enum BeerResolver {
             "ale", "amber ale", "beer", "brown ale", "ipa", "lager",
             "pale ale", "pilsner", "porter", "sour", "stout", "wheat beer"
         ]
+        let styleDescriptorWords: Set<String> = [
+            "ale", "amber", "american", "belgian", "black", "blonde", "brown",
+            "cream", "double", "draft", "dry", "hazy", "hefeweizen", "helles",
+            "imperial", "india", "ipa", "lager", "neipa", "pale", "pils",
+            "pilsner", "porter", "red", "saison", "session", "sour", "stout",
+            "wheat", "white", "wild"
+        ]
+        let legalCopyPrefixes = [
+            "pride of", "product of", "brewed in", "made in", "imported from"
+        ]
 
         let candidates = lines.enumerated().compactMap { index, line -> (String, Int, Int)? in
             let lower = line.lowercased()
             let letterCount = line.unicodeScalars.count(where: CharacterSet.letters.contains)
             let digitCount = line.unicodeScalars.count(where: CharacterSet.decimalDigits.contains)
             let words = line.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            let previousLine = index > 0 ? identityKeys[index - 1] : ""
+            let continuesLegalCopy = legalCopyPrefixes.contains { previousLine.hasSuffix($0) }
+            let normalizedWords = Set(identityKeys[index].split(separator: " ").map(String.init))
+            let isGenericStyleDescriptor = !normalizedWords.isEmpty
+                && normalizedWords.isSubset(of: styleDescriptorWords)
 
             guard letterCount >= 4,
                   digitCount == 0,
                   words.count <= 5,
                   line.count <= 42,
                   !styleOnlyLines.contains(identityKeys[index]),
+                  !isGenericStyleDescriptor,
+                  !continuesLegalCopy,
                   !boilerplate.contains(where: lower.contains) else { return nil }
 
             // Short, punctuation-free display lines are usually the large
@@ -148,6 +165,13 @@ enum BeerResolver {
             if line.rangeOfCharacter(from: .punctuationCharacters) == nil { score += 3 }
             if line == line.uppercased() || line == line.capitalized { score += 1 }
             score += max(0, (frequencies[identityKeys[index]] ?? 1) - 1) * 8
+            // A graphic beer name is commonly followed by a descriptor and
+            // then the printed style. Favor that local cluster over unrelated
+            // neck/legal copy elsewhere in the frame.
+            let nearbyStyle = identityKeys.indices.contains { styleIndex in
+                styleOnlyLines.contains(identityKeys[styleIndex]) && abs(styleIndex - index) <= 3
+            }
+            if nearbyStyle { score += 4 }
             return (line, score, index)
         }
 
@@ -367,9 +391,14 @@ final class BundledCatalog: BeerCatalog {
         if querySet.count >= 2, hasDistinctiveOverlap, querySet.isSubset(of: entrySet) {
             return 0.85
         }
-        // Single long specific token ("boatswain") on either side.
+        // Single long specific token ("boatswain") on either side. Numeric
+        // identity marks such as Firestone Walker's "805" are equally
+        // distinctive and common on oversized package fronts.
         if querySet.count == 1, let t = querySet.first, t.count >= 7, entrySet.contains(t) { return 0.62 }
-        if entrySet.count == 1, let t = entrySet.first, t.count >= 7, querySet.contains(t) { return 0.62 }
+        if entrySet.count == 1, let t = entrySet.first, querySet.contains(t) {
+            if t.count >= 7 { return 0.62 }
+            if t.count >= 3, t.contains(where: \.isNumber) { return 0.95 }
+        }
 
         var s = 0.0
         let union = querySet.union(entrySet)

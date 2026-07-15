@@ -95,6 +95,31 @@ jobs:
           EOF
           echo "Wrote SipCheck/Secrets.swift (openAI set: $([ -n "$OPENAI_API_KEY" ] && echo yes || echo no), gemini set: $([ -n "$GEMINI_API_KEY" ] && echo yes || echo no))"
 
+      # A non-empty but expired/revoked key otherwise looks configured in-app
+      # and every ambiguous scan attempts a doomed fallback. This endpoint does
+      # not generate model output or spend tokens; keep the API optional by
+      # warning instead of failing the signed-build gate.
+      - name: Validate optional OpenAI key
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "OpenAI fallback is not configured; on-device resolution remains available."
+            exit 0
+          fi
+          if ! STATUS=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --connect-timeout 10 --max-time 20 \
+            https://api.openai.com/v1/models \
+            --header "Authorization: Bearer ${OPENAI_API_KEY}"); then
+            echo "::warning::OpenAI credential check could not reach the API; continuing because fallback is optional."
+            exit 0
+          fi
+          if [ "$STATUS" = "200" ]; then
+            echo "OpenAI fallback credential authenticated."
+          else
+            echo "::warning::OpenAI fallback credential was rejected (HTTP ${STATUS}); refresh the OPENAI_API_KEY repository secret."
+          fi
+
       - name: Build and upload to TestFlight
         env:
           # Apple caps TestFlight uploads per app per day. Branch pushes are a

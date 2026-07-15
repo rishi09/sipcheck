@@ -41,13 +41,14 @@ enum VisionOCRService {
             return ("", 0.0)
         }
 
-        // Normal labels take the fast path. Accurate recognition remains a
-        // fallback for glare/stylized type instead of adding seconds to every
-        // grocery-aisle scan.
+        // Normal labels take the fast path. Real grocery photos showed that
+        // Vision's fast confidence can sit around 0.4-0.6 while a stylized
+        // logo is still badly fragmented, so reserve that result for genuinely
+        // clear frames and repair the rest with accurate recognition.
         let fast = await Task.detached(priority: .userInitiated) {
             recognize(cgImage, level: .fast)
         }.value
-        if fast.confidence >= 0.35, fast.text.rangeOfCharacter(from: .letters) != nil {
+        if fast.confidence >= 0.65, fast.text.rangeOfCharacter(from: .letters) != nil {
             return fast
         }
 

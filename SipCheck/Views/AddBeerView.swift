@@ -38,6 +38,28 @@ struct AddBeerView: View {
     @State private var errorMessage: String?
     @State private var isSaving = false
     @State private var isRestoringPhoto = false
+    @State private var imageProcessingGeneration = 0
+    @State private var imageProcessingTask: Task<Void, Never>?
+    @State private var imageOwnedFields: ImageOwnedFields?
+
+    private struct ImageOwnedFields {
+        var name: String?
+        var brand: String?
+        var style: String?
+        var abvText: String?
+    }
+
+    private struct RefinementBaseline {
+        let name: String
+        let brand: String
+        let style: String
+        let abvText: String
+        let mayUpdateName: Bool
+        let mayUpdateBrand: Bool
+        let mayUpdateStyle: Bool
+        let mayUpdateABV: Bool
+        let ownedFields: ImageOwnedFields
+    }
 
     init(prefill: AddBeerPrefill? = nil) {
         self.prefill = prefill
@@ -69,6 +91,8 @@ struct AddBeerView: View {
                         }
 
                         Button("Retake Photo", role: .destructive) {
+                            cancelImageProcessing()
+                            clearImageOwnedFields()
                             capturedImage = nil
                         }
                     } else {
@@ -156,6 +180,9 @@ struct AddBeerView: View {
                     } else {
                         processImage(image)
                     }
+                } else if newValue == nil, oldValue != nil {
+                    cancelImageProcessing()
+                    clearImageOwnedFields()
                 }
             }
             .onAppear {
@@ -167,18 +194,24 @@ struct AddBeerView: View {
                     restorePersistedPhotoIfNeeded(prefill)
                 }
             }
+            .onDisappear { cancelImageProcessing() }
         }
     }
 
     private func processImage(_ image: UIImage) {
+        imageProcessingTask?.cancel()
+        imageProcessingGeneration += 1
+        let generation = imageProcessingGeneration
         isProcessingImage = true
         errorMessage = nil
 
-        Task {
+        imageProcessingTask = Task {
             let ocr = await VisionOCRService.extractText(from: image)
+            guard !Task.isCancelled else { return }
             let text = ocr.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else {
                 await MainActor.run {
+                    guard generation == imageProcessingGeneration else { return }
                     errorMessage = "Could not read the label."
                     isProcessingImage = false
                 }
@@ -188,43 +221,131 @@ struct AddBeerView: View {
             // Populate from OCR + the bundled catalog immediately. Logging a
             // beer must never wait for a remote verdict request.
             let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
-            let firstLine = text.components(separatedBy: .newlines)
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .first { !$0.isEmpty } ?? text
-            let resolvedName = resolved.confidence != nil ? resolved.name : firstLine
+            let resolvedName = resolved.name
+            let nameIsGuess = resolved.confidence.map { $0 < 0.9 } ?? true
 
-            await MainActor.run {
-                if name.isEmpty { name = String(resolvedName.prefix(80)) }
-                if brand.isEmpty, let brewery = resolved.brewery { brand = brewery }
-                if style == BeerStyle.other.rawValue, let foundStyle = resolved.style {
+            let baseline: RefinementBaseline? = await MainActor.run {
+                guard generation == imageProcessingGeneration else { return nil }
+                let mayUpdateName = name.isEmpty
+                let mayUpdateBrand = brand.isEmpty
+                let mayUpdateStyle = style == BeerStyle.other.rawValue
+                let mayUpdateABV = abvText.isEmpty
+                var ownedFields = ImageOwnedFields()
+                if mayUpdateName {
+                    name = String(resolvedName.prefix(80))
+                    ownedFields.name = name
+                }
+                if mayUpdateBrand, let brewery = resolved.brewery {
+                    brand = brewery
+                    ownedFields.brand = brand
+                }
+                if mayUpdateStyle, let foundStyle = resolved.style {
                     style = foundStyle.rawValue
+                    ownedFields.style = style
                 }
-                if abvText.isEmpty, let foundABV = resolved.abv {
+                if mayUpdateABV, let foundABV = resolved.abv {
                     abvText = String(format: "%.1f", foundABV)
+                    ownedFields.abvText = abvText
                 }
+                imageOwnedFields = ownedFields
                 isProcessingImage = false
+                return RefinementBaseline(
+                    name: name,
+                    brand: brand,
+                    style: style,
+                    abvText: abvText,
+                    mayUpdateName: mayUpdateName,
+                    mayUpdateBrand: mayUpdateBrand,
+                    mayUpdateStyle: mayUpdateStyle,
+                    mayUpdateABV: mayUpdateABV,
+                    ownedFields: ownedFields
+                )
             }
+            guard let baseline, !Task.isCancelled else { return }
 
             // Optional bounded refinement fills remaining blanks in place.
-            guard ScanningPipeline.shared.canEnrich,
-                  BeerResolver.shouldEnrich(resolved),
+            guard EnrichmentPolicy.shouldStart(
+                    nameIsGuess: nameIsGuess,
+                    startedStyleless: resolved.style == nil,
+                    isMenu: false,
+                    onDeviceAvailable: OnDeviceBeerKnowledge.isAvailable,
+                    onlineAvailable: nameIsGuess
+                        ? ScanningPipeline.shared.canEnrichVision
+                        : ScanningPipeline.shared.canEnrichOnline
+                  ),
                   let enrichment = await ScanningPipeline.shared.enrich(
                     text: text,
+                    candidateName: resolvedName,
                     image: image,
+                    nameIsGuess: nameIsGuess,
+                    startedStyleless: resolved.style == nil,
                     deviceVerdict: .yourCall
                   ) else { return }
+            guard !Task.isCancelled else { return }
 
             await MainActor.run {
-                if name == resolvedName, let betterName = enrichment.name { name = betterName }
-                if brand.isEmpty, let betterBrand = enrichment.brand { brand = betterBrand }
-                if style == BeerStyle.other.rawValue, let betterStyle = enrichment.style {
-                    style = betterStyle.rawValue
+                guard generation == imageProcessingGeneration,
+                      name == baseline.name else { return }
+
+                var ownedFields = imageOwnedFields ?? baseline.ownedFields
+                let correctedName = nameIsGuess ? enrichment.name : nil
+                if let correctedName, baseline.mayUpdateName {
+                    name = correctedName
+                    ownedFields.name = name
+                    if baseline.mayUpdateBrand, brand == baseline.brand {
+                        brand = enrichment.brand ?? ""
+                        ownedFields.brand = brand
+                    }
+                    if baseline.mayUpdateStyle, style == baseline.style {
+                        style = enrichment.style?.rawValue ?? BeerStyle.other.rawValue
+                        ownedFields.style = style
+                    }
+                    if baseline.mayUpdateABV, abvText == baseline.abvText {
+                        abvText = enrichment.abv.map { String(format: "%.1f", $0) } ?? ""
+                        ownedFields.abvText = abvText
+                    }
+                } else {
+                    if baseline.mayUpdateBrand,
+                       brand == baseline.brand,
+                       brand.isEmpty,
+                       let betterBrand = enrichment.brand {
+                        brand = betterBrand
+                        ownedFields.brand = brand
+                    }
+                    if baseline.mayUpdateStyle,
+                       style == baseline.style,
+                       style == BeerStyle.other.rawValue,
+                       let betterStyle = enrichment.style {
+                        style = betterStyle.rawValue
+                        ownedFields.style = style
+                    }
+                    if baseline.mayUpdateABV,
+                       abvText == baseline.abvText,
+                       abvText.isEmpty,
+                       let betterABV = enrichment.abv {
+                        abvText = String(format: "%.1f", betterABV)
+                        ownedFields.abvText = abvText
+                    }
                 }
-                if abvText.isEmpty, let betterABV = enrichment.abv {
-                    abvText = String(format: "%.1f", betterABV)
-                }
+                imageOwnedFields = ownedFields
             }
         }
+    }
+
+    private func cancelImageProcessing() {
+        imageProcessingGeneration += 1
+        imageProcessingTask?.cancel()
+        imageProcessingTask = nil
+        isProcessingImage = false
+    }
+
+    private func clearImageOwnedFields() {
+        guard let owned = imageOwnedFields else { return }
+        if let value = owned.name, name == value { name = "" }
+        if let value = owned.brand, brand == value { brand = "" }
+        if let value = owned.style, style == value { style = BeerStyle.other.rawValue }
+        if let value = owned.abvText, abvText == value { abvText = "" }
+        imageOwnedFields = nil
     }
 
     private func restorePersistedPhotoIfNeeded(_ prefill: AddBeerPrefill) {

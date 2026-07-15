@@ -112,7 +112,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Views/Components/CameraView.swift:8`
 **Capture uses UIImagePickerController — a full shutter + 'Use Photo' confirmation flow — instead of the specified live point-and-read scanner.**
 
-- **Status:** 🟡 IMPLEMENTED — shutterless VisionKit DataScanner, exact ROI, stable-text auto-capture, and one-tap re-scan are built/tested; physical camera ergonomics still require an unlocked device (2026-07-15)
+- **Status:** ✅ FIXED — shutterless VisionKit DataScanner, exact ROI, stable-text auto-capture, captured-frame persistence, and one-tap re-scan were verified on an iPhone 15 Pro with a real Bia Viet display (2026-07-15)
 - **Field scenario:** Holding a six-pack in one hand, the user must aim, hit the shutter, then hit 'Use Photo' on the confirm screen — three precise taps per can; comparing four cans means twelve taps plus four camera relaunches while the spouse waits.
 - **Detail:** CameraView wraps UIImagePickerController with sourceType = .camera (CameraView.swift:8-13). That imposes iOS's stock still-photo UI: frame, tap shutter, then a Retake/'Use Photo' confirmation screen before capturedImage is set. The locked architecture calls for VisionKit DataScannerViewController ('live point-and-read, no shutter'). Tap count from app-open to verdict is: tap 'Scan Label' (1) → tap shutter (2) → tap 'Use Photo' (3) → wait; and every additional beer repeats all three. One-handed operation with a phone-sized shutter+confirm dance is exactly the friction the spec forbids.
 
@@ -343,7 +343,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Services/BeerResolver.swift:16`
 **The on-device LLM tier of the resolver fusion (and all async enrichment) is not implemented — ResolvedBeer.Source.onDeviceLLM/.online are unreachable dead code on every device**
 
-- **Status:** 🟡 IMPLEMENTED — iOS 26 Foundation Models prewarm and offline JSON enrichment run after the deterministic verdict; signed device build passes, real-model wording awaits an unlocked eligible phone (2026-07-15)
+- **Status:** ✅ FIXED — iOS 26 Foundation Models prewarm and offline JSON enrichment run after the deterministic verdict; an iPhone 15 Pro reported the model available and returned structured Guinness Draught Stout facts (2026-07-15)
 - **Field scenario:** On the Foundation-Models-capable iPhone 15 Pro, a popular beer missing from the catalog ('Josephsbrau PLZNR') that the on-device LLM would trivially know still resolves as 'unresolved' and gets the erroneous SKIP IT — the promised free on-device knowledge tier silently does not exist in the shipped code.
 - **Detail:** No file imports FoundationModels or references any LanguageModel API (repo-wide grep: 0 hits), no AsyncBeerCatalog conformer exists, and BeerResolver.shouldEnrich/enrich (BeerResolver.swift:110-128) have no callers. So fusion steps 3 and 4 of the locked architecture exist only as enum cases (BeerResolver.swift:16-17). This means the iPhone 15 Pro gets no better resolution than the iPhone 14 Pro — both are catalog+keyword only — and the 'refine asynchronously' half of 'show now, refine later' never happens; only the blocking network calls in ScanningPipeline (finding 1) exist.
 

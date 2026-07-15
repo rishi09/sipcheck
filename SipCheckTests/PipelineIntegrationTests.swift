@@ -123,6 +123,123 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
     }
 
+    func testUnresolvedLabelNameRejectsCountryAsLegalCopyContinuation() {
+        let ocr = """
+        TÜ HEINEKEN
+        CHÁT LƯỢNG
+        PRIDE OF
+        VIETNAM
+        BIA VIỆT
+        Cold Brew
+        LAGER
+        """
+
+        XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
+    }
+
+    func testUnresolvedLabelNameSkipsGenericStyleAndFindsLogoName() {
+        let ocr = """
+        HEADLANDSBREWING.COM
+        HAZY IPA
+        HAZY IPA
+        WHOOSH!
+        HAZY IPA
+        6.5% ALC/VOL
+        """
+
+        XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "WHOOSH!")
+    }
+
+    func testStyleInferenceDoesNotTreatHopIngredientsAsIPA() {
+        XCTAssertNil(TasteScorer.inferStyle(from: "Cold brewed beer\nHOPS\nWATER\nMALT"))
+        XCTAssertEqual(TasteScorer.inferStyle(from: "LAGER\nHOPS\nWATER"), .lager)
+        XCTAssertEqual(TasteScorer.inferStyle(from: "BIA VIET\nSLAGERS\nHOPS"), .lager)
+        XCTAssertEqual(TasteScorer.inferStyle(from: "INDIA PALE ALE"), .ipa)
+        XCTAssertEqual(TasteScorer.inferStyle(from: "Hoppy seasonal"), .ipa)
+    }
+
+    func testCatalogMatchesNumericFrontMarkInsideOCRBlob() {
+        let catalog = BundledCatalog(seed: [
+            (name: "805", brewery: "Firestone Walker", style: "American Blonde Ale", coarse: "pale ale", abv: 4.7)
+        ])
+        let ocr = """
+        FIRESTONE WALKER
+        BREWING COMPANY
+        805
+        PROPERLY CHILL
+        """
+
+        let result = catalog.lookup(name: ocr)
+        XCTAssertEqual(result?.name, "805")
+        XCTAssertEqual(result?.confidence, 0.95)
+        XCTAssertEqual(result?.style, .paleAle)
+    }
+
+    func testEnrichmentPolicySpendsOnlyOnUncertainScans() {
+        XCTAssertFalse(EnrichmentPolicy.shouldStart(
+            nameIsGuess: false,
+            startedStyleless: false,
+            isMenu: false,
+            onDeviceAvailable: false,
+            onlineAvailable: true
+        ), "A resolved label must not spend a paid request")
+        XCTAssertTrue(EnrichmentPolicy.shouldStart(
+            nameIsGuess: true,
+            startedStyleless: false,
+            isMenu: false,
+            onDeviceAvailable: false,
+            onlineAvailable: true
+        ))
+        XCTAssertFalse(EnrichmentPolicy.shouldStart(
+            nameIsGuess: true,
+            startedStyleless: false,
+            isMenu: false,
+            onDeviceAvailable: true,
+            onlineAvailable: false
+        ), "On-device text knowledge must not rename an already actionable graphic label")
+        XCTAssertFalse(EnrichmentPolicy.shouldStart(
+            nameIsGuess: true,
+            startedStyleless: true,
+            isMenu: false,
+            onDeviceAvailable: true,
+            onlineAvailable: false
+        ), "Text-only knowledge must not guess facts for an unresolved graphic label")
+        XCTAssertTrue(EnrichmentPolicy.shouldStart(
+            nameIsGuess: false,
+            startedStyleless: true,
+            isMenu: false,
+            onDeviceAvailable: true,
+            onlineAvailable: false
+        ))
+        XCTAssertFalse(EnrichmentPolicy.shouldStart(
+            nameIsGuess: true,
+            startedStyleless: true,
+            isMenu: true,
+            onDeviceAvailable: true,
+            onlineAvailable: true
+        ))
+    }
+
+    func testVisualIdentityRequiresANameBeforeAcceptingFacts() {
+        let styleOnly = OpenAIService.BeerExtractionResult(
+            name: nil,
+            brand: nil,
+            style: .ipa,
+            origin: nil
+        )
+        XCTAssertNil(ScanningPipeline.visualIdentityEnrichment(from: styleOnly, verdict: .yourCall))
+
+        let named = OpenAIService.BeerExtractionResult(
+            name: "Orion Premium Draft",
+            brand: "Orion Breweries",
+            style: .lager,
+            origin: "Okinawa"
+        )
+        let accepted = ScanningPipeline.visualIdentityEnrichment(from: named, verdict: .yourCall)
+        XCTAssertEqual(accepted?.name, "Orion Premium Draft")
+        XCTAssertEqual(accepted?.style, .lager)
+    }
+
     func testLiveScannerTranscriptUsesVisualReadingOrder() {
         let lines: [(text: String, bounds: CGRect)] = [
             ("7.0% ABV", CGRect(x: 20, y: 220, width: 100, height: 30)),
@@ -147,7 +264,7 @@ final class PipelineIntegrationTests: XCTestCase {
 
     func testFoundationModelJSONUsesTheSharedStructuredParser() {
         let raw = """
-        {"name":"Two Hearted Ale","brand":"Bell's","style":"IPA","abv":7.0,"origin":null,"explanation":"This fits your IPA picks."}
+        {"name":"Two Hearted Ale","brand":"Bell's","style":"IPA","abv":7.0,"origin":"Michigan"}
         """
 
         let result = ScanningPipeline.parseEnrichment(raw)
@@ -155,6 +272,17 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(result?.brand, "Bell's")
         XCTAssertEqual(result?.style, .ipa)
         XCTAssertEqual(result?.abv, 7.0)
+        XCTAssertEqual(result?.origin, "Michigan")
+        XCTAssertNil(result?.explanation)
+    }
+
+    func testFactOnlyEnrichmentGetsLocalVerdictCopy() {
+        let facts = Enrichment(name: "Bia Viet", style: .lager)
+
+        let result = facts.addingLocalExplanation(for: .tryIt)
+
+        XCTAssertEqual(result.name, "Bia Viet")
+        XCTAssertEqual(result.explanation, "Looks like a Lager — that lines up with your taste.")
     }
 
     func testOlderScanLogEntryStillDecodesWithoutFoundationModelField() throws {

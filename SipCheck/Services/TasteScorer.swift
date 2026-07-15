@@ -20,6 +20,9 @@ enum TasteScorer {
         /// Numeric score behind the verdict — exposed for deterministic
         /// tiebreaking and unit testing. Not shown to the user directly.
         let score: Double
+        /// An explicit onboarding stay-away choice is stronger than inferred
+        /// history, including a stale exact-beer rating.
+        fileprivate let isHardAvoid: Bool
     }
 
     // MARK: - Tuning Constants
@@ -38,19 +41,15 @@ enum TasteScorer {
     /// Liked-weight for styles seeded from the onboarding "beers you've had"
     /// picker — weaker than an explicit vibe answer (2.0), stronger than nothing.
     private static let seedStyleWeight: Double = 1.5
-    /// Netted against rating-history liked weight when the same style also
-    /// carries a dislike signal. History weight caps at 3.0, so mixed evidence
-    /// lands in [-2.0, 0.0] — never a confident TRY, never the full -5 veto.
-    private static let mixedEvidenceOffset: Double = 3.0
     /// Penalty for a style the user explicitly marked "stay away" during
     /// onboarding. Slightly stronger than the quiz-dislike -5.0 because a
     /// stay-away pick names the exact style, while quiz dislikes are fuzzy
-    /// phrases keyword-mapped onto styles — so on an all-bad menu the explicit
-    /// pick deterministically ranks last. Mixed evidence (rated LIKE history on
-    /// the same style) nets against the shared 3.0 `mixedEvidenceOffset`
-    /// instead, so real ratings can walk an over-broad seed back (e.g. "avoid
-    /// Bud Light" penalizing all lagers until liked lagers net it out).
+    /// phrases keyword-mapped onto styles. This is a hard constraint: changing
+    /// it requires the user to clear the stay-away selection.
     private static let avoidSeedPenalty: Double = 5.5
+    /// A cautious drinker with a narrow, established preference gets a real
+    /// negative answer for a distant style instead of a content-free tie.
+    private static let cautiousDistantStylePenalty: Double = 1.0
     /// Neutral-style nudges per the quiz's "How adventurous?" answer.
     private static let neutralBonusCautious: Double = 0.0     // Stick to Favorites
     private static let neutralBonusDefault: Double = 0.2      // Mix It Up / unanswered
@@ -87,7 +86,8 @@ enum TasteScorer {
             return Assessment(
                 verdict: .yourCall,
                 shortReason: "we couldn't tell the style — trust your gut",
-                score: score
+                score: score,
+                isHardAvoid: false
             )
         }
 
@@ -96,34 +96,39 @@ enum TasteScorer {
 
         // ---- Style contribution -------------------------------------------
         let likedWeights = likedStyleWeights(from: profile, preferences: preferences)
+        let preferenceWeights = preferenceStyleWeights(from: preferences)
         let quizDislikedSet = quizDislikedStyleKeys(from: preferences)
         let avoidSet = avoidSeedStyleKeys(from: preferences)
 
         let key = styleKey(resolvedStyle)
-        let likedCount = profile.favoriteStyles.first { $0.style.lowercased() == key }?.count ?? 0
-        let dislikedCount = profile.dislikedStyles.first { $0.style.lowercased() == key }?.count ?? 0
+        let likedCount = historyCount(for: key, in: profile.favoriteStyles)
+        let dislikedCount = historyCount(for: key, in: profile.dislikedStyles)
 
-        if avoidSet.contains(key) {
-            // Mixed evidence counts RATED history only: a vibe answer or a
-            // "beers you've had" seed is not a like, and must not soften a
-            // repeatedly-thumbs-downed (or explicitly avoided) style.
-            if likedCount > 0 {
-                // A single bad stout must not permanently veto a style the user
-                // has loved many times — net the signals instead.
-                let weight = min(3.0, 1.0 + Double(likedCount - 1) * 0.5)
-                score += weight - mixedEvidenceOffset
-                reasons.append("mixed history with \(reasonName(resolvedStyle))")
-            } else {
-                score -= avoidSeedPenalty
-                reasons.append("you steer clear of \(reasonName(resolvedStyle))")
-            }
+        let isHardAvoid = avoidSet.contains(key)
+        if isHardAvoid {
+            score -= avoidSeedPenalty
+            reasons.append("you steer clear of \(reasonName(resolvedStyle))")
         } else if likedCount != dislikedCount {
             // Real ratings outrank fuzzy quiz labels. Net evidence preserves
             // direction: 10 likes + 1 dislike is strongly positive, while the
             // inverse is strongly negative. The cap keeps style from drowning
             // out an extreme ABV mismatch.
             let net = likedCount - dislikedCount
-            let contribution = max(-3.0, min(3.0, Double(net) * 0.75))
+            let contribution: Double
+            if net > 0 {
+                // Positive onboarding and rating evidence reinforce one
+                // another. In particular, adding a first LIKE must never turn
+                // an explicit go-to style from TRY IT into YOUR CALL.
+                let historyWeight = min(3.0, 1.0 + Double(net - 1) * 0.5)
+                contribution = max(historyWeight, preferenceWeights[key] ?? 0)
+            } else {
+                let historyPenalty = max(-3.0, Double(net) * 0.75)
+                // Recording another dislike must never weaken an existing
+                // quiz-level rejection or improve this style's menu rank.
+                contribution = quizDislikedSet.contains(key)
+                    ? min(-5.0, historyPenalty)
+                    : historyPenalty
+            }
             score += contribution
             reasons.append(
                 net > 0
@@ -138,6 +143,19 @@ enum TasteScorer {
         } else if let weight = likedWeights[key] {
             score += weight
             reasons.append("matches your love of \(reasonName(resolvedStyle))")
+        } else if isCautious(preferences.adventure),
+                  let cautiousEvidence = cautiousPreferenceEvidence(
+                    for: resolvedStyle,
+                    profile: profile,
+                    preferences: preferences
+                  ) {
+            if cautiousEvidence.isAdjacent {
+                score += cautiousEvidence.weight
+                reasons.append("close to the styles you usually choose")
+            } else {
+                score -= cautiousDistantStylePenalty
+                reasons.append("outside the styles you usually choose")
+            }
         } else {
             // Known style, neither loved nor avoided — the quiz's adventurousness
             // answer (previously collected and ignored) decides the nudge.
@@ -155,7 +173,12 @@ enum TasteScorer {
 
         let verdict = verdict(for: score)
         let reason = reasons.isEmpty ? "no strong signal either way" : reasons.joined(separator: "; ")
-        return Assessment(verdict: verdict, shortReason: reason, score: score)
+        return Assessment(
+            verdict: verdict,
+            shortReason: reason,
+            score: score,
+            isHardAvoid: isHardAvoid
+        )
     }
 
     /// The scorer's ABV anchor: liked-history average first, any-history
@@ -189,26 +212,56 @@ enum TasteScorer {
     /// 0.75 and the same beer can come back as YOUR CALL on the next check.
     static func applyingExactRating(_ rating: Rating?, to assessment: Assessment) -> Assessment {
         guard let rating else { return assessment }
+        guard !assessment.isHardAvoid else { return assessment }
         switch rating {
         case .like:
             return Assessment(
                 verdict: .tryIt,
                 shortReason: "you liked this exact beer before",
-                score: max(tryThreshold, assessment.score)
+                score: max(tryThreshold, assessment.score),
+                isHardAvoid: false
             )
         case .dislike:
             return Assessment(
                 verdict: .skipIt,
                 shortReason: "you passed on this exact beer before",
-                score: min(-0.5, assessment.score)
+                score: min(-0.5, assessment.score),
+                isHardAvoid: false
             )
         case .neutral:
             return Assessment(
                 verdict: .yourCall,
                 shortReason: "you were neutral on this exact beer before",
-                score: min(tryThreshold - 0.5, max(yourCallThreshold, assessment.score))
+                score: min(tryThreshold - 0.5, max(yourCallThreshold, assessment.score)),
+                isHardAvoid: false
             )
         }
+    }
+
+    /// Apply aggregate taste history and any exact-beer rating to a resolved
+    /// set of facts. Both the instant resolver and asynchronous fact refinement
+    /// use this entry point so a newly discovered style cannot leave a stale
+    /// verdict on screen.
+    static func assessWithExactHistory(
+        name: String,
+        style: BeerStyle?,
+        abv: Double?,
+        drinks: [Drink],
+        profile: TasteProfile,
+        preferences: TastePreferences,
+        allowExactMatch: Bool = true
+    ) -> Assessment {
+        let base = assess(
+            name: name,
+            style: style,
+            abv: abv,
+            profile: profile,
+            preferences: preferences
+        )
+        let exactRating = allowExactMatch
+            ? BeerMatcher.exactMatch(for: name, in: drinks)?.rating
+            : nil
+        return applyingExactRating(exactRating, to: base)
     }
 
     // MARK: - Deterministic Tiebreaker
@@ -267,7 +320,10 @@ enum TasteScorer {
     /// a candidate with no database and no network. Mirrors the prototype's
     /// `STYLE_KEYWORDS`; the most specific (longest) matching keyword wins.
     private static let styleKeywords: [(style: BeerStyle, keywords: [String])] = [
-        (.ipa,       ["double ipa", "west coast", "neipa", "juicy", "hazy", "dipa", "ipa", "hop"]),
+        // Bare "hop" matched ingredient copy such as "hops" on otherwise
+        // unrelated lagers. "Hoppy" is still a useful style signal; an
+        // ingredient list is not.
+        (.ipa,       ["india pale ale", "double ipa", "west coast", "neipa", "juicy", "hazy", "dipa", "ipa", "hoppy"]),
         (.paleAle,   ["pale ale", "golden ale", "blonde", "blond ale", "apa", "pale"]),
         (.lager,     ["lager", "helles", "vienna", "festbier", "doppelbock", "bock", "dunkel", "cream ale"]),
         (.pilsner,   ["pilsner", "pils", "kolsch"]),
@@ -301,6 +357,23 @@ enum TasteScorer {
                 }
             }
         }
+        if best == nil {
+            let tokens = normalized.split(separator: " ").map(String.init)
+            let typoTolerantStyles: [(BeerStyle, String)] = [
+                (.lager, "lager"),
+                (.pilsner, "pilsner"),
+                (.stout, "stout"),
+                (.porter, "porter")
+            ]
+            for token in tokens where token.count >= 5 {
+                for (style, keyword) in typoTolerantStyles {
+                    let closeEdit = abs(token.count - keyword.count) <= 1
+                        && BeerMatcher.calculateSimilarity(token, keyword) >= 0.8
+                    let wrappedWord = token.count <= keyword.count + 2 && token.contains(keyword)
+                    if closeEdit || wrappedWord { return style }
+                }
+            }
+        }
         return best?.style
     }
 
@@ -310,6 +383,28 @@ enum TasteScorer {
     /// (e.g. `BeerStyle.ipa` -> "ipa", `.brownAle` -> "brown ale").
     private static func styleKey(_ style: BeerStyle) -> String {
         style.rawValue.lowercased()
+    }
+
+    /// Historical data predates the coarse style enum and contains aliases
+    /// such as "Light Lager". Canonicalize those strings before matching so
+    /// real feedback is not silently discarded.
+    private static func canonicalStyleKey(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let exact = BeerStyle.allCases.first(where: {
+            $0.rawValue.caseInsensitiveCompare(trimmed) == .orderedSame
+        }) {
+            return styleKey(exact)
+        }
+        return inferStyle(from: trimmed).map(styleKey) ?? trimmed.lowercased()
+    }
+
+    private static func historyCount(
+        for key: String,
+        in entries: [(style: String, count: Int)]
+    ) -> Int {
+        entries.reduce(0) { total, entry in
+            total + (canonicalStyleKey(entry.style) == key ? entry.count : 0)
+        }
     }
 
     /// Style name as it should read inside sentence-cased copy: acronyms stay
@@ -327,15 +422,21 @@ enum TasteScorer {
         from profile: TasteProfile,
         preferences: TastePreferences
     ) -> [String: Double] {
-        var weights: [String: Double] = [:]
+        var weights = preferenceStyleWeights(from: preferences)
 
         // History: more liked drinks of a style => higher weight, capped so a
         // single very-liked style can't dwarf everything else.
         for entry in profile.favoriteStyles {
-            let key = entry.style.lowercased()
+            let key = canonicalStyleKey(entry.style)
             let weight = min(3.0, 1.0 + Double(entry.count - 1) * 0.5)
             weights[key] = max(weights[key] ?? 0, weight)
         }
+
+        return weights
+    }
+
+    private static func preferenceStyleWeights(from preferences: TastePreferences) -> [String: Double] {
+        var weights: [String: Double] = [:]
 
         // Quiz vibe: nudge styles the user said they enjoy.
         for key in vibeStyleKeys(from: preferences.vibe) {
@@ -347,7 +448,7 @@ enum TasteScorer {
         // vibe. (assess() checks the avoid set before liked weights, so a
         // stay-away pick on the same style always beats this weight.)
         for style in preferences.goToStyles {
-            let key = style.lowercased()
+            let key = canonicalStyleKey(style)
             weights[key] = max(weights[key] ?? 0, 2.0)
         }
 
@@ -355,11 +456,68 @@ enum TasteScorer {
         // weaker than the explicit vibe, stronger than nothing, so scan #1 is
         // personalized before any ratings exist.
         for style in preferences.seedStyles {
-            let key = style.lowercased()
+            let key = canonicalStyleKey(style)
             weights[key] = max(weights[key] ?? 0, seedStyleWeight)
         }
 
         return weights
+    }
+
+    private struct CautiousPreferenceEvidence {
+        let isAdjacent: Bool
+        let weight: Double
+    }
+
+    /// Only a real go-to/vibe or at least two positive ratings establishes a
+    /// narrow lane. One sparse rating is not enough to confidently reject a
+    /// different style.
+    private static func cautiousPreferenceEvidence(
+        for candidate: BeerStyle,
+        profile: TasteProfile,
+        preferences: TastePreferences
+    ) -> CautiousPreferenceEvidence? {
+        var establishedKeys = Set(preferences.goToStyles.map(canonicalStyleKey))
+        establishedKeys.formUnion(vibeStyleKeys(from: preferences.vibe))
+        for entry in profile.favoriteStyles where entry.count >= 2 {
+            establishedKeys.insert(canonicalStyleKey(entry.style))
+        }
+        guard !establishedKeys.isEmpty, establishedKeys.count <= 2 else { return nil }
+
+        let candidateKey = styleKey(candidate)
+        let adjacent = establishedKeys.contains { sourceKey in
+            guard let source = BeerStyle.allCases.first(where: { styleKey($0) == sourceKey }) else {
+                return false
+            }
+            return adjacentStyles(to: source).contains(candidateKey)
+        }
+        let allWeights = likedStyleWeights(from: profile, preferences: preferences)
+        let strongestWeight = establishedKeys.compactMap { allWeights[$0] }.max() ?? 1.0
+        return CautiousPreferenceEvidence(
+            isAdjacent: adjacent,
+            weight: adjacent ? min(2.0, strongestWeight) : cautiousDistantStylePenalty
+        )
+    }
+
+    private static func adjacentStyles(to style: BeerStyle) -> Set<String> {
+        let adjacent: [BeerStyle]
+        switch style {
+        case .lager: adjacent = [.pilsner]
+        case .pilsner: adjacent = [.lager]
+        case .ipa: adjacent = [.paleAle]
+        case .paleAle: adjacent = [.ipa, .lager, .pilsner, .amber, .wheat]
+        case .stout: adjacent = [.porter, .brownAle]
+        case .porter: adjacent = [.stout, .brownAle, .amber]
+        case .brownAle: adjacent = [.stout, .porter, .amber]
+        case .amber: adjacent = [.brownAle, .porter, .paleAle, .lager]
+        case .wheat: adjacent = [.paleAle, .belgian]
+        case .belgian: adjacent = [.wheat]
+        case .sour, .other: adjacent = []
+        }
+        return Set(adjacent.map(styleKey))
+    }
+
+    private static func isCautious(_ adventure: String) -> Bool {
+        adventure.lowercased().contains("stick")
     }
 
     /// How much a known-but-unloved style scores, per the quiz's
@@ -396,7 +554,7 @@ enum TasteScorer {
     /// but a stay-away pick names the exact style — a "Dark & Roasty" vibe must
     /// not cancel an explicit "stay away from stouts".
     private static func avoidSeedStyleKeys(from preferences: TastePreferences) -> Set<String> {
-        Set(preferences.avoidStyles.map { $0.lowercased() })
+        Set(preferences.avoidStyles.map(canonicalStyleKey))
     }
 
     /// Map a free-text quiz "vibe" string to liked style keys.
