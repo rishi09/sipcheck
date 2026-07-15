@@ -154,6 +154,8 @@ struct ProfileTabView: View {
             Text(label)
                 .font(SipTypography.caption)
                 .foregroundColor(SipColors.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2, reservesSpace: true)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, SipSpacing.l)

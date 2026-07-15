@@ -174,6 +174,7 @@ struct SipQuietButtonStyle: ButtonStyle {
 
 struct SipChipStyle: ButtonStyle {
     let isSelected: Bool
+    var fillsAvailableWidth = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -181,7 +182,7 @@ struct SipChipStyle: ButtonStyle {
             .foregroundColor(isSelected ? SipColors.background : SipColors.textSecondary)
             .padding(.horizontal, SipSpacing.l)
             .padding(.vertical, SipSpacing.s)
-            .frame(minHeight: 44)
+            .frame(maxWidth: fillsAvailableWidth ? .infinity : nil, minHeight: 44)
             .background(
                 Capsule()
                     .fill(isSelected ? SipColors.accent : SipColors.surface)

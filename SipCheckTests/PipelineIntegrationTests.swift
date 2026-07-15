@@ -111,6 +111,18 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
     }
 
+    func testUnresolvedLabelNameHandlesFastOCRLogoNoise() {
+        let ocr = """
+        11
+        BIA VIỆT,
+        ¥ItT•A•
+        BIP.VIÈT
+        LAGER
+        """
+
+        XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
+    }
+
     func testLiveScannerTranscriptUsesVisualReadingOrder() {
         let lines: [(text: String, bounds: CGRect)] = [
             ("7.0% ABV", CGRect(x: 20, y: 220, width: 100, height: 30)),

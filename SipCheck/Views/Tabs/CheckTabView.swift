@@ -186,16 +186,28 @@ struct CheckTabView: View {
     // MARK: - Scan Prompt (Empty State)
 
     private var scanPromptView: some View {
+        ViewThatFits(in: .vertical) {
+            scanPromptContent
+
+            ScrollView {
+                scanPromptContent
+                    .padding(.vertical, SipSpacing.m)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+
+    private var scanPromptContent: some View {
         VStack(spacing: SipSpacing.xl) {
             // Beer-native idle affordance (crit note 15): amber mug framed by
             // viewfinder brackets — content imagery is tinted, never gray.
             // Static by design: motion is feedback, not decoration (spec §1.6).
             ZStack {
                 Image(systemName: "viewfinder")
-                    .font(.system(size: idleGlyphSize, weight: .thin))
+                    .font(.system(size: min(idleGlyphSize, 96), weight: .thin))
                     .foregroundStyle(StyleGradient.gradient(for: "IPA").opacity(0.45))
                 Image(systemName: "mug.fill")
-                    .font(.system(size: idleGlyphSize * 0.45))
+                    .font(.system(size: min(idleGlyphSize, 96) * 0.45))
                     .foregroundStyle(StyleGradient.gradient(for: "IPA"))
             }
             .accessibilityHidden(true)
@@ -204,6 +216,8 @@ struct CheckTabView: View {
                 Text("What Are You Drinking?")
                     .font(SipTypography.title)
                     .foregroundColor(SipColors.textPrimary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 // Do-not-lose copy (round-2 crit #10): this exact tagline is a
                 // locked product line — never swap it for feature-speak.
@@ -211,6 +225,7 @@ struct CheckTabView: View {
                     .font(SipTypography.body)
                     .foregroundColor(SipColors.textSecondary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, SipSpacing.xxl)
             }
 
@@ -221,6 +236,7 @@ struct CheckTabView: View {
                     HStack(spacing: SipSpacing.s) {
                         Image(systemName: "camera.fill")
                         Text("Scan Label")
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .buttonStyle(SipPrimaryButtonStyle())
@@ -246,6 +262,7 @@ struct CheckTabView: View {
                 HStack(spacing: SipSpacing.s) {
                     Image(systemName: "keyboard")
                     Text("Enter beer name")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .buttonStyle(SipQuietButtonStyle())

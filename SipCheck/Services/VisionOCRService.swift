@@ -99,7 +99,7 @@ enum VisionOCRService {
             let replacement = BeerResolver.suggestedLabelName(from: repair.text)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if !replacement.isEmpty,
-               unexpectedCharacterCount(in: replacement) < unexpectedCharacterCount(in: lines[repairIndex].text) {
+               recognitionNoiseScore(in: replacement) < recognitionNoiseScore(in: lines[repairIndex].text) {
                 lines[repairIndex].text = replacement
                 lines[repairIndex].confidence = repair.confidence
             }
@@ -124,7 +124,26 @@ enum VisionOCRService {
 
     private static func shouldRepair(_ text: String) -> Bool {
         let letterCount = text.unicodeScalars.count(where: CharacterSet.letters.contains)
-        return letterCount >= 4 && text.count <= 42 && unexpectedCharacterCount(in: text) > 0
+        return letterCount >= 4 && text.count <= 42 && recognitionNoiseScore(in: text) > 0
+    }
+
+    /// Commas and periods are valid label characters, but inside an all-letter
+    /// word they are a common fast-OCR substitution ("BIP.VIET" for
+    /// "BIA VIET"). Count them as light noise so the existing accurate crop
+    /// can repair the logo without penalizing normal punctuation elsewhere.
+    private static func recognitionNoiseScore(in text: String) -> Int {
+        let characters = Array(text)
+        let internalPunctuation: Int
+        if characters.count >= 3 {
+            internalPunctuation = (1..<(characters.count - 1)).count { index in
+                (characters[index] == "." || characters[index] == ",")
+                    && characters[index - 1].isLetter
+                    && characters[index + 1].isLetter
+            }
+        } else {
+            internalPunctuation = 0
+        }
+        return unexpectedCharacterCount(in: text) * 10 + internalPunctuation
     }
 
     private static func expandedRegion(around box: CGRect) -> CGRect {

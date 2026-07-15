@@ -27,6 +27,7 @@ channel — don't make the user shuttle context between chats.
 | Simulator E2E tap-and-fix (completed/merged) | `claude/ios-simulator-e2e-testing-t5mxgm` | Released. Its handoff items were absorbed by the functional E2E finish; no files remain reserved. |
 | Functional E2E finish (completed 2026-07-15) | `claude/codex-e2e-finish` | Released after simulator verification; no files remain reserved by this track. |
 | Physical-device hardening (completed 2026-07-15) | `claude/codex-device-hardening` | Released after simulator, signed-device-build, and 97-test verification. Real camera/Foundation Models output still needs an unlocked physical device; no files remain reserved. |
+| Final polish audit (2026-07-15) | `claude/codex-final-polish-audit` | Compact-device and Dynamic Type E2E, remaining persistence/performance fixes, and completion evidence. Reserved: focused fixes and tests touched by this track. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.

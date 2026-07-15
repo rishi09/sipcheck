@@ -68,6 +68,11 @@ struct SipCheckApp: App {
                 // The design system is dark-only (fixed hex colors); without
                 // this, system-styled surfaces (sheets, alerts) render light.
                 .preferredColorScheme(.dark)
+                // Keep every control legible at the system's two largest text
+                // settings. Accessibility XL remains fully supported; above
+                // it, fixed-format scan/onboarding controls otherwise collapse
+                // into ambiguous ellipses on compact phones.
+                .dynamicTypeSize(...DynamicTypeSize.accessibility3)
         }
     }
 }

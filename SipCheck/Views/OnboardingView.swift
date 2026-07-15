@@ -336,6 +336,17 @@ private struct StoryPage: View {
 
 // MARK: - Picker Page Scaffold
 
+private func onboardingGridColumns(
+    normalCount: Int,
+    dynamicTypeSize: DynamicTypeSize
+) -> [GridItem] {
+    let count = dynamicTypeSize.isAccessibilitySize ? 1 : normalCount
+    return Array(
+        repeating: GridItem(.flexible(minimum: 0), spacing: SipSpacing.s),
+        count: count
+    )
+}
+
 /// Shared chrome for every CTA-block page: scrolling header + content above a
 /// reserved bottom band (one primary CTA and one quiet skip). Used by the
 /// legacy picker, both new pickers, and the
@@ -429,6 +440,7 @@ private struct BeerPickerPage: View {
     let isPreview: Bool
     let onAdvance: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedBeers: Set<String> = []
     /// Monotonic guard: only the newest persistSelections snapshot may write.
     @State private var persistGeneration = 0
@@ -447,14 +459,15 @@ private struct BeerPickerPage: View {
             quietAction: onAdvance
         ) {
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
+                columns: onboardingGridColumns(normalCount: 3, dynamicTypeSize: dynamicTypeSize),
                 alignment: .leading,
                 spacing: SipSpacing.s
             ) {
                 ForEach(onboardingBeerOptions, id: \.self) { beer in
                     ChipButton(
                         label: beer,
-                        isSelected: selectedBeers.contains(beer)
+                        isSelected: selectedBeers.contains(beer),
+                        fillsAvailableWidth: true
                     ) {
                         toggleBeer(beer)
                     }
@@ -524,6 +537,7 @@ private struct GoToPickerPage: View {
     let isPreview: Bool
     let onAdvance: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedBeers: Set<String> = []
     @State private var selectedGoToStyles: Set<BeerStyle> = []
     @State private var selectedAdventure: String? = nil
@@ -579,7 +593,7 @@ private struct GoToPickerPage: View {
                 // Wider cells than the beer grid: the exemplar anchor line
                 // ("like Sierra Nevada") must fit on one line.
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 150), spacing: SipSpacing.s)],
+                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
                     alignment: .leading,
                     spacing: SipSpacing.s
                 ) {
@@ -588,7 +602,8 @@ private struct GoToPickerPage: View {
                             label: styleChipLabel(style),
                             isSelected: selectedGoToStyles.contains(style),
                             lockedCaption: lockedStyles.contains(style) ? "stay-away" : nil,
-                            anchorCaption: styleChipAnchor(style)
+                            anchorCaption: styleChipAnchor(style),
+                            fillsAvailableWidth: true
                         ) {
                             toggleStyle(style)
                         }
@@ -601,7 +616,7 @@ private struct GoToPickerPage: View {
                     .font(SipTypography.headline)
                     .foregroundColor(SipColors.textPrimary)
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
+                    columns: onboardingGridColumns(normalCount: 3, dynamicTypeSize: dynamicTypeSize),
                     alignment: .leading,
                     spacing: SipSpacing.s
                 ) {
@@ -609,7 +624,8 @@ private struct GoToPickerPage: View {
                         ChipButton(
                             label: beer,
                             isSelected: selectedBeers.contains(beer),
-                            lockedCaption: lockedBeers.contains(beer) ? "stay-away" : nil
+                            lockedCaption: lockedBeers.contains(beer) ? "stay-away" : nil,
+                            fillsAvailableWidth: true
                         ) {
                             toggleBeer(beer)
                         }
@@ -725,6 +741,7 @@ private struct StayAwayPickerPage: View {
     let isPreview: Bool
     let onAdvance: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedAvoidBeers: Set<String> = []
     @State private var selectedAvoidStyles: Set<BeerStyle> = []
     /// Styles the current picks resolve to — the inline echo's source.
@@ -790,7 +807,7 @@ private struct StayAwayPickerPage: View {
                 // Wider cells than the beer grid: the exemplar anchor line
                 // ("like Guinness") must fit on one line.
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 150), spacing: SipSpacing.s)],
+                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
                     alignment: .leading,
                     spacing: SipSpacing.s
                 ) {
@@ -799,7 +816,8 @@ private struct StayAwayPickerPage: View {
                             label: styleChipLabel(style),
                             isSelected: selectedAvoidStyles.contains(style),
                             lockedCaption: lockedStyles.contains(style) ? "go-to" : nil,
-                            anchorCaption: styleChipAnchor(style)
+                            anchorCaption: styleChipAnchor(style),
+                            fillsAvailableWidth: true
                         ) {
                             toggleStyle(style)
                         }
@@ -812,7 +830,7 @@ private struct StayAwayPickerPage: View {
                     .font(SipTypography.headline)
                     .foregroundColor(SipColors.textPrimary)
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
+                    columns: onboardingGridColumns(normalCount: 3, dynamicTypeSize: dynamicTypeSize),
                     alignment: .leading,
                     spacing: SipSpacing.s
                 ) {
@@ -820,7 +838,8 @@ private struct StayAwayPickerPage: View {
                         ChipButton(
                             label: beer,
                             isSelected: selectedAvoidBeers.contains(beer),
-                            lockedCaption: lockedBeers.contains(beer) ? "go-to" : nil
+                            lockedCaption: lockedBeers.contains(beer) ? "go-to" : nil,
+                            fillsAvailableWidth: true
                         ) {
                             toggleBeer(beer)
                         }
@@ -1087,9 +1106,11 @@ private struct ChipGrid: View {
     @Binding var selectedSingle: String?
     @Binding var selectedMulti: Set<String>
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 120), spacing: SipSpacing.s)],
+            columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
             alignment: .leading,
             spacing: SipSpacing.s
         ) {
@@ -1098,7 +1119,8 @@ private struct ChipGrid: View {
                     label: option,
                     isSelected: multiSelect
                         ? selectedMulti.contains(option)
-                        : selectedSingle == option
+                        : selectedSingle == option,
+                    fillsAvailableWidth: true
                 ) {
                     if multiSelect {
                         if selectedMulti.contains(option) {
@@ -1131,7 +1153,12 @@ struct ChipButton: View {
     /// requires beer vocabulary. Display only. While locked, the lock
     /// caption owns the second line and the anchor is suppressed.
     var anchorCaption: String? = nil
+    /// Grid-backed chips fill their cell so rows align and the full cell is a
+    /// tap target. Standalone chips preserve their compact intrinsic width.
+    var fillsAvailableWidth = false
     let action: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Button(action: {
@@ -1142,16 +1169,24 @@ struct ChipButton: View {
             if let caption = lockedCaption ?? anchorCaption {
                 VStack(spacing: 2) {
                     Text(label)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text(caption)
                         .font(SipTypography.caption)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                         .minimumScaleFactor(0.8)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             } else {
                 Text(label)
+                    .lineLimit(fillsAvailableWidth ? 2 : 1, reservesSpace: fillsAvailableWidth)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .buttonStyle(SipChipStyle(isSelected: isSelected && lockedCaption == nil))
+        .multilineTextAlignment(.center)
+        .buttonStyle(SipChipStyle(
+            isSelected: isSelected && lockedCaption == nil,
+            fillsAvailableWidth: fillsAvailableWidth
+        ))
         .opacity(lockedCaption == nil ? 1 : 0.4)
     }
 }

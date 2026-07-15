@@ -98,7 +98,11 @@ enum BeerResolver {
     static func suggestedLabelName(from text: String) -> String {
         let lines = text
             .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map {
+                $0.trimmingCharacters(
+                    in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ",.;:"))
+                )
+            }
             .filter { !$0.isEmpty }
 
         guard lines.count > 1 else { return lines.first ?? text }
@@ -120,6 +124,10 @@ enum BeerResolver {
                 .joined(separator: " ")
         }
         let frequencies = Dictionary(grouping: identityKeys, by: { $0 }).mapValues(\.count)
+        let styleOnlyLines: Set<String> = [
+            "ale", "amber ale", "beer", "brown ale", "ipa", "lager",
+            "pale ale", "pilsner", "porter", "sour", "stout", "wheat beer"
+        ]
 
         let candidates = lines.enumerated().compactMap { index, line -> (String, Int, Int)? in
             let lower = line.lowercased()
@@ -131,6 +139,7 @@ enum BeerResolver {
                   digitCount == 0,
                   words.count <= 5,
                   line.count <= 42,
+                  !styleOnlyLines.contains(identityKeys[index]),
                   !boilerplate.contains(where: lower.contains) else { return nil }
 
             // Short, punctuation-free display lines are usually the large
