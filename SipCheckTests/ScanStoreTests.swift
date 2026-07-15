@@ -15,6 +15,7 @@ final class ScanStoreTests: XCTestCase {
     }
 
     override func tearDown() {
+        store?.flushPersistence()
         try? FileManager.default.removeItem(at: tempDirectory)
         store = nil
         tempDirectory = nil
@@ -91,6 +92,7 @@ final class ScanStoreTests: XCTestCase {
             explanation: "Great"
         )
         store.addScan(scan)
+        store.flushPersistence()
 
         let store2 = ScanStore(storageDirectory: tempDirectory)
 
@@ -157,6 +159,7 @@ final class ScanStoreTests: XCTestCase {
         let scan = Scan(beerName: "Will Be Deleted", explanation: "Bye")
         store.addScan(scan)
         store.deleteScan(scan)
+        store.flushPersistence()
 
         let store2 = ScanStore(storageDirectory: tempDirectory)
         XCTAssertEqual(store2.scans.count, 0)

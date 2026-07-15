@@ -17,6 +17,7 @@ final class DrinkStoreTests: XCTestCase {
 
     override func tearDown() {
         // Clean up temp directory
+        store?.flushPersistence()
         try? FileManager.default.removeItem(at: tempDirectory)
         store = nil
         tempDirectory = nil
@@ -86,6 +87,7 @@ final class DrinkStoreTests: XCTestCase {
     func testPersistenceAcrossInstances() {
         let drink = Drink(name: "Persistent Beer", brand: "Brewery", style: "Stout", rating: .like)
         store.addDrink(drink)
+        store.flushPersistence()
 
         // Create new store instance pointing to same directory
         let store2 = DrinkStore(storageDirectory: tempDirectory)
@@ -114,6 +116,7 @@ final class DrinkStoreTests: XCTestCase {
         let drink = Drink(name: "Will Be Deleted", rating: .neutral)
         store.addDrink(drink)
         store.deleteDrink(drink)
+        store.flushPersistence()
 
         let store2 = DrinkStore(storageDirectory: tempDirectory)
         XCTAssertEqual(store2.drinks.count, 0)

@@ -28,6 +28,7 @@ channel — don't make the user shuttle context between chats.
 | Functional E2E finish (completed 2026-07-15) | `claude/codex-e2e-finish` | Released after simulator verification; no files remain reserved by this track. |
 | Physical-device hardening (completed 2026-07-15) | `claude/codex-device-hardening` | Released after simulator, signed-device-build, and 97-test verification. Real camera/Foundation Models output still needs an unlocked physical device; no files remain reserved. |
 | Final polish audit (completed 2026-07-15) | `claude/codex-final-polish-audit` | Released after compact/accessibility E2E, real-photo OCR + persistence validation, 98 passing tests, signed Release build, and reviewed 30 fps walkthrough. Live camera/DataScanner + Foundation Models output still require an unlocked physical iPhone; no files remain reserved. |
+| Persistence finish (active 2026-07-15) | `claude/codex-persistence-finish` | `DrinkStore.swift`, `JournalStore.swift`, `ScanStore.swift`, persistence test files, app lifecycle flush wiring, `LaunchScreenBackground.colorset`, Xcode project membership for a persistence helper, and status/audit documentation. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
@@ -195,6 +196,7 @@ axe screenshot --udid $SIMULATOR_UDID                # Take screenshot
 
 ## Current Status
 - Build: ✅ Passing
-- Core flows: ✅ Implemented in working tree
-- Tests: ✅ Unit, integration, and UI targets present
-- Pending: physical-device validation, real-image scan evaluation, app icon, launch screen polish
+- Core flows: ✅ Implemented and simulator-verified, including real-photo OCR and photo persistence
+- Tests: ✅ 98 unit, integration, and UI tests passing
+- Release assets: ✅ Opaque 1024px app icon and dark-only launch transition configured
+- Pending: live camera/DataScanner and Foundation Models wording validation on an unlocked Apple-Intelligence-capable physical iPhone

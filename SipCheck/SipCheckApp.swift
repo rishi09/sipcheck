@@ -106,6 +106,12 @@ private struct RootView: View {
         // store), nothing retried for the rest of the session and offline
         // saves stayed local. Re-sync on foreground, throttled.
         .onChange(of: scenePhase) { _, phase in
+            if phase == .background {
+                drinkStore.flushPersistence()
+                scanStore.flushPersistence()
+                journalStore.flushPersistence()
+                return
+            }
             guard phase == .active else { return }
             if let last = lastSyncAttempt, Date().timeIntervalSince(last) < 300 { return }
             Task { await performLaunchSync() }

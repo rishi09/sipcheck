@@ -15,6 +15,7 @@ final class JournalStoreTests: XCTestCase {
     }
 
     override func tearDown() {
+        store?.flushPersistence()
         try? FileManager.default.removeItem(at: tempDirectory)
         store = nil
         tempDirectory = nil
@@ -90,6 +91,7 @@ final class JournalStoreTests: XCTestCase {
             photoFileName: "persistent-photo.jpg"
         )
         store.addEntry(entry)
+        store.flushPersistence()
 
         let store2 = JournalStore(storageDirectory: tempDirectory)
 
@@ -103,6 +105,7 @@ final class JournalStoreTests: XCTestCase {
         let entry = JournalEntry(beerName: "Will Be Deleted", rating: 2)
         store.addEntry(entry)
         store.deleteEntry(entry)
+        store.flushPersistence()
 
         let store2 = JournalStore(storageDirectory: tempDirectory)
         XCTAssertEqual(store2.entries.count, 0)

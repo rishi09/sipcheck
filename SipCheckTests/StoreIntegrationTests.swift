@@ -42,6 +42,7 @@ final class StoreIntegrationTests: XCTestCase {
 
         let noMatch = store.findMatch(for: "Totally Unknown Brew")
         XCTAssertNil(noMatch, "Non-existent drink should return nil")
+        store.flushPersistence()
     }
 
     // MARK: - Test 2: Persist across separate store instances (real JSON roundtrip)
@@ -54,6 +55,7 @@ final class StoreIntegrationTests: XCTestCase {
         store1.addDrink(drinkA)
         store1.addDrink(drinkB)
         XCTAssertEqual(store1.drinks.count, 2)
+        store1.flushPersistence()
 
         // Instance 2: loads from the same directory — should see both drinks
         let store2 = DrinkStore(storageDirectory: testDir)
@@ -93,8 +95,9 @@ final class StoreIntegrationTests: XCTestCase {
 
         // All drinks should be present in memory
         XCTAssertEqual(store.drinks.count, drinkCount, "All \(drinkCount) drinks should be in memory")
+        store.flushPersistence()
 
-        // Verify file is not corrupted by loading into a fresh instance
+        // The coalesced final snapshot must contain every rapid mutation.
         let verifyStore = DrinkStore(storageDirectory: testDir)
         XCTAssertEqual(verifyStore.drinks.count, drinkCount,
                        "All \(drinkCount) drinks should survive serialization roundtrip")

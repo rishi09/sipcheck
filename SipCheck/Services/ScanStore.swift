@@ -14,6 +14,7 @@ class ScanStore: ObservableObject {
     var syncRecords: [Scan] { scans + tombstones }
 
     private let storageDir: URL
+    private lazy var persistenceWriter = JSONSnapshotWriter<[Scan]>(fileURL: fileURL)
 
     /// Standard init — uses app's Documents directory
     init() {
@@ -26,7 +27,7 @@ class ScanStore: ObservableObject {
         self.storageDir = storageDirectory
         if useSeedData {
             scans = Self.seedScans
-            saveScans()
+            saveScans(synchronously: true)
         } else {
             loadScans()
         }
@@ -144,13 +145,15 @@ class ScanStore: ObservableObject {
         storageDir.appendingPathComponent("scans.json")
     }
 
-    private func saveScans() {
-        do {
-            let data = try JSONEncoder().encode(scans + tombstones)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            print("Failed to save scans: \(error)")
+    private func saveScans(synchronously: Bool = false) {
+        persistenceWriter.schedule(scans + tombstones)
+        if synchronously {
+            persistenceWriter.flush()
         }
+    }
+
+    func flushPersistence() {
+        persistenceWriter.flush()
     }
 
     /// Decodes element-by-element so one corrupt record is skipped instead of

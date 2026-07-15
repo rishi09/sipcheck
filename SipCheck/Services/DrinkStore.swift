@@ -16,6 +16,7 @@ class DrinkStore: ObservableObject {
     var syncRecords: [Drink] { drinks + tombstones }
 
     private let storageDir: URL
+    private lazy var persistenceWriter = JSONSnapshotWriter<[Drink]>(fileURL: fileURL)
 
     /// Standard init — uses app's Documents directory
     init() {
@@ -28,7 +29,7 @@ class DrinkStore: ObservableObject {
         self.storageDir = storageDirectory
         if useSeedData {
             drinks = Self.seedDrinks
-            saveDrinks()
+            saveDrinks(synchronously: true)
         } else {
             loadDrinks()
         }
@@ -112,14 +113,17 @@ class DrinkStore: ObservableObject {
         return dir
     }
 
-    private func saveDrinks() {
-        do {
-            // Persist visible records and tombstones together.
-            let data = try JSONEncoder().encode(drinks + tombstones)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            print("Failed to save drinks: \(error)")
+    private func saveDrinks(synchronously: Bool = false) {
+        // Copy the value-type records now so later UI mutations cannot race
+        // the encoder running on the persistence queue.
+        persistenceWriter.schedule(drinks + tombstones)
+        if synchronously {
+            persistenceWriter.flush()
         }
+    }
+
+    func flushPersistence() {
+        persistenceWriter.flush()
     }
 
     /// Decodes element-by-element so one corrupt record is skipped instead of

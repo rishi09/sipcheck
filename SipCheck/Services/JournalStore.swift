@@ -14,6 +14,7 @@ class JournalStore: ObservableObject {
     var syncRecords: [JournalEntry] { entries + tombstones }
 
     private let storageDir: URL
+    private lazy var persistenceWriter = JSONSnapshotWriter<[JournalEntry]>(fileURL: fileURL)
 
     /// Standard init — uses app's Documents directory
     init() {
@@ -26,7 +27,7 @@ class JournalStore: ObservableObject {
         self.storageDir = storageDirectory
         if useSeedData {
             entries = Self.seedEntries
-            saveEntries()
+            saveEntries(synchronously: true)
         } else {
             loadEntries()
         }
@@ -102,13 +103,15 @@ class JournalStore: ObservableObject {
         storageDir.appendingPathComponent("journal.json")
     }
 
-    private func saveEntries() {
-        do {
-            let data = try JSONEncoder().encode(entries + tombstones)
-            try data.write(to: fileURL, options: .atomic)
-        } catch {
-            print("Failed to save journal entries: \(error)")
+    private func saveEntries(synchronously: Bool = false) {
+        persistenceWriter.schedule(entries + tombstones)
+        if synchronously {
+            persistenceWriter.flush()
         }
+    }
+
+    func flushPersistence() {
+        persistenceWriter.flush()
     }
 
     /// Decodes element-by-element so one corrupt record is skipped instead of
