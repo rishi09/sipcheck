@@ -106,6 +106,9 @@ private struct RootView: View {
             Task { await performLaunchSync() }
         }
         .task {
+            #if DEBUG
+            await runDeviceSmokeTestIfRequested()
+            #endif
             await performLaunchSync()
         }
         // item-driven, not isPresented + if-let: the same two-state race that
@@ -174,6 +177,18 @@ private struct RootView: View {
 
             case .lovedIt, .meh:
                 guard let scan = scanStore.scans.first(where: { $0.id == action.scanID }) else { return }
+                // Notification actions can be delivered more than once across
+                // process restarts. A linked scan is already logged; keep the
+                // handler idempotent instead of adding duplicate history.
+                if let linkedJournalId = scan.linkedJournalId {
+                    scanStore.markTried(
+                        beerName: scan.beerName,
+                        linkedJournalId: linkedJournalId,
+                        sourceScanId: scan.id
+                    )
+                    notificationService.pendingFollowUpScanID = nil
+                    return
+                }
                 let isLoved = action.response == .lovedIt
                 let rating: Rating = isLoved ? .like : .neutral
                 let drink = Drink(
@@ -196,11 +211,11 @@ private struct RootView: View {
                     linkedScanId: scan.id
                 )
                 journalStore.addEntry(journalEntry)
-                // Clear wantToTry since user has now responded
-                if var updatedScan = scanStore.scans.first(where: { $0.id == action.scanID }) {
-                    updatedScan.wantToTry = false
-                    scanStore.updateScan(updatedScan)
-                }
+                scanStore.markTried(
+                    beerName: scan.beerName,
+                    linkedJournalId: journalEntry.id,
+                    sourceScanId: scan.id
+                )
                 // Prevent the pendingFollowUpScanID handler from also showing FollowUpView
                 notificationService.pendingFollowUpScanID = nil
 
@@ -231,4 +246,27 @@ private struct RootView: View {
         scanStore.applyRemoteScans(result.scans)
         journalStore.applyRemoteEntries(result.journals)
     }
+
+    #if DEBUG
+    /// Physical-device verification hook. It is inert unless explicitly
+    /// launched from devicectl with `--device-smoke-test` and is absent from
+    /// Release/TestFlight behavior.
+    private func runDeviceSmokeTestIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("--device-smoke-test") else { return }
+        print("DEVICE_SMOKE dataScanner supported=\(LiveScannerView.isSupported) available=\(LiveScannerView.isAvailable)")
+        print("DEVICE_SMOKE foundationModels=\(OnDeviceBeerKnowledge.availabilityDescription)")
+        if let result = await OnDeviceBeerKnowledge.enrich(
+            text: "Guinness Draught stout",
+            deviceVerdict: .yourCall
+        ) {
+            let name = result.name ?? "-"
+            let brand = result.brand ?? "-"
+            let style = result.style?.rawValue ?? "-"
+            let abv = result.abv.map { String(format: "%.1f", $0) } ?? "-"
+            print("DEVICE_SMOKE model name=\(name) brand=\(brand) style=\(style) abv=\(abv)")
+        } else {
+            print("DEVICE_SMOKE model response=nil")
+        }
+    }
+    #endif
 }

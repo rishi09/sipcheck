@@ -95,4 +95,31 @@ final class BeerMatcherTests: XCTestCase {
         let result = BeerMatcher.findMatch(for: "  Sierra Nevada Pale Ale  ", in: testDrinks)
         XCTAssertNotNil(result, "Should handle leading/trailing whitespace")
     }
+
+    func testGenericStyleNameDoesNotClaimAnUnrelatedBeer() {
+        let drinks = [Drink(name: "Hazy Little Thing IPA", style: "IPA", rating: .like)]
+        XCTAssertNil(BeerMatcher.findMatch(for: "IPA", in: drinks))
+    }
+
+    func testFuzzyMatchingReturnsClosestDrinkInsteadOfFirstAboveThreshold() {
+        let drinks = [
+            Drink(name: "Sierra Nevada Torpedo", style: "IPA", rating: .like),
+            Drink(name: "Sierra Nevada Pale Ale", style: "Pale Ale", rating: .like)
+        ]
+        let result = BeerMatcher.findMatch(for: "Siera Nevada Pale Ale", in: drinks)
+        XCTAssertEqual(result?.name, "Sierra Nevada Pale Ale")
+    }
+
+    func testPunctuationDifferencesNormalizeForExactIdentity() {
+        let drinks = [Drink(name: "Bell's Two Hearted", style: "IPA", rating: .like)]
+        let result = BeerMatcher.findMatch(for: "Bells Two Hearted", in: drinks)
+        XCTAssertEqual(result?.name, "Bell's Two Hearted")
+    }
+
+    func testLongOCRBlobStillFindsContainedHistoryName() {
+        let drinks = [Drink(name: "Two Hearted", style: "IPA", rating: .like)]
+        let legalCopy = String(repeating: " government warning", count: 20)
+        let result = BeerMatcher.findMatch(for: "Bell's Two Hearted IPA\(legalCopy)", in: drinks)
+        XCTAssertEqual(result?.name, "Two Hearted")
+    }
 }

@@ -26,6 +26,7 @@ channel — don't make the user shuttle context between chats.
 | Design modernization (completed/merged) | `claude/review-project-status-5ihff` | Released. The product changes are in `main`; no visual files remain reserved by this track. |
 | Simulator E2E tap-and-fix (completed/merged) | `claude/ios-simulator-e2e-testing-t5mxgm` | Released. Its handoff items were absorbed by the functional E2E finish; no files remain reserved. |
 | Functional E2E finish (completed 2026-07-15) | `claude/codex-e2e-finish` | Released after simulator verification; no files remain reserved by this track. |
+| Physical-device hardening (completed 2026-07-15) | `claude/codex-device-hardening` | Released after simulator, signed-device-build, and 97-test verification. Real camera/Foundation Models output still needs an unlocked physical device; no files remain reserved. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
@@ -51,7 +52,7 @@ Show the verdict from whatever we have *now*; refine asynchronously. Never block
 
 **On-device stack:** Apple Vision OCR (`VisionOCRService`) + VisionKit `DataScannerViewController` (live "point-and-read", no shutter) + Apple **Foundation Models** (on-device LLM, iOS 26) for the free verdict. See `plans/camera-feature-research-2026-06-30.md` and `plans/prototypes/RESULTS.md`.
 
-**Phase-1 code (built, pure, standalone):** `SipCheck/Services/TasteScorer.swift` (instant verdict from taste library), `SipCheck/Services/MenuParser.swift` (menu → single winner), `SipCheck/Services/BeerResolver.swift` (the fusion above). Device-only spike (live DataScanner + Foundation Models) is the remaining unproven part.
+**Phase-1 code (built):** `SipCheck/Services/TasteScorer.swift` (instant verdict from taste library), `SipCheck/Services/MenuParser.swift` (menu → single winner), `SipCheck/Services/BeerResolver.swift` (the fusion above), plus the live DataScanner and guarded Foundation Models enrichment path. Real-camera ergonomics and real-model output remain unproven until an unlocked physical device is reachable.
 
 **Test devices & capability (for triangulating field notes):**
 - **iPhone 15 Pro** (A17 Pro) — Apple-Intelligence capable → **Foundation Models available** (full on-device AI verdict).

@@ -15,7 +15,7 @@ struct ScanEvent: Codable {
     let verdict: String
     let score: Double
     let latencyMs: Int
-    /// Which entry point produced this scan: "image" or "text".
+    /// Which entry point produced this scan: "live", "image", or "text".
     let path: String
 
     // Device context — stamped automatically so notes from different test
@@ -28,6 +28,8 @@ struct ScanEvent: Codable {
     var deviceModel: String = DeviceInfo.machineIdentifier
     var osVersion: String = DeviceInfo.osVersion
     var appBuild: String = DeviceInfo.appBuild
+    /// Optional preserves decoding of pre-iOS-26 log entries that lack the key.
+    var foundationModelsAvailable: Bool? = OnDeviceBeerKnowledge.isAvailable
 }
 
 /// Lightweight device/build context for scan telemetry. Foundation only.
@@ -140,7 +142,8 @@ final class ScanLog {
                 + "src=\(e.source) verdict=\(e.verdict) "
                 + "score=\(String(format: "%.2f", e.score)) "
                 + "\(e.latencyMs)ms "
-                + "dev=\(e.deviceModel) os=\(e.osVersion) build=\(e.appBuild)"
+                + "dev=\(e.deviceModel) os=\(e.osVersion) build=\(e.appBuild) "
+                + "foundationModels=\(e.foundationModelsAvailable.map(String.init) ?? "unknown")"
         }.joined(separator: "\n")
     }
 

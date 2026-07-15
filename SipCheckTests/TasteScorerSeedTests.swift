@@ -291,4 +291,55 @@ final class TasteScorerSeedTests: XCTestCase {
         )
         XCTAssertEqual(assessment.verdict, .tryIt)
     }
+
+    func testManyLikesOutweighOneHistoricalDislike() {
+        let drinks = (0..<10).map { _ in
+            Drink(name: UUID().uuidString, style: "IPA", rating: .like)
+        } + [Drink(name: "One miss", style: "IPA", rating: .dislike)]
+        let assessment = TasteScorer.assess(
+            name: "Two Hearted",
+            style: .ipa,
+            abv: nil,
+            profile: TasteProfile.build(from: drinks),
+            preferences: prefs()
+        )
+
+        XCTAssertEqual(assessment.verdict, .tryIt)
+        XCTAssertEqual(assessment.score, 3.0, accuracy: 0.0001)
+        XCTAssertTrue(assessment.shortReason.contains("matches your history"))
+    }
+
+    func testHistoricalDislikesStillWinWhenTheyOutnumberLikes() {
+        let drinks = [
+            Drink(name: "Liked once", style: "Stout", rating: .like),
+            Drink(name: "Miss 1", style: "Stout", rating: .dislike),
+            Drink(name: "Miss 2", style: "Stout", rating: .dislike),
+            Drink(name: "Miss 3", style: "Stout", rating: .dislike)
+        ]
+        let assessment = TasteScorer.assess(
+            name: "Dark Beer",
+            style: .stout,
+            abv: nil,
+            profile: TasteProfile.build(from: drinks),
+            preferences: prefs()
+        )
+
+        XCTAssertEqual(assessment.verdict, .skipIt)
+        XCTAssertEqual(assessment.score, -1.5, accuracy: 0.0001)
+    }
+
+    func testExactPriorRatingOverridesAggregateStyleVerdict() {
+        let base = TasteScorer.assess(
+            name: "Known Beer",
+            style: .paleAle,
+            abv: nil,
+            profile: TasteProfile(),
+            preferences: prefs()
+        )
+
+        XCTAssertEqual(TasteScorer.applyingExactRating(.like, to: base).verdict, .tryIt)
+        XCTAssertEqual(TasteScorer.applyingExactRating(.dislike, to: base).verdict, .skipIt)
+        XCTAssertEqual(TasteScorer.applyingExactRating(.neutral, to: base).verdict, .yourCall)
+        XCTAssertEqual(TasteScorer.applyingExactRating(nil, to: base).verdict, base.verdict)
+    }
 }

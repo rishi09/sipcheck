@@ -110,4 +110,50 @@ final class PipelineIntegrationTests: XCTestCase {
 
         XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
     }
+
+    func testLiveScannerTranscriptUsesVisualReadingOrder() {
+        let lines: [(text: String, bounds: CGRect)] = [
+            ("7.0% ABV", CGRect(x: 20, y: 220, width: 100, height: 30)),
+            ("TWO HEARTED", CGRect(x: 15, y: 80, width: 220, height: 40)),
+            ("IPA", CGRect(x: 15, y: 150, width: 80, height: 30))
+        ]
+
+        XCTAssertEqual(LiveScanText.transcript(from: lines), "TWO HEARTED\nIPA\n7.0% ABV")
+        XCTAssertTrue(LiveScanText.isUsable("ORION"))
+        XCTAssertFalse(LiveScanText.isUsable("BEER MENU"))
+        XCTAssertFalse(LiveScanText.isUsable("STOUT"))
+        XCTAssertFalse(LiveScanText.isUsable("12"))
+    }
+
+    func testLiveScannerRegionStaysInsideCompactPhoneChrome() {
+        let region = LiveScanLayout.region(in: CGSize(width: 375, height: 667))
+        XCTAssertEqual(region.width, 327)
+        XCTAssertLessThanOrEqual(region.height, 330)
+        XCTAssertGreaterThan(region.minY, 150)
+        XCTAssertLessThan(region.maxY, 510)
+    }
+
+    func testFoundationModelJSONUsesTheSharedStructuredParser() {
+        let raw = """
+        {"name":"Two Hearted Ale","brand":"Bell's","style":"IPA","abv":7.0,"origin":null,"explanation":"This fits your IPA picks."}
+        """
+
+        let result = ScanningPipeline.parseEnrichment(raw)
+        XCTAssertEqual(result?.name, "Two Hearted Ale")
+        XCTAssertEqual(result?.brand, "Bell's")
+        XCTAssertEqual(result?.style, .ipa)
+        XCTAssertEqual(result?.abv, 7.0)
+    }
+
+    func testOlderScanLogEntryStillDecodesWithoutFoundationModelField() throws {
+        let json = """
+        [{"timestamp":0,"inputText":"Orion","resolvedName":"Orion","style":"Lager","source":"labelText","verdict":"YOUR_CALL","score":0,"latencyMs":20,"path":"image","deviceModel":"iPhone16,1","osVersion":"26.4","appBuild":"1.0 (84)"}]
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+
+        let events = try decoder.decode([ScanEvent].self, from: Data(json.utf8))
+        XCTAssertEqual(events.first?.resolvedName, "Orion")
+        XCTAssertNil(events.first?.foundationModelsAvailable)
+    }
 }

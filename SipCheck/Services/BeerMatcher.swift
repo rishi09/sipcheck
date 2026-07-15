@@ -6,27 +6,39 @@ enum BeerMatcher {
     /// Uses fuzzy matching to handle variations in naming
     static func findMatch(for query: String, in drinks: [Drink]) -> Drink? {
         let normalizedQuery = normalize(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+        let candidates = drinks.map { (drink: $0, name: normalize($0.name)) }
 
         // First, try exact match
-        if let exact = drinks.first(where: { normalize($0.name) == normalizedQuery }) {
-            return exact
+        if let exact = candidates.first(where: { $0.name == normalizedQuery }) {
+            return exact.drink
         }
 
-        // Try contains match
-        if let contains = drinks.first(where: { normalize($0.name).contains(normalizedQuery) || normalizedQuery.contains(normalize($0.name)) }) {
-            return contains
-        }
-
-        // Try fuzzy match with Levenshtein distance
-        let threshold = 0.7 // 70% similarity
-        for drink in drinks {
-            let similarity = calculateSimilarity(normalize(drink.name), normalizedQuery)
-            if similarity >= threshold {
-                return drink
+        // Generic names ("IPA", "Ale") must not claim every beer of that
+        // style. Among meaningful contains matches, choose the closest name
+        // instead of whichever drink happened to be stored first.
+        let containsMatches = candidates.compactMap { candidate -> (drink: Drink, similarity: Double)? in
+            guard min(candidate.name.count, normalizedQuery.count) >= 5,
+                  candidate.name.contains(normalizedQuery) || normalizedQuery.contains(candidate.name) else {
+                return nil
             }
+            return (candidate.drink, calculateSimilarity(candidate.name, normalizedQuery))
+        }
+        if let contains = containsMatches.max(by: { $0.similarity < $1.similarity }) {
+            return contains.drink
         }
 
-        return nil
+        // Try the BEST fuzzy match with Levenshtein distance. Returning the
+        // first drink above threshold made storage order decide identity. A
+        // long OCR page cannot reach the threshold against a short beer name,
+        // so skip that wasted quadratic pass after containment has failed.
+        guard normalizedQuery.count <= 160 else { return nil }
+        let threshold = 0.7 // 70% similarity
+        return candidates
+            .map { (drink: $0.drink, similarity: calculateSimilarity($0.name, normalizedQuery)) }
+            .filter { $0.similarity >= threshold }
+            .max { $0.similarity < $1.similarity }?
+            .drink
     }
 
     /// Strict variant for "you've had this one" claims: exact normalized-name
@@ -38,12 +50,21 @@ enum BeerMatcher {
         return drinks.first { normalize($0.name) == normalizedQuery }
     }
 
+    static func exactNamesMatch(_ lhs: String, _ rhs: String) -> Bool {
+        let left = normalize(lhs)
+        return !left.isEmpty && left == normalize(rhs)
+    }
+
     /// Normalize a string for comparison
     private static func normalize(_ string: String) -> String {
-        string
-            .lowercased()
-            .trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: "  ", with: " ")
+        let folded = string.folding(
+            options: [.caseInsensitive, .diacriticInsensitive],
+            locale: Locale(identifier: "en_US")
+        )
+        let withoutApostrophes = folded.filter { $0 != "'" && $0 != "’" }
+        return String(withoutApostrophes.map { $0.isLetter || $0.isNumber ? $0 : " " })
+            .split(separator: " ")
+            .joined(separator: " ")
     }
 
     /// Calculate similarity between two strings (0.0 to 1.0).
@@ -55,35 +76,27 @@ enum BeerMatcher {
         return 1.0 - (Double(distance) / Double(maxLength))
     }
 
-    /// Levenshtein distance between two strings
+    /// Levenshtein distance using two rolling rows (O(min(m,n)) memory).
     private static func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
-        let s1Array = Array(s1)
-        let s2Array = Array(s2)
-        let m = s1Array.count
-        let n = s2Array.count
+        var left = Array(s1)
+        var right = Array(s2)
+        if left.count < right.count { swap(&left, &right) }
+        guard !right.isEmpty else { return left.count }
 
-        if m == 0 { return n }
-        if n == 0 { return m }
-
-        var matrix = [[Int]](repeating: [Int](repeating: 0, count: n + 1), count: m + 1)
-
-        for i in 0...m { matrix[i][0] = i }
-        for j in 0...n { matrix[0][j] = j }
-
-        for i in 1...m {
-            for j in 1...n {
-                if s1Array[i - 1] == s2Array[j - 1] {
-                    matrix[i][j] = matrix[i - 1][j - 1]
-                } else {
-                    matrix[i][j] = min(
-                        matrix[i - 1][j] + 1,      // deletion
-                        matrix[i][j - 1] + 1,      // insertion
-                        matrix[i - 1][j - 1] + 1   // substitution
-                    )
-                }
+        var previous = Array(0...right.count)
+        var current = Array(repeating: 0, count: right.count + 1)
+        for (leftIndex, leftCharacter) in left.enumerated() {
+            current[0] = leftIndex + 1
+            for (rightIndex, rightCharacter) in right.enumerated() {
+                let substitutionCost = leftCharacter == rightCharacter ? 0 : 1
+                current[rightIndex + 1] = min(
+                    previous[rightIndex + 1] + 1,
+                    current[rightIndex] + 1,
+                    previous[rightIndex] + substitutionCost
+                )
             }
+            swap(&previous, &current)
         }
-
-        return matrix[m][n]
+        return previous[right.count]
     }
 }

@@ -123,6 +123,36 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(store.scans.first?.explanation, "Newer remote copy")
     }
 
+    func testMarkTriedClearsExactWantToTryDuplicatesAndLinksSource() {
+        let source = Scan(beerName: "Bell's Two Hearted", wantToTry: false)
+        let duplicate = Scan(beerName: "Bells Two Hearted", wantToTry: true)
+        let unrelated = Scan(beerName: "Allagash White", wantToTry: true)
+        store.addScan(source)
+        store.addScan(duplicate)
+        store.addScan(unrelated)
+        let journalID = UUID()
+
+        store.markTried(
+            beerName: "Bell's Two Hearted",
+            linkedJournalId: journalID,
+            sourceScanId: source.id
+        )
+
+        XCTAssertEqual(store.scans.first(where: { $0.id == source.id })?.linkedJournalId, journalID)
+        XCTAssertFalse(store.scans.first(where: { $0.id == duplicate.id })!.wantToTry)
+        XCTAssertEqual(store.scans.first(where: { $0.id == duplicate.id })?.linkedJournalId, journalID)
+        XCTAssertTrue(store.scans.first(where: { $0.id == unrelated.id })!.wantToTry)
+        XCTAssertNil(store.scans.first(where: { $0.id == unrelated.id })?.linkedJournalId)
+
+        let modified = store.scans.first(where: { $0.id == source.id })!.lastModifiedLocal
+        store.markTried(
+            beerName: "Bell's Two Hearted",
+            linkedJournalId: journalID,
+            sourceScanId: source.id
+        )
+        XCTAssertEqual(store.scans.first(where: { $0.id == source.id })?.lastModifiedLocal, modified)
+    }
+
     func testDeletePersists() {
         let scan = Scan(beerName: "Will Be Deleted", explanation: "Bye")
         store.addScan(scan)

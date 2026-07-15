@@ -289,14 +289,11 @@ struct AddBeerView: View {
             await MainActor.run {
                 drinkStore.addDrink(drink)
                 journalStore.addEntry(entry)
-                // If this log came from a scan, link the two and clear its
-                // want-to-try flag so it leaves the Journal's Want to Try list.
-                if let scanId = prefill?.scanId,
-                   var scan = scanStore.scans.first(where: { $0.id == scanId }) {
-                    scan.linkedJournalId = entry.id
-                    scan.wantToTry = false
-                    scanStore.updateScan(scan)
-                }
+                scanStore.markTried(
+                    beerName: drink.name,
+                    linkedJournalId: entry.id,
+                    sourceScanId: prefill?.scanId
+                )
                 dismiss()
             }
         }

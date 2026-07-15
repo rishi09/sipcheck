@@ -1,4 +1,7 @@
 import UIKit
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 // MARK: - Scan Result
 
@@ -35,6 +38,113 @@ struct Enrichment {
     }
 }
 
+/// Optional iOS 26 beer knowledge. This is a free, offline resolver tier used
+/// after the deterministic verdict is already visible; unsupported devices and
+/// disabled/not-ready Apple Intelligence simply return nil.
+enum OnDeviceBeerKnowledge {
+    static var isAvailable: Bool {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            return SystemLanguageModel.default.availability == .available
+        }
+        #endif
+        return false
+    }
+
+    static var availabilityDescription: String {
+        #if canImport(FoundationModels)
+        if #available(iOS 26.0, *) {
+            switch SystemLanguageModel.default.availability {
+            case .available:
+                return "available"
+            case .unavailable(.deviceNotEligible):
+                return "device not eligible"
+            case .unavailable(.appleIntelligenceNotEnabled):
+                return "Apple Intelligence disabled"
+            case .unavailable(.modelNotReady):
+                return "model not ready"
+            @unknown default:
+                return "unavailable"
+            }
+        }
+        #endif
+        return "requires iOS 26"
+    }
+
+    static func prewarm() {
+        #if canImport(FoundationModels)
+        guard #available(iOS 26.0, *), isAvailable else { return }
+        Task { await FoundationModelBeerResolver.shared.prewarm() }
+        #endif
+    }
+
+    static func enrich(text: String, deviceVerdict: Verdict) async -> Enrichment? {
+        #if canImport(FoundationModels)
+        guard #available(iOS 26.0, *), isAvailable else { return nil }
+        return await FoundationModelBeerResolver.shared.enrich(text: text, verdict: deviceVerdict)
+        #else
+        return nil
+        #endif
+    }
+}
+
+#if canImport(FoundationModels)
+@available(iOS 26.0, *)
+private actor FoundationModelBeerResolver {
+    static let shared = FoundationModelBeerResolver()
+
+    private let session = LanguageModelSession(instructions: """
+        You identify beer from OCR text or a typed name. Return facts only when
+        reasonably confident. Never invent an ABV. The app's supplied verdict
+        is final; any explanation must support it without changing it.
+        """)
+
+    func prewarm() {
+        session.prewarm()
+    }
+
+    func enrich(text: String, verdict: Verdict) async -> Enrichment? {
+        let verdictText: String
+        switch verdict {
+        case .tryIt: verdictText = "TRY IT"
+        case .skipIt: verdictText = "SKIP IT"
+        case .yourCall: verdictText = "YOUR CALL"
+        }
+
+        let prompt = """
+            Label text or beer name:
+            \(text)
+
+            The app already showed \(verdictText). Respond with only one JSON object:
+            {"name":"beer name or null","brand":"brewery or null","style":"IPA, Pale Ale, Lager, Pilsner, Stout, Porter, Wheat, Sour, Amber, Brown Ale, Belgian, Other, or null","abv":5.5,"origin":"short brewery fact or null","explanation":"one short sentence consistent with \(verdictText) or null"}
+            Use null when uncertain. Do not add a verdict field or markdown.
+            """
+
+        do {
+            let response = try await session.respond(
+                to: prompt,
+                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 180)
+            )
+            guard var enrichment = ScanningPipeline.parseEnrichment(response.content) else { return nil }
+            if enrichment.explanation == nil, let style = enrichment.style {
+                let styleName = style.displayName
+                switch verdict {
+                case .tryIt:
+                    enrichment.explanation = "Looks like a \(styleName) — that lines up with your taste."
+                case .skipIt:
+                    enrichment.explanation = "Looks like a \(styleName), which is outside your usual lane."
+                case .yourCall:
+                    enrichment.explanation = "Looks like a \(styleName), but your history doesn't point strongly either way."
+                }
+            }
+            return enrichment
+        } catch {
+            return nil
+        }
+    }
+}
+#endif
+
 // MARK: - Scanning Pipeline
 
 class ScanningPipeline {
@@ -49,6 +159,10 @@ class ScanningPipeline {
     /// decide whether to show a "refining…" hint; offline it stays false and no
     /// network work starts at all.
     var canEnrich: Bool {
+        OnDeviceBeerKnowledge.isAvailable || canEnrichOnline
+    }
+
+    var canEnrichOnline: Bool {
         if OpenAIService.useMockResponses { return true }
         guard NetworkMonitor.shared.isSatisfied else { return false }
         return !Config.geminiAPIKey.isEmpty || !Config.openAIAPIKey.isEmpty
@@ -80,7 +194,11 @@ class ScanningPipeline {
                 explanation: copy
             )
         }
-        guard canEnrich else { return nil }
+
+        if let local = await OnDeviceBeerKnowledge.enrich(text: text, deviceVerdict: deviceVerdict) {
+            return local
+        }
+        guard canEnrichOnline else { return nil }
 
         let prompt = Self.enrichmentPrompt(text: text, verdict: deviceVerdict)
 
@@ -142,7 +260,7 @@ class ScanningPipeline {
         """
     }
 
-    private static func parseEnrichment(_ raw: String) -> Enrichment? {
+    static func parseEnrichment(_ raw: String) -> Enrichment? {
         guard let jsonStart = raw.firstIndex(of: "{"),
               let jsonEnd = raw.lastIndex(of: "}"),
               let jsonData = String(raw[jsonStart...jsonEnd]).data(using: .utf8),

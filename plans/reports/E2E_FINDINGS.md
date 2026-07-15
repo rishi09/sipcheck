@@ -50,9 +50,6 @@ already on main):
 - **F3 (withdrawn):** `HomeView`/`CheckBeerView`/`BeerListView`/`BeerDetailView`/`StatsView`
   are unreachable today and I planned to delete them — **don't**: SPEED_PLAN #12/#15
   schedule work inside them. Left untouched.
-- **F9:** the same beer can sit in Want to Try and Tried simultaneously (save flow
-  doesn't consult history). Mitigated by the F8 banner; a real dedupe belongs with
-  the refactor's save-flow changes.
 - Profile "Top Styles" bars are normalized to the max value (33% renders ~90% wide) —
   defensible, but worth a look during the §4 visual reset.
 - Beer placeholder icon is a coffee mug (`mug.fill`); DESIGN §4 "kill the gray box"
@@ -92,3 +89,48 @@ recorder did not produce 30 unique source frames each second, so the exports are
 **Still physical-device-only:** live camera ergonomics, DataScanner point-and-read,
 Apple Foundation Models availability/wording, and real aisle/menu lighting. These
 remain explicit device test items; they were not represented as simulator-verified.
+
+## Physical-device hardening follow-up (2026-07-15)
+
+**Branch:** `claude/codex-device-hardening`
+
+**Simulator:** local iPhone 17 Pro, iOS 26.4.
+
+- Built a shutterless VisionKit DataScanner path with an exact visible ROI,
+  stable-text auto-capture, captured-frame handoff, and one-tap re-scan. The
+  unsupported-simulator preview was checked at normal and accessibility text sizes;
+  actual camera ergonomics remain device-only.
+- Added the iOS 26 Foundation Models enrichment tier. It prewarms when available,
+  runs only after the deterministic offline verdict is visible, preserves that
+  verdict, and falls through to optional online enrichment. Signed generic iOS
+  Release builds compile and link the guarded API.
+- F9 is fixed: logging a beer atomically clears exact-name Want-to-Try duplicates,
+  links the source scan to the journal entry, cancels reminders, and repeated
+  notification actions do not add duplicate history.
+- Human-paced rehearsal found and fixed two issues missed by screenshots: the typed
+  sheet now owns its FocusState inside the presentation scope (keyboard rises without
+  another tap), and an exact prior beer rating now outranks aggregate style history
+  (`like` → TRY IT, `dislike` → SKIP IT, neutral → YOUR CALL).
+- BeerMatcher now normalizes punctuation/diacritics, rejects generic short contains
+  matches, ranks the closest match instead of storage order, and uses rolling-row
+  Levenshtein memory with a long-OCR guard.
+- Full result after the rehearsal fixes: **97 passed, 0 failed, 0 skipped**.
+
+Review artifacts (workspace-local, intentionally not committed):
+
+- `.artifacts/sipcheck-walkthroughs-2026-07-15/device-hardening-detailed-30fps.mp4`
+  (36.33s, 904×1966, exact 30/1 CFR; scanner → typed suggestion → verdict → earned
+  notification prompt → log → journal)
+- `.artifacts/sipcheck-walkthroughs-2026-07-15/device-hardening-detailed-contact.png`
+- `.artifacts/sipcheck-walkthroughs-2026-07-15/typed-entry-autofocus.png`
+- `.artifacts/sipcheck-walkthroughs-2026-07-15/live-scanner-preview.png`
+
+The video export is exact 30 fps CFR; AXe supplied roughly 15 unique simulator frames
+per second, so this is flow/transition evidence rather than a claim about device render
+cadence. The contact sheet was inspected for missed taps, blank frames, clipping, and
+state continuity.
+
+**Physical-device result:** CoreDevice discovers the paired iPhone 15 Pro, but its
+network tunnel repeatedly times out before lock-state/install/launch. DataScanner and
+real Foundation Models output therefore remain explicitly unverified on hardware; the
+signed build, guards, simulator UI, pure helpers, and integration paths are verified.

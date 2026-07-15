@@ -96,27 +96,45 @@ enum TasteScorer {
 
         // ---- Style contribution -------------------------------------------
         let likedWeights = likedStyleWeights(from: profile, preferences: preferences)
-        let dislikedSet = dislikedStyleKeys(from: profile, preferences: preferences)
+        let quizDislikedSet = quizDislikedStyleKeys(from: preferences)
         let avoidSet = avoidSeedStyleKeys(from: preferences)
 
         let key = styleKey(resolvedStyle)
-        if avoidSet.contains(key) || dislikedSet.contains(key) {
+        let likedCount = profile.favoriteStyles.first { $0.style.lowercased() == key }?.count ?? 0
+        let dislikedCount = profile.dislikedStyles.first { $0.style.lowercased() == key }?.count ?? 0
+
+        if avoidSet.contains(key) {
             // Mixed evidence counts RATED history only: a vibe answer or a
             // "beers you've had" seed is not a like, and must not soften a
             // repeatedly-thumbs-downed (or explicitly avoided) style.
-            if let liked = profile.favoriteStyles.first(where: { $0.style.lowercased() == key }) {
+            if likedCount > 0 {
                 // A single bad stout must not permanently veto a style the user
                 // has loved many times — net the signals instead.
-                let weight = min(3.0, 1.0 + Double(liked.count - 1) * 0.5)
+                let weight = min(3.0, 1.0 + Double(likedCount - 1) * 0.5)
                 score += weight - mixedEvidenceOffset
                 reasons.append("mixed history with \(reasonName(resolvedStyle))")
-            } else if avoidSet.contains(key) {
+            } else {
                 score -= avoidSeedPenalty
                 reasons.append("you steer clear of \(reasonName(resolvedStyle))")
-            } else {
-                score -= 5.0
-                reasons.append("you usually avoid \(reasonName(resolvedStyle))")
             }
+        } else if likedCount != dislikedCount {
+            // Real ratings outrank fuzzy quiz labels. Net evidence preserves
+            // direction: 10 likes + 1 dislike is strongly positive, while the
+            // inverse is strongly negative. The cap keeps style from drowning
+            // out an extreme ABV mismatch.
+            let net = likedCount - dislikedCount
+            let contribution = max(-3.0, min(3.0, Double(net) * 0.75))
+            score += contribution
+            reasons.append(
+                net > 0
+                    ? "matches your history with \(reasonName(resolvedStyle))"
+                    : "you usually avoid \(reasonName(resolvedStyle))"
+            )
+        } else if likedCount > 0 {
+            reasons.append("mixed history with \(reasonName(resolvedStyle))")
+        } else if quizDislikedSet.contains(key) {
+            score -= 5.0
+            reasons.append("you usually avoid \(reasonName(resolvedStyle))")
         } else if let weight = likedWeights[key] {
             score += weight
             reasons.append("matches your love of \(reasonName(resolvedStyle))")
@@ -163,6 +181,33 @@ enum TasteScorer {
             return .yourCall
         } else {
             return .skipIt
+        }
+    }
+
+    /// A rating for this exact beer is stronger evidence than aggregate style
+    /// history. Without this override, one liked pale ale only contributes
+    /// 0.75 and the same beer can come back as YOUR CALL on the next check.
+    static func applyingExactRating(_ rating: Rating?, to assessment: Assessment) -> Assessment {
+        guard let rating else { return assessment }
+        switch rating {
+        case .like:
+            return Assessment(
+                verdict: .tryIt,
+                shortReason: "you liked this exact beer before",
+                score: max(tryThreshold, assessment.score)
+            )
+        case .dislike:
+            return Assessment(
+                verdict: .skipIt,
+                shortReason: "you passed on this exact beer before",
+                score: min(-0.5, assessment.score)
+            )
+        case .neutral:
+            return Assessment(
+                verdict: .yourCall,
+                shortReason: "you were neutral on this exact beer before",
+                score: min(tryThreshold - 0.5, max(yourCallThreshold, assessment.score))
+            )
         }
     }
 
@@ -326,13 +371,10 @@ enum TasteScorer {
         return neutralBonusDefault
     }
 
-    /// Build the set of disliked `styleKey`s from history + quiz dislikes.
-    private static func dislikedStyleKeys(
-        from profile: TasteProfile,
-        preferences: TastePreferences
-    ) -> Set<String> {
-        let disliked = Set(profile.dislikedStyles.map { $0.style.lowercased() })
-
+    /// Build disliked style keys from the fuzzy quiz phrases. Rating history is
+    /// count-based in `assess`; reducing it to a set loses the direction of
+    /// mixed evidence.
+    private static func quizDislikedStyleKeys(from preferences: TastePreferences) -> Set<String> {
         var quizDislikes: Set<String> = []
         for dislike in preferences.dislikes {
             quizDislikes.formUnion(styleKeys(matching: dislike))
@@ -343,7 +385,7 @@ enum TasteScorer {
         // every IPA. Rating history still counts as a real dislike.
         quizDislikes.subtract(vibeStyleKeys(from: preferences.vibe))
 
-        return disliked.union(quizDislikes)
+        return quizDislikes
     }
 
     /// Build the set of avoid `styleKey`s from the onboarding stay-away seed.

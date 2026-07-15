@@ -54,6 +54,31 @@ class ScanStore: ObservableObject {
         }
     }
 
+    /// Close the Want-to-Try loop in one persisted mutation. Besides the source
+    /// scan, exact-name duplicates are cleared so a manually logged beer cannot
+    /// remain simultaneously under both Tried and Want to Try.
+    func markTried(beerName: String, linkedJournalId: UUID, sourceScanId: UUID? = nil) {
+        var changed: [Scan] = []
+        for index in scans.indices {
+            let isSource = scans[index].id == sourceScanId
+            let isSavedExactMatch = scans[index].wantToTry
+                && BeerMatcher.exactNamesMatch(scans[index].beerName, beerName)
+            guard isSource || isSavedExactMatch else { continue }
+            guard scans[index].wantToTry || scans[index].linkedJournalId != linkedJournalId else { continue }
+
+            scans[index].wantToTry = false
+            scans[index].linkedJournalId = linkedJournalId
+            scans[index].lastModifiedLocal = Date()
+            NotificationService.shared.cancelFollowUp(for: scans[index])
+            changed.append(scans[index])
+        }
+        guard !changed.isEmpty else { return }
+        saveScans()
+        for scan in changed {
+            CloudKitSyncService.shared.save(scan)
+        }
+    }
+
     func deleteScan(_ scan: Scan) {
         tombstone(ids: [scan.id])
     }

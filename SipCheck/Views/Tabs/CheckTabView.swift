@@ -44,10 +44,11 @@ struct CheckTabView: View {
     // Camera / input state
     @State private var capturedImage: UIImage?
     @State private var showingCamera = false
+    @State private var showingLiveScanner = false
     @State private var showingPermissionAlert = false
+    @State private var pendingLiveScanText: String?
     @State private var showingTextEntry = false
     @State private var textEntryInput = ""
-    @FocusState private var textEntryFocused: Bool
 
     // Scan flow state
     @State private var phase: ScanPhase = .idle
@@ -98,6 +99,11 @@ struct CheckTabView: View {
                     },
                     onScanAnother: {
                         resetScanState()
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                requestCameraAndScan()
+                            }
+                        }
                     }
                 )
             case .failed(let message):
@@ -122,10 +128,21 @@ struct CheckTabView: View {
             // Warm the catalog decode + token indexes off the main actor so
             // scan #1 pays the same ~0ms lookup cost as scan #10.
             Task.detached(priority: .utility) { _ = BundledCatalog.shared }
+            OnDeviceBeerKnowledge.prewarm()
             await VisionOCRService.warmUp()
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--preview-live-scanner") {
+                showingLiveScanner = true
+            }
+            #endif
         }
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
+        }
+        .fullScreenCover(isPresented: $showingLiveScanner) {
+            LiveScannerView { capture in
+                handleLiveCapture(capture)
+            }
         }
         .sheet(isPresented: $showingTextEntry) {
             textEntrySheet
@@ -142,7 +159,12 @@ struct CheckTabView: View {
         }
         .onChange(of: capturedImage) { _, newImage in
             if let image = newImage {
-                runScan(image: image)
+                if let liveText = pendingLiveScanText {
+                    pendingLiveScanText = nil
+                    runScan(recognizedText: liveText, image: image)
+                } else {
+                    runScan(image: image)
+                }
             }
         }
     }
@@ -331,26 +353,9 @@ struct CheckTabView: View {
                         .foregroundColor(SipColors.textSecondary)
                     // Elevated input well (crit note 6) — the field sits one
                     // step above the sheet surface, never a system light border.
-                    TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $textEntryInput)
-                        .textFieldStyle(.plain)
-                        .font(SipTypography.body)
-                        .foregroundColor(SipColors.textPrimary)
-                        .tint(SipColors.accent)
-                        .focused($textEntryFocused)
-                        .submitLabel(.search)
-                        .onSubmit {
-                            submitTextEntry()
-                        }
-                        .padding(SipSpacing.l)
-                        .background(
-                            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                                .fill(SipColors.surfaceElevated)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                                .strokeBorder(textEntryFocused ? SipColors.accent : SipColors.textSecondary.opacity(0.25), lineWidth: 1)
-                        )
-                        .animation(.snappy(duration: 0.25), value: textEntryFocused)
+                    AutoFocusBeerTextField(text: $textEntryInput) {
+                        submitTextEntry()
+                    }
                         .accessibilityIdentifier("beerTextInput")
                 }
                 .padding(.horizontal)
@@ -433,14 +438,6 @@ struct CheckTabView: View {
                     }
                 }
             }
-            .onAppear {
-                // Focusing during the sheet's presentation animation silently
-                // fails (verified on-simulator: keyboard never rose). Delay
-                // until the sheet has settled.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    textEntryFocused = true
-                }
-            }
         }
     }
 
@@ -482,14 +479,12 @@ struct CheckTabView: View {
     private func requestCameraAndScan() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            capturedImage = nil
-            showingCamera = true
+            presentScanner()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { granted in
                 DispatchQueue.main.async {
                     if granted {
-                        capturedImage = nil
-                        showingCamera = true
+                        presentScanner()
                     } else {
                         showingPermissionAlert = true
                     }
@@ -499,6 +494,25 @@ struct CheckTabView: View {
             showingPermissionAlert = true
         @unknown default:
             break
+        }
+    }
+
+    private func presentScanner() {
+        capturedImage = nil
+        pendingLiveScanText = nil
+        if LiveScannerView.isSupported && LiveScannerView.isAvailable {
+            showingLiveScanner = true
+        } else {
+            showingCamera = true
+        }
+    }
+
+    private func handleLiveCapture(_ capture: LiveScanCapture) {
+        if let image = capture.image {
+            pendingLiveScanText = capture.text
+            capturedImage = image
+        } else {
+            runScan(recognizedText: capture.text, image: nil)
         }
     }
 
@@ -536,6 +550,26 @@ struct CheckTabView: View {
             await MainActor.run {
                 guard generation == scanGeneration, case .recognizing = phase else { return }
                 present(outcome, rawText: text, path: "image", latencyMs: latencyMs, image: image)
+            }
+        }
+    }
+
+    /// DataScanner has already recognized the frame continuously, so this path
+    /// skips a second full-image OCR pass and reaches the same resolver directly.
+    private func runScan(recognizedText: String, image: UIImage?) {
+        let text = recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, startScan() else { return }
+        let generation = scanGeneration
+        let drinks = drinkStore.drinks
+
+        scanTask = Task(priority: .userInitiated) {
+            let start = CFAbsoluteTimeGetCurrent()
+            let outcome = Self.computeOutcome(fromText: text, path: "live", drinks: drinks)
+            let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+
+            await MainActor.run {
+                guard generation == scanGeneration, case .recognizing = phase else { return }
+                present(outcome, rawText: text, path: "live", latencyMs: latencyMs, image: image)
             }
         }
     }
@@ -588,7 +622,13 @@ struct CheckTabView: View {
             guard let winner = menuVerdict.winner else {
                 // A parsed candidate count of two always yields a ranked result;
                 // retain the single-beer fallback if that invariant changes.
-                return computeSingleBeerOutcome(fromText: text, path: path, profile: profile, preferences: prefs)
+                return computeSingleBeerOutcome(
+                    fromText: text,
+                    path: path,
+                    drinks: drinks,
+                    profile: profile,
+                    preferences: prefs
+                )
             }
             let scan = Scan(
                 beerName: winner.name,
@@ -618,24 +658,33 @@ struct CheckTabView: View {
             )
         }
 
-        return computeSingleBeerOutcome(fromText: text, path: path, profile: profile, preferences: prefs)
+        return computeSingleBeerOutcome(
+            fromText: text,
+            path: path,
+            drinks: drinks,
+            profile: profile,
+            preferences: prefs
+        )
     }
 
     /// Single-beer path: fuse printed style/ABV with a bundled-catalog match.
     private static func computeSingleBeerOutcome(
         fromText text: String,
         path: String,
+        drinks: [Drink],
         profile: TasteProfile,
         preferences prefs: TastePreferences
     ) -> ScanOutcome {
         let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
-        let assessment = TasteScorer.assess(
+        let baseAssessment = TasteScorer.assess(
             name: resolved.name,
             style: resolved.style,
             abv: resolved.abv,
             profile: profile,
             preferences: prefs
         )
+        let exactRating = BeerMatcher.exactMatch(for: resolved.name, in: drinks)?.rating
+        let assessment = TasteScorer.applyingExactRating(exactRating, to: baseAssessment)
         let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
 
         let scan = Scan(
@@ -695,7 +744,10 @@ struct CheckTabView: View {
 
         savedForLater = false
         menuRunnerUp = outcome.menuRunnerUp
-        let willRefine = !outcome.isMenu && ScanningPipeline.shared.canEnrich
+        let willRefine = !outcome.isMenu && (
+            ScanningPipeline.shared.canEnrichOnline
+                || (outcome.startedStyleless && OnDeviceBeerKnowledge.isAvailable)
+        )
         withAnimation { phase = .verdict(outcome.scan, refining: willRefine) }
         if willRefine {
             startRefinement(for: outcome.scan, text: rawText, outcome: outcome, image: image)
@@ -791,7 +843,7 @@ struct CheckTabView: View {
         // The resolver filters bottle-neck dates and legal copy from
         // multi-line OCR. Its candidate is more useful than the page's first
         // line when no catalog entry matched.
-        if path == "image", trimmed.contains("\n"), resolved.name != trimmed {
+        if path != "text", trimmed.contains("\n"), resolved.name != trimmed {
             return (resolved.name, true)
         }
 
@@ -799,7 +851,7 @@ struct CheckTabView: View {
         // A single-line OCR read is still machine output, so it stays replaceable.
         if !trimmed.contains("\n") {
             let cleaned = String(trimmed.prefix(60)).trimmingCharacters(in: nameEdgeNoise)
-            return (cleaned.isEmpty ? String(trimmed.prefix(60)) : cleaned, path == "image")
+            return (cleaned.isEmpty ? String(trimmed.prefix(60)) : cleaned, path != "text")
         }
 
         // Multi-line OCR blob (that didn't parse as a menu): best-guess the
@@ -848,10 +900,46 @@ struct CheckTabView: View {
         scanGeneration += 1
         savedForLater = false
         menuRunnerUp = nil
+        pendingLiveScanText = nil
         capturedImage = nil
         spinnerDegrees = 0
         scanningPhraseIndex = 0
         withAnimation { phase = .idle }
+    }
+}
+
+/// Keeps focus state inside the presented sheet's focus scope. A FocusState
+/// owned by CheckTabView can be set before the sheet's text field is mounted,
+/// which leaves the rescue path requiring an extra tap.
+private struct AutoFocusBeerTextField: View {
+    @Binding var text: String
+    let onSubmit: () -> Void
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        TextField("e.g. Lagunitas IPA, hoppy pale ale...", text: $text)
+            .textFieldStyle(.plain)
+            .font(SipTypography.body)
+            .foregroundColor(SipColors.textPrimary)
+            .tint(SipColors.accent)
+            .focused($isFocused)
+            .submitLabel(.search)
+            .onSubmit(onSubmit)
+            .padding(SipSpacing.l)
+            .background(
+                RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                    .fill(SipColors.surfaceElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                    .strokeBorder(isFocused ? SipColors.accent : SipColors.textSecondary.opacity(0.25), lineWidth: 1)
+            )
+            .animation(.snappy(duration: 0.25), value: isFocused)
+            .task {
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
+                isFocused = true
+            }
     }
 }
 

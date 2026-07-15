@@ -2,7 +2,7 @@
 
 Method: 6 specialist lenses → dedup → adversarial verification (2 refuters for critical/high) → gap-hunt round. 68 raw findings, 57 confirmed, 5 refuted. Audited at main `30ad041`; statuses annotated after the verdict-first refactor.
 
-Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the E2E/next track · ⚪ open, scheduled/backlog.
+Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the E2E/next track · ⚪ open, scheduled/backlog. Statuses re-audited against `main` + the physical-device-hardening track on 2026-07-15.
 
 ### [HIGH] `SipCheck/Services/ScanningPipeline.swift:76`
 **Network LLM calls are on the critical path of every scan; the on-device verdict is only computed after they complete, violating the locked fast/$0/offline constraint.**
@@ -42,7 +42,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Services/TasteScorer.swift:69`
 **A single historical dislike of a style permanently vetoes it (-5.0) even when the user has liked that style many times, because disliked-set is checked before liked weights.**
 
-- **Status:** ⚪ OPEN — scorer tuning — one historical dislike vetoes a many-times-liked style
+- **Status:** ✅ FIXED — rating history now contributes by capped net likes-minus-dislikes; 10 likes + 1 dislike stays positive and the inverse stays negative (2026-07-15)
 - **Field scenario:** User has liked 10 IPAs and thumbs-downed one bad one. At Trader Joe's every IPA they scan now says 'Skip it — you usually avoid ipa', the exact inverse of their taste, and it never self-corrects.
 - **Detail:** TasteProfile.build keeps independent like/dislike counts per style (TasteProfile.swift:27-31) — a style with 10 likes and 1 dislike appears in BOTH favoriteStyles and dislikedStyles. TasteScorer.assess checks `dislikedSet.contains(key)` first (TasteScorer.swift:69) and applies -5.0, which no liked weight (capped at 3.0, line 224) or ABV bonus (+0.5) can overcome, so the verdict is always skipIt for the user's actual favorite style. No ratio/threshold logic exists.
 
@@ -112,7 +112,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Views/Components/CameraView.swift:8`
 **Capture uses UIImagePickerController — a full shutter + 'Use Photo' confirmation flow — instead of the specified live point-and-read scanner.**
 
-- **Status:** ⚪ OPEN — next phase — DataScanner live-scan spike (device required)
+- **Status:** 🟡 IMPLEMENTED — shutterless VisionKit DataScanner, exact ROI, stable-text auto-capture, and one-tap re-scan are built/tested; physical camera ergonomics still require an unlocked device (2026-07-15)
 - **Field scenario:** Holding a six-pack in one hand, the user must aim, hit the shutter, then hit 'Use Photo' on the confirm screen — three precise taps per can; comparing four cans means twelve taps plus four camera relaunches while the spouse waits.
 - **Detail:** CameraView wraps UIImagePickerController with sourceType = .camera (CameraView.swift:8-13). That imposes iOS's stock still-photo UI: frame, tap shutter, then a Retake/'Use Photo' confirmation screen before capturedImage is set. The locked architecture calls for VisionKit DataScannerViewController ('live point-and-read, no shutter'). Tap count from app-open to verdict is: tap 'Scan Label' (1) → tap shutter (2) → tap 'Use Photo' (3) → wait; and every additional beer repeats all three. One-handed operation with a phone-sized shutter+confirm dance is exactly the friction the spec forbids.
 
@@ -133,14 +133,14 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Services/DrinkStore.swift:141`
 **One bad element in drinks.json silently wipes the entire taste library, and the 'backup' is clobbered on the very next launch with no restore path anywhere**
 
-- **Status:** 🔵 OPEN — data safety (recommend next track, HIGH) — bad element can wipe taste library; backup clobbered
+- **Status:** ✅ FIXED — lossy element decoding preserves valid drinks; total corruption is retained for forensics and restored from the last-known-good backup (2026-07-15)
 - **Field scenario:** User's drinks.json picks up one malformed record (sample-data injection, interrupted schema experiment, or a field type drift between builds on the two test iPhones). Next launch at Trader Joe's: decode throws, store silently loads empty, the taste profile shows 0 beers, every scan verdict reverts to cold-start 'YOUR CALL'. The user shrugs and logs the beer in their hand — that save permanently overwrites years of taste history, and one more launch destroys the only backup copy.
 - **Detail:** loadDrinks() decodes the whole file with JSONDecoder().decode([Drink].self, from:) (DrinkStore.swift:136) — an all-or-nothing array decode. If ANY single element throws, the catch at :139-143 resets drinks = [] and tombstones = []. The next mutation (addDrink at :39-47, or updateDrink) calls saveDrinks() (:115-123), which overwrites drinks.json with only the new record — the full history is destroyed on disk. The per-field tolerant decoder in Drink.init(from:) (Drink.swift:61-75) handles MISSING keys (so the scan branch's new lastModifiedLocal/isDeleted fields migrate fine), but decodeIfPresen
 
 ### [HIGH] `SipCheck/Services/CloudKitSyncService.swift:115`
 **Upload path has no last-write-wins guard: a device whose fetch failed blindly re-uploads every stale record, permanently clobbering the newer rating entered on the other iPhone; offline saves are also silently dropped with no retry**
 
-- **Status:** 🔵 OPEN — sync correctness (recommend E2E/next track)
+- **Status:** ✅ FIXED — serialized writes apply a server-newer last-write-wins guard, including conflict retries; failed fetches no longer look like an empty server (2026-07-15)
 - **Field scenario:** iPhone 15 Pro rates 'Two Hearted' as like; server updated. iPhone 14 Pro launches inside Trader Joe's with no signal: fetch returns [], fullSync enqueues its stale copy of the same record; when signal returns in the parking lot, the stale rating overwrites the server. The 14 Pro never shows the rating, and if the 15 Pro ever restores from CloudKit (e.g. after the drinks.json wipe in the critical finding), the rating is gone everywhere — the taste library silently degrades across devices.
 - **Detail:** fetchAllDrinks/fetchAllScans/fetchAllJournalEntries (:57, :72, :87) use `try? await db.records(...)` and return [] on ANY error (no network, iCloud signed out, CloudKit 'recordName not queryable' schema error). fullSync (:114-125) then computes remoteDrinkIDs as an empty set and calls save() for EVERY local record. saveRecord (:30-47) fetches the server record and populates local field values unconditionally — there is no lastModifiedLocal comparison on the upload path — and the .serverRecordChanged handler (:37-41) explicitly refetches the server copy and force-overwrites the concurrent write
 
@@ -175,7 +175,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Services/BeerMatcher.swift:16`
 **BeerMatcher contains-match has no minimum-length guard and the Levenshtein pass returns the first drink over threshold rather than the best match.**
 
-- **Status:** ⚪ OPEN (low)
+- **Status:** ✅ FIXED — normalized punctuation/diacritics, minimum contains length, and best-match ranking replace storage-order matching (2026-07-15)
 - **Field scenario:** User with a logged beer named 'IPA' checks any IPA at the store — the app claims they've already tried it and shows that old rating; OCR that drops an apostrophe ('Bells Two Hearted') fails the exact and contains passes it should trivially hit.
 - **Detail:** The bidirectional contains check (BeerMatcher.swift:16) means a history drink named 'IPA' matches every query containing 'ipa' (and query 'ipa' matches any drink name containing it) — first array element wins, not best. The fuzzy loop (lines 22-27) returns the FIRST drink with similarity ≥0.7 in storage order instead of the maximum-similarity drink, so 'Sierra Nevada Torpedo' can match 'Sierra Nevada Pale Ale' while a closer entry sits later in the list. normalize (lines 33-38) does one non-iterative double-space replace, keeps punctuation and diacritics ('Bell's' vs 'Bells', 'Kölsch' vs 'Kols
 
@@ -217,49 +217,49 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Views/Tabs/CheckTabView.swift:460`
 **Re-scan requires a full teardown loop: Scan Another → prompt screen → 'Scan Label' → shutter → 'Use Photo' for every subsequent beer.**
 
-- **Status:** 🟡 PARTIAL — state machine simplifies re-scan; shutter flow itself is the DataScanner spike
+- **Status:** 🟡 IMPLEMENTED — Scan Another reopens the shutterless live scanner in one tap; final physical-camera validation remains (2026-07-15)
 - **Field scenario:** Deciding between five IPAs on the shelf, the user does the full three-tap camera relaunch ritual five times; by beer three they give up and just buy their usual.
 - **Detail:** onScanAnother calls resetScanState (CheckTabView.swift:53-55, 460-468) which returns to scanPromptView; the camera sheet is not re-presented, so the user must tap 'Scan Label' again (CheckTabView.swift:145-160) and repeat the UIImagePickerController shutter + confirm dance. Comparing N beers costs 3N taps and N camera cold-starts. A live scanner (or at minimum reopening the camera directly from 'Scan Another') would make consecutive scans continuous.
 
 ### [MEDIUM] `SipCheck/Services/CloudKitSyncService.swift:72`
 **fetchAllScans returns [] on any error and truncates silently at the query limit, so fullSync re-uploads every local record one-by-one (2 network round trips each, serialized) and remote records beyond the first page never merge**
 
-- **Status:** 🔵 OPEN — sync correctness (recommend E2E/next track)
+- **Status:** ✅ FIXED — cursor pagination runs to exhaustion and failed fetches return unknown (`nil`) so full sync does not enqueue stale uploads (2026-07-15)
 - **Field scenario:** Opening the app inside Trader Joe's (no iCloud reachability) queues hundreds of doomed serialized CloudKit ops at launch — radio spun up the whole visit, battery drain, and the scans the user takes right now sit behind that queue waiting to sync. Long-term, once history passes the query page size, the MacBook-adjacent iPhone and the field iPhone permanently disagree about scan history with no error surfaced.
 - **Detail:** fetchAllScans/fetchAllDrinks/fetchAllJournalEntries use `guard let results = try? await db.records(matching:resultsLimit: 2000) else { return [] }` (lines 57, 72, 87) — a network failure, an un-queryable-index CKError, or result-set truncation (CloudKit serves pages; no queryCursor handling exists) all look identical to 'remote is empty'. fullSync (lines 114-126) then treats every local drink/scan/journal as missing from remote and calls save() per record; each save does fetchOrCreate (a fetch RTT) + db.save (another RTT) serialized through WriteQueue (lines 30-47), so N records = 2N sequentia
 
 ### [MEDIUM] `SipCheck/Services/TastePreferences.swift:9`
 **Quiz taste preferences live only in device-local UserDefaults.standard and are excluded from CloudKit sync, so taste is NOT shared between the iPhone 14 Pro and 15 Pro, violating the locked cross-device constraint.**
 
-- **Status:** 🔵 OPEN — sync (quiz prefs don't sync)
+- **Status:** ✅ FIXED — taste answers and onboarding seeds write through `NSUbiquitousKeyValueStore` with local fallback and hermetic test gates (2026-07-15)
 - **Field scenario:** Owner completes the taste quiz on the 15 Pro at home ('Hoppy & Bitter', dislikes 'Really Sour'), then field-tests at Trader Joe's with the 14 Pro: on that phone TastePreferences.current is empty, the +2.0 vibe boost and -5.0 dislike veto never fire, and the same IPA that says TRY IT on the 15 Pro comes back as a bland 'your call' — looking like random/broken personalization rather than the documented Foundation-Models wording difference.
 - **Detail:** TastePreferences.current reads tasteVibe/tasteAdventure/tasteDislikes from UserDefaults.standard (TastePreferences.swift:9-11), and OnboardingView writes them there (OnboardingView.swift:303-305). UserDefaults.standard never syncs across devices; grep confirms NSUbiquitousKeyValueStore appears nowhere in the project. The CloudKit launch sync (SipCheckApp.swift:206-215, performLaunchSync) only syncs drinks, scans, and journal entries. The key strings themselves match perfectly between writer and reader — the store is the problem, not the keys. Note this also means every scan's verdict (CheckTab
 
 ### [MEDIUM] `SipCheck/Views/OnboardingView.swift:303`
 **saveAndContinue unconditionally overwrites all three taste keys even on 'Skip for now', so replaying onboarding and skipping the quiz silently ERASES previously saved quiz answers.**
 
-- **Status:** ⚪ OPEN — onboarding batch
+- **Status:** ✅ FIXED — quiz answers restore and persist per selection; Skip ends onboarding without writing blanks (2026-07-15)
 - **Field scenario:** Owner replays onboarding to show a friend or fix a setting, gets to the quiz page, taps 'Skip for now' because the answers 'are already saved' — their vibe and dislikes are wiped to empty, and every subsequent in-aisle scan loses the dislike veto (e.g. sours they hate now score 'your call' instead of SKIP IT), with no error or indication anything changed.
 - **Detail:** Both the primary CTA (OnboardingView.swift:278) and the 'Skip for now' button (:288) call the same saveAndContinue(), which writes selectedVibe ?? "" / selectedAdventure ?? "" / joined dislikes to UserDefaults (:303-305) with no guard for 'user answered nothing — keep existing values'. Settings offers 'Replay Onboarding' (SettingsTabView.swift:56-68) as the only re-entry into the quiz; going through it and skipping (or tapping the primary button without re-selecting) resets tasteVibe/tasteAdventure/tasteDislikes to empty strings, destroying the previously saved profile. TastePreferences.curren
 
 ### [MEDIUM] `SipCheck/Services/TasteScorer.swift:262`
 **Quiz vibe 'Fruity & Easy' maps to liked styles {sour, wheat} — identical to 'Sour & Weird' — so easy-drinking users get a +2.0 boost on sour beers they likely hate, and get no boost on lagers/wheats-adjacent easy styles.**
 
-- **Status:** ⚪ OPEN — scorer tuning
+- **Status:** ✅ FIXED — Fruity & Easy maps to wheat while Sour & Weird maps to sour; regression coverage keeps the personas distinct (2026-07-15)
 - **Field scenario:** A 'Fruity & Easy' user (thinking shandies and juicy easy-drinkers) scans a Trader Joe's gose or Berliner Weisse: score gets +2.0 and the card says 'TRY IT — matches your love of sour'; they buy it, hate it, and lose trust in the verdicts.
 - **Detail:** vibeStyleKeys (TasteScorer.swift:249-266) checks lower.contains("fruit") || contains("sour") || contains("tart") and maps both to ["sour", "wheat"] (:262-264). The quiz offers 'Fruity & Easy' and 'Sour & Weird' as distinct personas (OnboardingView.swift:226), but the scorer collapses them into the same liked-style set, and nothing in the 'Fruity & Easy' branch maps to lager/pilsner/fruit-forward pale styles despite 'Easy'. ProfileTabView even brands these users differently ('Flavor Chaser' vs 'Sour Seeker', ProfileTabView.swift:17-19) while their verdicts are identical. This is a real vocabula
 
 ### [MEDIUM] `SipCheck/Views/OnboardingView.swift:231`
 **The required 'How adventurous?' quiz answer is never consumed by the on-device verdict path — TasteScorer ignores preferences.adventure entirely, so it only affects optional network prompts.**
 
-- **Status:** ⚪ OPEN — onboarding batch
+- **Status:** ✅ FIXED — adventure now adjusts the offline neutral-style contribution for cautious/mixed/adventurous users (2026-07-15)
 - **Field scenario:** Two users answer identically except one picks 'Stick to Favorites' and the other 'Give Me the Weird Stuff'; with no connectivity in the store aisle, both get byte-identical verdicts on every beer — the required question the app made them answer changes nothing in the moment it was built for.
 - **Detail:** hasRequiredSelections (OnboardingView.swift:230-232) treats selectedAdventure as required alongside vibe, but TasteScorer.assess/likedStyleWeights/dislikedStyleKeys only read preferences.vibe and preferences.dislikes (TasteScorer.swift:229, :242); 'adventure' appears in no scoring code. Its only consumers are TastePreferences.promptSummary (TastePreferences.swift:23) injected into OpenAIService (:152, :238) and GeminiService (:77, :93) prompts — the network enrichment path that the locked constraints say is never on the critical path and must work at $0 offline. So on the offline/fast path (an
 
 ### [MEDIUM] `SipCheck/Views/Tabs/SettingsTabView.swift:66`
 **There is no lightweight way to (re)take or edit the taste quiz: the only re-entry, 'Replay Onboarding', also resets the age gate and forces back through all five intro pages, and (combined with the overwrite bug) risks wiping saved answers.**
 
-- **Status:** ⚪ OPEN — onboarding batch
+- **Status:** ✅ FIXED — Settings has a direct Edit taste preferences sheet using the same single-sourced answer vocabulary (2026-07-15)
 - **Field scenario:** User skipped the quiz on first launch, notices at Trader Joe's that verdicts feel generic, opens Profile hoping to set preferences — finds only a read-only 'Explorer' badge; the fix is buried in Settings behind a destructive-looking 'Replay' alert that re-runs the 21+ gate while the spouse waits.
 - **Detail:** ProfileTabView reads tasteVibe/tasteAdventure only to render the persona badge (ProfileTabView.swift:11-22) with no edit affordance. SettingsTabView's 'Replay Onboarding' (SettingsTabView.swift:56-73) sets hasConfirmedAge = false (:66) in addition to hasCompletedOnboarding = false (:67), so fixing one quiz answer requires re-confirming age and swiping through three marketing pages plus the beer picker before reaching the quiz. There is no direct 'Edit taste preferences' entry point anywhere, which is the only recovery path for a user who skipped the quiz (per the skippable-CTA finding) or want
 
@@ -273,21 +273,21 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Config.swift:11`
 **Key validity is only ever checked as !isEmpty, so placeholder keys from Secrets.swift.example pass every gate and force doomed sequential network round trips per scan**
 
-- **Status:** ⚪ OPEN (low)
+- **Status:** ✅ FIXED — keys are trimmed and structurally validated; short/example placeholders collapse to empty before provider selection (2026-07-15)
 - **Field scenario:** The build on the field iPhone was compiled locally (CLAUDE.md mandates Xcode Cmd+R for device builds) with a Secrets.swift copied from the example. At Trader Joe's, every scan makes 2-4 real network requests to endpoints guaranteed to reject the key, each waiting on spotty LTE, before showing the raw-OCR stub — matching the observed breakage.
 - **Detail:** Secrets.swift is gitignored and absent from the working tree (CI-injects it), so local/device builds require hand-creating it; copying Secrets.swift.example verbatim yields non-empty strings like "your-gemini-api-key-here" (Secrets.swift.example:6-8). Every guard in the stack tests only emptiness: GeminiService.swift:43/73/89, OpenAIService.swift:35/90/148/214, and the provider-selection gates ScanningPipeline.swift:108 and 129. With placeholder (or revoked/wrong) keys, the pipeline selects Gemini as primary, performs a real HTTPS round trip that fails 400/403, then sequentially tries OpenAI (
 
 ### [MEDIUM] `SipCheck/Services/CloudKitSyncService.swift:57`
 **fetchAll* ignore the CloudKit query cursor, so only the first server page of drinks/journal history ever syncs down — a second device gets a truncated taste library**
 
-- **Status:** 🔵 OPEN — sync correctness (recommend E2E/next track)
+- **Status:** ✅ FIXED — all three CloudKit record types share cursor-aware pagination and preserve unknown-vs-empty fetch state (2026-07-15)
 - **Field scenario:** User has 250 logged beers. They reinstall SipCheck (or the drinks.json wipe fires) and rely on CloudKit to restore, or they pick up the second test iPhone: only ~the first page of drinks comes down. TasteProfile.build runs on a truncated history, so the same beer scanned at Trader Joe's gets a different verdict on the 14 Pro than the 15 Pro for reasons that have nothing to do with Foundation Models availability.
 - **Detail:** fetchAllDrinks (:56-62), fetchAllScans (:70-77), and fetchAllJournalEntries (:85-92) call db.records(matching:resultsLimit: 2000) and consume only matchResults. CKDatabase.records(matching:) pages server-side (typically ~100-200 records per response) and returns a queryCursor that must be followed via records(continuingMatchFrom:); the cursor is never read. resultsLimit: 2000 does not force a single 2000-record response. Any record beyond page one never reaches the merging device. Compounding with fullSync :114-116: records past page one look 'missing from remote' on the device that owns them 
 
 ### [MEDIUM] `SipCheck/SipCheckApp.swift:145`
 **Follow-up notification tap silently does nothing when the scan record can't be found, and remote tombstone sync never cancels the pending local notification**
 
-- **Status:** 🔵 OPEN — recommend E2E track
+- **Status:** ✅ FIXED — remote tombstones cancel local follow-ups and unresolved notification taps cancel their orphaned request (2026-07-15)
 - **Field scenario:** User scans a beer at Trader Joe's on the 15 Pro (48h follow-up scheduled), later deletes the scan from the 14 Pro; the tombstone syncs back. Two days later the push still fires on the 15 Pro — 'Did you try Watt Strike?' — the user taps it and the app opens to whatever tab was last active with no follow-up sheet, no error. The 'did you actually like it' answer that should have fed TasteScorer is lost.
 - **Detail:** RootView's handler does `if let scan = scanStore.scans.first(where: { $0.id == scanID })` with no else branch — if the lookup misses, pendingFollowUpScanID is cleared (:150) and the tap is swallowed. Lookups miss in real cases: (a) the scan was deleted on the OTHER device — ScanStore.applyRemoteScans (ScanStore.swift:84-99) moves remotely-tombstoned scans out of `scans` but never calls NotificationService.cancelFollowUp (only the local tombstone() path at ScanStore.swift:73 cancels), so this device keeps a pending notification pointing at a record it can no longer resolve; (b) scans.json faile
 
@@ -315,21 +315,21 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Services/BeerResolver.swift:157`
 **BundledCatalog swallows any bundle/decode failure with try? and silently ships an empty catalog with zero diagnostics.**
 
-- **Status:** ⚪ OPEN (diag) — empty-catalog failure should log loudly
+- **Status:** ✅ FIXED — catalog load/decode failure emits an OSLog error naming the bundle while preserving non-catalog fallbacks (2026-07-15)
 - **Field scenario:** A future commit renames a JSON key or the resource gets dropped from the Resources build phase; the app builds green in CI, every field scan silently loses the catalog, and the only symptom is 'the scanner got dumber' — exactly the class of failure that burned this release, with no log line to triage it.
 - **Detail:** The init (BeerResolver.swift:155-163) does `if let url = bundle.url(...), let data = try? Data(...), let decoded = try? JSONDecoder().decode(...)` and otherwise sets entries = []. There is no os_log, assert, or ScanLog event when the 349KB catalog.json fails to load or decode, so the entire offline tier can vanish without a trace — and ScanLog would just show src=unresolved on every scan. (Verified today's catalog.json does decode against Entry — 2,410 rows, keys name/brewery/style/coarse/abv with the extra 'state' key ignored — so this is a latent trap, not currently firing. Note the load als
 
 ### [LOW] `SipCheck/Services/BeerResolver.swift:155`
 **BundledCatalog re-normalizes all 2,410 entry names on every fuzzy lookup and decodes the 350KB catalog synchronously on first access**
 
-- **Status:** 🟡 PARTIAL — per-lookup renormalization fixed (precomputed indexes); first-use decode still lazy+sync — launch prewarm is in SPEED_PLAN
+- **Status:** ✅ FIXED — normalized/token indexes are precomputed once and CheckTab prewarms the shared catalog off the main actor before scan #1 (2026-07-15)
 - **Field scenario:** First scan of the session pays JSON-decode plus a full normalize-the-catalog pass right at the moment the user wants the instant verdict; on the A16 iPhone 14 Pro this adds avoidable tens-to-hundreds of ms and memory churn per scan, and if the resource ever fails to copy into a build, every scan quietly reports source=unresolved with nothing in the log.
 - **Detail:** The init builds exactIndex of normalized names (lines 166-169) but throws the normalized strings away; the fuzzy path (lines 192-197) calls BundledCatalog.normalize($0.name) — lowercased + trim + replacingOccurrences, three string allocations — for every one of the 2,410 entries on every lookup that misses exact (which is nearly all OCR input, since normalize keeps newlines). That's ~7,000+ transient string allocations plus 2,410 substring scans against a potentially multi-hundred-character OCR blob, per scan. `static let shared` (line 139) also decodes the 350KB / 2,410-row JSON synchronously
 
 ### [LOW] `SipCheck/Models/TasteProfile.swift:35`
 **averageABV (the 'ideal ABV' anchor for scoring and tiebreaks) is computed over ALL drinks including disliked ones.**
 
-- **Status:** ⚪ OPEN — scorer tuning
+- **Status:** ✅ FIXED — scoring uses liked-only `likedAverageABV`; the all-drinks average remains only as an honest stats value/fallback (2026-07-15)
 - **Field scenario:** A user who mostly drinks 5% lagers but logged several disliked 10% imperial stouts gets an ideal ABV around 7 — the app then nudges them toward stronger beers they've consistently rejected and penalizes their actual 4.8% favorites in menu tiebreaks.
 - **Detail:** The abvSum/abvCount accumulation (TasteProfile.swift:35-38) runs for every drink regardless of rating, so beers the user explicitly disliked pull the 'ideal' toward themselves. TasteScorer uses this as idealABV for both the ±3.0 tolerance bonus/penalty (TasteScorer.swift:86-98) and the ranking tiebreak (lines 137-142). Liked-only (or like-weighted) ABV would reflect actual preference.
 
@@ -343,7 +343,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Services/BeerResolver.swift:16`
 **The on-device LLM tier of the resolver fusion (and all async enrichment) is not implemented — ResolvedBeer.Source.onDeviceLLM/.online are unreachable dead code on every device**
 
-- **Status:** ⚪ OPEN — next phase — Foundation Models tier = the device spike
+- **Status:** 🟡 IMPLEMENTED — iOS 26 Foundation Models prewarm and offline JSON enrichment run after the deterministic verdict; signed device build passes, real-model wording awaits an unlocked eligible phone (2026-07-15)
 - **Field scenario:** On the Foundation-Models-capable iPhone 15 Pro, a popular beer missing from the catalog ('Josephsbrau PLZNR') that the on-device LLM would trivially know still resolves as 'unresolved' and gets the erroneous SKIP IT — the promised free on-device knowledge tier silently does not exist in the shipped code.
 - **Detail:** No file imports FoundationModels or references any LanguageModel API (repo-wide grep: 0 hits), no AsyncBeerCatalog conformer exists, and BeerResolver.shouldEnrich/enrich (BeerResolver.swift:110-128) have no callers. So fusion steps 3 and 4 of the locked architecture exist only as enum cases (BeerResolver.swift:16-17). This means the iPhone 15 Pro gets no better resolution than the iPhone 14 Pro — both are catalog+keyword only — and the 'refine asynchronously' half of 'show now, refine later' never happens; only the blocking network calls in ScanningPipeline (finding 1) exist.
 
@@ -364,14 +364,14 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Services/BeerMatcher.swift:58`
 **BeerMatcher Levenshtein allocates a full (m+1)x(n+1) matrix per comparison and is fed unbounded OCR blobs as the query**
 
-- **Status:** ⚪ OPEN (low)
+- **Status:** ✅ FIXED — Levenshtein uses two rolling rows, candidates are normalized once, and long OCR pages skip an unwinnable fuzzy pass after containment (2026-07-15)
 - **Field scenario:** User with a 300-beer history checks a label offline via CheckBeerView; the fuzzy pass allocates ~300 matrices of 500x~25 Ints, causing a perceptible pause and memory churn before the (network-gated) result screen.
 - **Detail:** levenshteinDistance builds a complete 2D [[Int]] matrix (line 58) instead of two rolling rows — O(m*n) memory and nested-array indexing per drink compared. findMatch runs it over every drink in history (lines 22-27) after exact/contains fail. It is invoked from CheckBeerView.processImage (CheckBeerView.swift:315) with beerName from the scan pipeline, which offline is the FULL multi-line OCR text (ScanningPipeline.swift:96) — so m can be 500+ chars against every drink name, i.e. tens of thousands of Int cells allocated per drink, inside a Task that (like CheckTabView's) reads drinkStore.drinks 
 
 ### [LOW] `SipCheck/Views/AgeGateView.swift:71`
 **Accidentally tapping 'I'm Under 21' puts the app into a dead-end locked screen with no undo — only force-quitting resets it (and because the lockout is non-persistent @State, it is also trivially bypassed on relaunch).**
 
-- **Status:** 🔵 OPEN — recommend E2E track — accidental under-21 tap is a dead end
+- **Status:** ✅ FIXED — lockout state includes an explicit “I tapped by mistake” route back to the age choices (2026-07-15)
 - **Field scenario:** Owner replays onboarding, fat-fingers 'I'm Under 21' in the aisle, and the app becomes a brick with no visible recovery; they have to know to force-kill SipCheck from the app switcher to get back to scanning.
 - **Detail:** The 'I'm Under 21' button sets isLockedOut = true (AgeGateView.swift:69-72), replacing all buttons with a static 'SipCheck is only available for adults 21+' message (:37-49) and no back/undo control. isLockedOut is plain @State (:5), not persisted, so killing and relaunching the app shows the age gate again — meaning the lockout is simultaneously an in-session dead end for a mis-tap and a non-functional gate for an actual minor. Note this screen is also reachable by adult users mid-use via Settings 'Replay Onboarding' which resets hasConfirmedAge (SettingsTabView.swift:66).
 
@@ -392,7 +392,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Views/Tabs/CheckTabView.swift:72`
 **CheckTabView's FollowUpView sheet is unreachable dead code, and its scan resolution falls back to 'most recent scan' rather than the follow-up's scan**
 
-- **Status:** ⚪ OPEN (low) — dead FollowUp sheet in CheckTabView
+- **Status:** ✅ FIXED — the dead CheckTab follow-up state/sheet was removed; RootView owns the single working notification follow-up route (2026-07-15)
 - **Field scenario:** No user-visible failure today because the sheet never presents, but the next developer wiring 'return to a scan' through CheckTabView inherits an id-mismatch: user answers a follow-up about Two Hearted and the app instead clears the want-to-try flag on last night's Pliny scan.
 - **Detail:** `showingFollowUp` (:23) is only ever assigned false (:77, :82, :85) — nothing in CheckTabView sets it true, so the sheet at :72-94 can never present (the real notification flow lives in RootView). Worse, its content resolves the scan as `currentScan ?? scanStore.scans.first` (:73 and again in onNotGoing at :86), i.e. if it were ever wired up (or copied as a template, which its duplication from RootView suggests already happened once), a follow-up about beer A would display and mutate whichever beer was scanned most recently. The onNotGoing at :86-90 would clear wantToTry on the wrong scan.
 
