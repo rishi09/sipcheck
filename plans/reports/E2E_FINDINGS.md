@@ -57,3 +57,38 @@ already on main):
   defensible, but worth a look during the §4 visual reset.
 - Beer placeholder icon is a coffee mug (`mug.fill`); DESIGN §4 "kill the gray box"
   covers this.
+
+## Functional finish verification (2026-07-14/15)
+
+**Device:** local iPhone 17 Pro Simulator
+`EAAA81D8-9F05-40CC-B2FD-08E0DE18CC8D`.
+
+- Onboarding was completed from the age gate through go-to and stay-away picks.
+  The selected named IPA affected the first typed verdict at full weight.
+- Real library photos for Orion and Bia Viet resolved fully on-device. Warmed OCR
+  took about 2.2-2.5 seconds, selected the visible beer name instead of bottle
+  codes/legal copy, and carried the photo from the verdict flow into Add Beer,
+  Journal, detail, and app relaunch.
+- The deterministic `TestAssets/BeerPhotos/sample-tap-menu.png` fixture produced
+  `Two Hearted IPA` as the single winner and `Allagash White Wheat` as the
+  tap-to-reveal runner-up. ABV and section-header parser cases are unit tested.
+- Save for Later requested notification permission only at that earned moment,
+  created a Want to Try entry, and restored the saved photo/metadata into Add Beer.
+- Release Settings hides provider/testing controls and sample-data seeding.
+- Full automated result: 85 tests passed, 0 failed, 0 skipped.
+
+Detailed walkthrough recordings were captured from the simulator and conformed
+to exact constant 30 fps for review:
+
+- `/tmp/sipcheck-motion/onboarding-detailed-30fps.mp4` (67.7s)
+- `/tmp/sipcheck-motion/photo-journal-final-30fps.mp4` (43.2s)
+- `/tmp/sipcheck-motion/menu-runnerup-final-30fps.mp4` (30.4s)
+
+Contact sheets and frame strips in `/tmp/sipcheck-motion/` were inspected for
+overlap, blank frames, transition continuity, and text clipping. The simulator
+recorder did not produce 30 unique source frames each second, so the exports are
+30 fps CFR rather than evidence of device rendering cadence.
+
+**Still physical-device-only:** live camera ergonomics, DataScanner point-and-read,
+Apple Foundation Models availability/wording, and real aisle/menu lighting. These
+remain explicit device test items; they were not represented as simulator-verified.

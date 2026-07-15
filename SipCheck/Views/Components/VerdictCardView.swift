@@ -29,6 +29,11 @@ struct VerdictCardView: View {
     /// Optimistic saved state: flips the Save button to a confirmed "Saved"
     /// immediately on tap (the silent button was the app's worst UX moment).
     var savedForLater: Bool = false
+    /// In-memory frame for the immediate scan -> log transition. A persisted
+    /// filename on `scan` covers later entry from Want to Try / notifications.
+    var capturedImage: UIImage? = nil
+    /// Menu mode's second-ranked choice, intentionally hidden until requested.
+    var runnerUp: Scan? = nil
     /// Provenance of the resolved identity. Defaults nil (line segment omitted)
     /// until WO-3's plumbing lands.
     var source: VerdictProvenance? = nil
@@ -51,6 +56,7 @@ struct VerdictCardView: View {
     @State private var showingAlternates = false
     @State private var showingLogSheet = false
     @State private var becauseExpanded = false
+    @State private var showingRunnerUp = false
 
     private var verdictStyle: VerdictStyle {
         VerdictStyle.style(for: scan.verdict)
@@ -119,6 +125,40 @@ struct VerdictCardView: View {
                     // Enrichment swaps this copy in place — cross-fade, don't jump.
                     .contentTransition(.opacity)
                     .animation(.smooth, value: scan.explanation)
+
+                if let runnerUp {
+                    VStack(alignment: .leading, spacing: SipSpacing.s) {
+                        Button {
+                            withAnimation(.snappy(duration: 0.25)) {
+                                showingRunnerUp.toggle()
+                            }
+                        } label: {
+                            Label(
+                                showingRunnerUp ? "Hide runner-up" : "See runner-up",
+                                systemImage: showingRunnerUp ? "chevron.up" : "medal"
+                            )
+                        }
+                        .buttonStyle(SipQuietButtonStyle())
+                        .accessibilityIdentifier("menuRunnerUpButton")
+
+                        if showingRunnerUp {
+                            VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                                Text(runnerUp.beerName)
+                                    .font(SipTypography.headline)
+                                    .foregroundColor(SipColors.textPrimary)
+                                Text(runnerUp.explanation)
+                                    .font(SipTypography.caption)
+                                    .foregroundColor(SipColors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .accessibilityIdentifier("menuRunnerUpDetails")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, SipSpacing.xl)
+                    .padding(.top, SipSpacing.m)
+                }
 
                 // MARK: - Because-Rows (renders nothing until TasteScorer emits structured signals)
                 if !becauseRows.isEmpty {
@@ -226,8 +266,11 @@ struct VerdictCardView: View {
         .sheet(isPresented: $showingLogSheet) {
             AddBeerView(prefill: AddBeerPrefill(
                 name: scan.beerName,
+                brand: scan.brand ?? "",
                 style: scan.style ?? BeerStyle.other.rawValue,
                 abv: scan.abv,
+                capturedImage: capturedImage,
+                photoFileName: scan.photoFileName,
                 scanId: scan.id
             ))
         }
@@ -327,6 +370,7 @@ struct VerdictCardView: View {
     /// style · ABV · provenance — subhead metadata line under the name.
     private var beerMetadata: String {
         var parts: [String] = []
+        if let brand = scan.brand, !brand.isEmpty { parts.append(brand) }
         if let style = scan.style {
             parts.append(style)
         }

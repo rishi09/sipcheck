@@ -210,6 +210,25 @@ class DrinkStore: ObservableObject {
         return image
     }
 
+    /// Disk-backed photo load for SwiftUI tasks. Keeps image decoding off the
+    /// main actor while preserving the shared in-memory cache.
+    func loadPhotoAsync(named fileName: String) async -> UIImage? {
+        let cacheKey = fileName as NSString
+        if let cached = photoCache.object(forKey: cacheKey) {
+            return cached
+        }
+
+        let fileURL = photosDir.appendingPathComponent(fileName)
+        let image: UIImage? = await Task.detached(priority: .userInitiated) {
+            guard let data = try? Data(contentsOf: fileURL) else { return nil }
+            return UIImage(data: data)
+        }.value
+        if let image {
+            photoCache.setObject(image, forKey: cacheKey)
+        }
+        return image
+    }
+
     func deletePhoto(named fileName: String) {
         photoCache.removeObject(forKey: fileName as NSString)
         let fileURL = photosDir.appendingPathComponent(fileName)

@@ -90,8 +90,10 @@ struct JournalTabView: View {
         .sheet(item: $selectedWantToTryScan) { scan in
             AddBeerView(prefill: AddBeerPrefill(
                 name: scan.beerName,
+                brand: scan.brand ?? "",
                 style: scan.style ?? BeerStyle.other.rawValue,
                 abv: scan.abv,
+                photoFileName: scan.photoFileName,
                 scanId: scan.id
             ))
             .environmentObject(drinkStore)

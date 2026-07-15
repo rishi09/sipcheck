@@ -36,6 +36,9 @@ struct CheckTabView: View {
         /// Menu scans are on-device-final: enriching the winner against the
         /// whole menu blob would only re-extract the wrong beer.
         let isMenu: Bool
+        /// Menu mode keeps the second-ranked choice one tap away without
+        /// cluttering the immediate "Order this" answer.
+        let menuRunnerUp: Scan?
     }
 
     // Camera / input state
@@ -53,6 +56,7 @@ struct CheckTabView: View {
     @State private var scanGeneration = 0
     @State private var scanTask: Task<Void, Never>?
     @State private var refineTask: Task<Void, Never>?
+    @State private var menuRunnerUp: Scan?
 
 
     // Scanning animation state
@@ -87,6 +91,8 @@ struct CheckTabView: View {
                     previousDrink: BeerMatcher.exactMatch(for: scan.beerName, in: drinkStore.drinks),
                     refining: refining,
                     savedForLater: savedForLater,
+                    capturedImage: capturedImage,
+                    runnerUp: menuRunnerUp,
                     onSaveForLater: {
                         saveForLater(scan)
                     },
@@ -116,6 +122,7 @@ struct CheckTabView: View {
             // Warm the catalog decode + token indexes off the main actor so
             // scan #1 pays the same ~0ms lookup cost as scan #10.
             Task.detached(priority: .utility) { _ = BundledCatalog.shared }
+            await VisionOCRService.warmUp()
         }
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
@@ -185,21 +192,31 @@ struct CheckTabView: View {
                     .padding(.horizontal, SipSpacing.xxl)
             }
 
-            Button(action: {
-                requestCameraAndScan()
-            }) {
-                HStack(spacing: SipSpacing.s) {
-                    Image(systemName: "camera.fill")
-                    Text("Scan Label")
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button(action: {
+                    requestCameraAndScan()
+                }) {
+                    HStack(spacing: SipSpacing.s) {
+                        Image(systemName: "camera.fill")
+                        Text("Scan Label")
+                    }
                 }
+                .buttonStyle(SipPrimaryButtonStyle())
+                .shadow(color: SipColors.accent.opacity(0.22), radius: 8, x: 0, y: 3)
+                .padding(.horizontal, SipSpacing.xxl)
+                .accessibilityIdentifier("scanNowButton")
+            } else {
+                PhotoLibraryButton(title: "Scan Label", capturedImage: $capturedImage)
+                    .buttonStyle(SipPrimaryButtonStyle())
+                    .padding(.horizontal, SipSpacing.xxl)
+                    .accessibilityIdentifier("scanNowButton")
             }
-            .buttonStyle(SipPrimaryButtonStyle())
-            // The app's one glow — a soft teal halo hugging the CTA. Kept
-            // small and dim (round-2 crit #10: at 0.35/12 the halo read as an
-            // overexposure band running to both screen edges).
-            .shadow(color: SipColors.accent.opacity(0.22), radius: 8, x: 0, y: 3)
-            .padding(.horizontal, SipSpacing.xxl)
-            .accessibilityIdentifier("scanNowButton")
+
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                PhotoLibraryButton(title: "Choose from Library", capturedImage: $capturedImage)
+                    .buttonStyle(SipSecondaryButtonStyle())
+                    .padding(.horizontal, SipSpacing.xxl)
+            }
 
             Button(action: {
                 showingTextEntry = true
@@ -487,7 +504,7 @@ struct CheckTabView: View {
 
     // MARK: - Verdict-First Scan Flow (SPEED_PLAN §2)
     //
-    // Stage 1 (on-device, sub-second): OCR → menu detection → resolver (printed
+    // Stage 1 (on-device, typically a few seconds): OCR → menu detection → resolver (printed
     // style/ABV + bundled catalog) → TasteScorer → verdict on screen. All the
     // pure compute (catalog decode, scoring) runs OFF the main actor.
     // Stage 2 (network, optional): a single bounded enrichment call that only
@@ -551,6 +568,7 @@ struct CheckTabView: View {
         refineTask?.cancel()
         scanGeneration += 1
         savedForLater = false
+        menuRunnerUp = nil
         spinnerDegrees = 0
         scanningPhraseIndex = 0
         withAnimation { phase = .recognizing }
@@ -565,8 +583,13 @@ struct CheckTabView: View {
         // Menu detection first (locked constraint: menu → ONE clear winner).
         // Two-plus parsed candidates means this is a list, not a label.
         let menuCandidates = MenuParser.parse(text)
-        if menuCandidates.count >= 2,
-           let winner = MenuParser.evaluate(candidates: menuCandidates, profile: profile, preferences: prefs).winner {
+        if menuCandidates.count >= 2 {
+            let menuVerdict = MenuParser.evaluate(candidates: menuCandidates, profile: profile, preferences: prefs)
+            guard let winner = menuVerdict.winner else {
+                // A parsed candidate count of two always yields a ranked result;
+                // retain the single-beer fallback if that invariant changes.
+                return computeSingleBeerOutcome(fromText: text, path: path, profile: profile, preferences: prefs)
+            }
             let scan = Scan(
                 beerName: winner.name,
                 style: winner.style?.rawValue,
@@ -582,11 +605,29 @@ struct CheckTabView: View {
                 score: winner.assessment.score,
                 nameIsGuess: false,
                 startedStyleless: winner.style == nil,
-                isMenu: true
+                isMenu: true,
+                menuRunnerUp: menuVerdict.ranked.dropFirst().first.map {
+                    Scan(
+                        beerName: $0.name,
+                        style: $0.style?.rawValue,
+                        abv: $0.abv,
+                        verdict: $0.assessment.verdict,
+                        explanation: "Runner-up from this menu. \(sentenceCase($0.assessment.shortReason))"
+                    )
+                }
             )
         }
 
-        // Single-beer path: fuse printed style/ABV with a bundled-catalog match.
+        return computeSingleBeerOutcome(fromText: text, path: path, profile: profile, preferences: prefs)
+    }
+
+    /// Single-beer path: fuse printed style/ABV with a bundled-catalog match.
+    private static func computeSingleBeerOutcome(
+        fromText text: String,
+        path: String,
+        profile: TasteProfile,
+        preferences prefs: TastePreferences
+    ) -> ScanOutcome {
         let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
         let assessment = TasteScorer.assess(
             name: resolved.name,
@@ -599,6 +640,7 @@ struct CheckTabView: View {
 
         let scan = Scan(
             beerName: name,
+            brand: resolved.brewery,
             style: resolved.style?.rawValue,
             abv: resolved.abv,
             verdict: assessment.verdict,
@@ -612,7 +654,8 @@ struct CheckTabView: View {
             score: assessment.score,
             nameIsGuess: nameIsGuess,
             startedStyleless: resolved.style == nil,
-            isMenu: false
+            isMenu: false,
+            menuRunnerUp: nil
         )
     }
 
@@ -651,10 +694,31 @@ struct CheckTabView: View {
         // "Did you try X?" pushes for beers the user walked past.
 
         savedForLater = false
+        menuRunnerUp = outcome.menuRunnerUp
         let willRefine = !outcome.isMenu && ScanningPipeline.shared.canEnrich
         withAnimation { phase = .verdict(outcome.scan, refining: willRefine) }
         if willRefine {
             startRefinement(for: outcome.scan, text: rawText, outcome: outcome, image: image)
+        }
+
+        if let image {
+            persistScanPhoto(image, for: outcome.scan.id)
+        }
+    }
+
+    /// Persist the captured frame without delaying the verdict. The same local
+    /// file is available when the user returns through Want to Try or a reminder.
+    private func persistScanPhoto(_ image: UIImage, for scanID: UUID) {
+        Task {
+            guard let fileName = await drinkStore.savePhoto(image, for: scanID) else { return }
+            await MainActor.run {
+                guard var stored = scanStore.scans.first(where: { $0.id == scanID }) else { return }
+                stored.photoFileName = fileName
+                scanStore.updateScan(stored)
+                if case .verdict(let visible, let refining) = phase, visible.id == scanID {
+                    phase = .verdict(stored, refining: refining)
+                }
+            }
         }
     }
 
@@ -684,6 +748,7 @@ struct CheckTabView: View {
                         current.beerName = name
                         nameChanged = true
                     }
+                    if current.brand == nil, let brand = e.brand { current.brand = brand }
                     // Facts and copy move together: never render "IPA · 6.5%"
                     // above copy that still says "couldn't tell the style".
                     let canPatchFacts = !startedStyleless || e.explanation != nil
@@ -723,6 +788,13 @@ struct CheckTabView: View {
             return (resolved.name, true)
         }
 
+        // The resolver filters bottle-neck dates and legal copy from
+        // multi-line OCR. Its candidate is more useful than the page's first
+        // line when no catalog entry matched.
+        if path == "image", trimmed.contains("\n"), resolved.name != trimmed {
+            return (resolved.name, true)
+        }
+
         // No catalog hit. Typed input is the user's own words — trust it.
         // A single-line OCR read is still machine output, so it stays replaceable.
         if !trimmed.contains("\n") {
@@ -750,7 +822,10 @@ struct CheckTabView: View {
 
     private func saveForLater(_ scan: Scan) {
         guard !savedForLater else { return }
-        var updated = scan
+        // Photo persistence is intentionally asynchronous so it cannot delay
+        // the verdict. Merge from the store before toggling this flag so a tap
+        // landing at the same moment cannot overwrite the new filename.
+        var updated = scanStore.scans.first(where: { $0.id == scan.id }) ?? scan
         updated.wantToTry = true
         scanStore.updateScan(updated)
         // E2E handoff F5: this is the moment that earns the notification ask.
@@ -772,6 +847,7 @@ struct CheckTabView: View {
         phraseTimer = nil
         scanGeneration += 1
         savedForLater = false
+        menuRunnerUp = nil
         capturedImage = nil
         spinnerDegrees = 0
         scanningPhraseIndex = 0

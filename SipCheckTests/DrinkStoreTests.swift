@@ -95,6 +95,21 @@ final class DrinkStoreTests: XCTestCase {
         XCTAssertEqual(store2.drinks.first?.rating, .like)
     }
 
+    func testSavedPhotoCanBeLoadedAfterStoreRecreation() async {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 32)).image { context in
+            UIColor.systemYellow.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 32))
+        }
+        let drinkID = UUID()
+
+        let fileName = await store.savePhoto(image, for: drinkID)
+        XCTAssertEqual(fileName, "\(drinkID.uuidString).jpg")
+
+        let recreated = DrinkStore(storageDirectory: tempDirectory)
+        let loaded = await recreated.loadPhotoAsync(named: fileName!)
+        XCTAssertNotNil(loaded)
+    }
+
     func testDeletePersists() {
         let drink = Drink(name: "Will Be Deleted", rating: .neutral)
         store.addDrink(drink)

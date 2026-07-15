@@ -6,8 +6,13 @@ import SwiftUI
 struct AddBeerPrefill: Identifiable {
     let id = UUID()
     var name: String = ""
+    var brand: String = ""
     var style: String = BeerStyle.other.rawValue
     var abv: Double? = nil
+    /// The in-memory frame is used for the immediate scan -> log transition.
+    /// `photoFileName` covers later entry from Want to Try / notifications.
+    var capturedImage: UIImage? = nil
+    var photoFileName: String? = nil
     /// When this log originated from a scan, the scan's id so the two can be linked.
     var scanId: UUID? = nil
 }
@@ -32,9 +37,11 @@ struct AddBeerView: View {
     @State private var isProcessingImage = false
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var isRestoringPhoto = false
 
     init(prefill: AddBeerPrefill? = nil) {
         self.prefill = prefill
+        _capturedImage = State(initialValue: prefill?.capturedImage)
     }
 
     private var canSave: Bool {
@@ -144,46 +151,90 @@ struct AddBeerView: View {
             .interactiveDismissDisabled(isSaving)
             .onChange(of: capturedImage) { oldValue, newValue in
                 if let image = newValue, oldValue == nil {
-                    processImageWithAI(image)
+                    if isRestoringPhoto {
+                        isRestoringPhoto = false
+                    } else {
+                        processImage(image)
+                    }
                 }
             }
             .onAppear {
                 if let prefill = prefill {
                     if !prefill.name.isEmpty { name = prefill.name }
+                    if !prefill.brand.isEmpty { brand = prefill.brand }
                     if prefill.style != BeerStyle.other.rawValue { style = prefill.style }
                     if let abv = prefill.abv { abvText = String(format: "%.1f", abv) }
+                    restorePersistedPhotoIfNeeded(prefill)
                 }
             }
         }
     }
 
-    private func processImageWithAI(_ image: UIImage) {
+    private func processImage(_ image: UIImage) {
         isProcessingImage = true
         errorMessage = nil
 
         Task {
-            do {
-                let result = try await ScanningPipeline.shared.scan(image: image)
+            let ocr = await VisionOCRService.extractText(from: image)
+            let text = ocr.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else {
                 await MainActor.run {
-                    if let extractedName = result.beerInfo.name, !extractedName.isEmpty {
-                        name = extractedName
-                    }
-                    if let extractedBrand = result.beerInfo.brand, !extractedBrand.isEmpty {
-                        brand = extractedBrand
-                    }
-                    if let extractedStyle = result.beerInfo.style {
-                        style = extractedStyle.rawValue
-                    }
-                    if let extractedAbv = result.beerInfo.abv {
-                        abvText = String(format: "%.1f", extractedAbv)
-                    }
+                    errorMessage = "Could not read the label."
                     isProcessingImage = false
                 }
-            } catch {
-                await MainActor.run {
-                    errorMessage = "Could not read label: \(error.localizedDescription)"
-                    isProcessingImage = false
+                return
+            }
+
+            // Populate from OCR + the bundled catalog immediately. Logging a
+            // beer must never wait for a remote verdict request.
+            let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
+            let firstLine = text.components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .first { !$0.isEmpty } ?? text
+            let resolvedName = resolved.confidence != nil ? resolved.name : firstLine
+
+            await MainActor.run {
+                if name.isEmpty { name = String(resolvedName.prefix(80)) }
+                if brand.isEmpty, let brewery = resolved.brewery { brand = brewery }
+                if style == BeerStyle.other.rawValue, let foundStyle = resolved.style {
+                    style = foundStyle.rawValue
                 }
+                if abvText.isEmpty, let foundABV = resolved.abv {
+                    abvText = String(format: "%.1f", foundABV)
+                }
+                isProcessingImage = false
+            }
+
+            // Optional bounded refinement fills remaining blanks in place.
+            guard ScanningPipeline.shared.canEnrich,
+                  BeerResolver.shouldEnrich(resolved),
+                  let enrichment = await ScanningPipeline.shared.enrich(
+                    text: text,
+                    image: image,
+                    deviceVerdict: .yourCall
+                  ) else { return }
+
+            await MainActor.run {
+                if name == resolvedName, let betterName = enrichment.name { name = betterName }
+                if brand.isEmpty, let betterBrand = enrichment.brand { brand = betterBrand }
+                if style == BeerStyle.other.rawValue, let betterStyle = enrichment.style {
+                    style = betterStyle.rawValue
+                }
+                if abvText.isEmpty, let betterABV = enrichment.abv {
+                    abvText = String(format: "%.1f", betterABV)
+                }
+            }
+        }
+    }
+
+    private func restorePersistedPhotoIfNeeded(_ prefill: AddBeerPrefill) {
+        guard capturedImage == nil, let fileName = prefill.photoFileName else { return }
+        isRestoringPhoto = true
+        Task {
+            let image = await drinkStore.loadPhotoAsync(named: fileName)
+            await MainActor.run {
+                capturedImage = image
+                if image == nil { isRestoringPhoto = false }
             }
         }
     }

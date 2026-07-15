@@ -40,8 +40,11 @@ struct WantToTryCard: View {
             VStack(alignment: .leading, spacing: SipSpacing.xs) {
                 // SRM mini-tile — a stout and a light lager look different.
                 // Shared swatch: hairline keeps dark pours visible (crit #3).
-                SRMSwatch(style: scan.style)
+                StoredPhotoView(fileName: scan.photoFileName) {
+                    SRMSwatch(style: scan.style)
+                }
                     .frame(width: 100, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous))
                     .overlay(
                         ZStack {
                             Text(initials)
@@ -114,6 +117,7 @@ struct WantToTryCard_Previews: PreviewProvider {
         }
         .padding()
         .background(SipColors.background)
+        .environmentObject(DrinkStore())
         .previewDisplayName("Want to Try Cards")
     }
 }

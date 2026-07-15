@@ -60,11 +60,10 @@ struct SettingsTabView: View {
                     }
                 } header: {
                     Text("Taste")
-                } footer: {
-                    Text("Tune your go-tos, stay-aways, and quiz answers — verdicts follow instantly.")
                 }
 
                 // MARK: - Onboarding Lab (founder feedback loop — remove before public App Store release)
+                #if DEBUG
                 Section {
                     Picker("Flow", selection: $flowVariant) {
                         Text("Go-to & stay-away").tag("goToStayAway")
@@ -111,15 +110,16 @@ struct SettingsTabView: View {
                 } footer: {
                     Text("Pick variants, tap Preview, tell Claude which one. Preview never touches your taste data.")
                 }
+                #endif
 
                 // MARK: - Notifications
                 Section {
                     Toggle(isOn: $followUpNotificationsEnabled) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Follow-up reminders")
-                            Text("We'll check in a day or two after you save one")
-                                .font(.footnote)
-                                .foregroundColor(.secondary)
+                        Text("Follow-up reminders")
+                    }
+                    .onChange(of: followUpNotificationsEnabled) { _, enabled in
+                        if !enabled {
+                            NotificationService.shared.cancelAllFollowUps()
                         }
                     }
                 } header: {
@@ -178,14 +178,13 @@ struct SettingsTabView: View {
                     } message: {
                         Text("This will permanently delete all your beers and scans. This cannot be undone.")
                     }
-                    // Available in TestFlight builds too so testers can populate
-                    // sample data (which then syncs to iCloud). Remove before the
-                    // public App Store release.
+                    #if DEBUG
                     Button("Seed Sample Data") {
                         drinkStore.seedSampleData()
                         scanStore.seedSampleData()
                         journalStore.seedSampleData()
                     }
+                    #endif
                 } header: {
                     Text("Account / Data")
                 }
@@ -291,11 +290,6 @@ private struct TastePreferencesEditorView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    Text("Same picks and quiz as onboarding — change anything, verdicts update instantly.")
-                        .font(SipTypography.subhead)
-                        .foregroundColor(SipColors.textSecondary)
-                        .padding(.top, SipSpacing.s)
-
                     // Go-to / stay-away grids first: they're the default
                     // flow's primary taste signals. Locks are live — a chip
                     // claimed on one side is inert (dimmed + captioned) on
@@ -359,19 +353,20 @@ private struct TastePreferencesEditorView: View {
                             selectedDislikes.insert(option)
                         }
                     }
-
-                    Button(action: { dismiss() }) {
-                        Text("Done")
-                    }
-                    .buttonStyle(SipPrimaryButtonStyle())
-                    .padding(.top, SipSpacing.s)
-                    .padding(.bottom, SipSpacing.xl)
                 }
                 .padding(.horizontal, SipSpacing.xl)
+                .padding(.top, SipSpacing.m)
+                .padding(.bottom, SipSpacing.xl)
             }
             .background(SipColors.background.ignoresSafeArea())
             .navigationTitle("Taste Preferences")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("tastePreferencesDoneButton")
+                }
+            }
         }
         .preferredColorScheme(.dark)
         .onAppear {
@@ -503,7 +498,8 @@ private struct TastePreferencesEditorView: View {
         Task {
             let styles: [String] = await Task.detached(priority: .utility) {
                 Array(Set(beers.compactMap {
-                    BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style?.rawValue
+                    (TastePreferences.styleForOnboardingBeer($0)
+                        ?? BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style)?.rawValue
                 })).sorted()
             }.value
             guard generation == goToGeneration else { return } // stale snapshot
@@ -525,7 +521,8 @@ private struct TastePreferencesEditorView: View {
                 for pick in picks {
                     if let direct = BeerStyle.allCases.first(where: { $0.rawValue.caseInsensitiveCompare(pick) == .orderedSame }) {
                         resolved.insert(direct.rawValue)
-                    } else if let style = BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
+                    } else if let style = TastePreferences.styleForOnboardingBeer(pick)
+                        ?? BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
                         resolved.insert(style.rawValue)
                     }
                 }

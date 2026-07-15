@@ -82,7 +82,13 @@ final class JournalStoreTests: XCTestCase {
     // MARK: - Persistence
 
     func testPersistenceAcrossInstances() {
-        let entry = JournalEntry(beerName: "Persistent Beer", brand: "Brewery", style: "Stout", rating: 4)
+        let entry = JournalEntry(
+            beerName: "Persistent Beer",
+            brand: "Brewery",
+            style: "Stout",
+            rating: 4,
+            photoFileName: "persistent-photo.jpg"
+        )
         store.addEntry(entry)
 
         let store2 = JournalStore(storageDirectory: tempDirectory)
@@ -90,6 +96,7 @@ final class JournalStoreTests: XCTestCase {
         XCTAssertEqual(store2.entries.count, 1)
         XCTAssertEqual(store2.entries.first?.beerName, "Persistent Beer")
         XCTAssertEqual(store2.entries.first?.rating, 4)
+        XCTAssertEqual(store2.entries.first?.photoFileName, "persistent-photo.jpg")
     }
 
     func testDeletePersists() {

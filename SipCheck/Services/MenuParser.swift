@@ -151,14 +151,14 @@ enum MenuParser {
     private static let priceRegex = makeRegex("\\$\\s?\\d+(?:\\.\\d{2})?")
 
     /// Matches an ABV percentage, e.g. `6.7%`, `9 %`.
-    private static let abvRegex = makeRegex("(\\d{1,2}(?:\\.\\d)?)\\s?%")
+    private static let abvRegex = makeRegex("(\\d{1,2}(?:\\.\\d{1,2})?)\\s?%(?!\\s*off\\b)")
 
     /// Matches all serving / price / ABV / IBU noise to strip from a name.
     /// Includes the keyword ABV forms ("ABV: 7.0", "7 ABV") now that
     /// extractABV accepts them — otherwise they'd survive into the display
     /// name and break exact-match history lookups.
     private static let noiseRegex = makeRegex(
-        "(\\$\\s?\\d+(?:\\.\\d{2})?|\\d{1,2}(?:\\.\\d)?\\s?%|abv[: \\t]{0,3}\\d{1,2}(?:\\.\\d)?|\\d{1,2}(?:\\.\\d)?[ \\t]{0,2}abv|ibu[: \\t]{0,3}\\d{1,3}|\\d{1,3}[ \\t]{0,2}ibu|\\babv\\b:?|\\bibu\\b:?|\\bpint\\b|\\bdraft\\b|\\b1/2\\b)"
+        "(\\$\\s?\\d+(?:\\.\\d{2})?|alc(?:ohol)?\\.?[: \\t]{0,3}\\d{1,2}(?:\\.\\d{1,2})?(?:[ \\t]*%?[ \\t]*(?:by|/)?[ \\t]*vol\\.?)?|\\d{1,2}(?:\\.\\d{1,2})?\\s?%|abv[: \\t]{0,3}\\d{1,2}(?:\\.\\d{1,2})?|\\d{1,2}(?:\\.\\d{1,2})?[ \\t]{0,2}abv|ibu[: \\t]{0,3}\\d{1,3}|\\d{1,3}[ \\t]{0,2}ibu|\\babv\\b:?|\\bibu\\b:?|\\bpint\\b|\\bdraft\\b|\\b1/2\\b)"
     )
 
     /// Collapses runs of 2+ whitespace into a single space.
@@ -208,11 +208,15 @@ enum MenuParser {
     /// is space/tab only: label blobs are multi-line, and \s would let "ABV\n12
     /// FL OZ" bind the ounces as strength.
     private static let abvLeadingKeywordRegex = makeRegex(
-        "abv[: \\t]{1,3}(\\d{1,2}(?:\\.\\d)?)"
+        "abv[: \\t]{1,3}(\\d{1,2}(?:\\.\\d{1,2})?)"
     )
     /// "5.6 ABV" — checked only after the leading-keyword form.
     private static let abvTrailingKeywordRegex = makeRegex(
-        "(\\d{1,2}(?:\\.\\d)?)[ \\t]{0,2}abv"
+        "(\\d{1,2}(?:\\.\\d{1,2})?)[ \\t]{0,2}abv"
+    )
+    /// "ALC. 5.9 BY VOL" — common on imported bottles without a percent sign.
+    private static let alcoholLeadingKeywordRegex = makeRegex(
+        "alc(?:ohol)?\\.?[: \\t]{1,3}(\\d{1,2}(?:\\.\\d{1,2})?)(?:[ \\t]*%?[ \\t]*(?:by|/)?[ \\t]*vol\\.?)?"
     )
 
     /// Extract the first *plausible* ABV percentage from a line, if present.
@@ -221,7 +225,7 @@ enum MenuParser {
     static func extractABV(from line: String) -> Double? {
         let fullRange = NSRange(line.startIndex..., in: line)
 
-        for regex in [abvRegex, abvLeadingKeywordRegex, abvTrailingKeywordRegex] {
+        for regex in [abvRegex, abvLeadingKeywordRegex, abvTrailingKeywordRegex, alcoholLeadingKeywordRegex] {
             for match in regex.matches(in: line, options: [], range: fullRange) {
                 if let captureRange = Range(match.range(at: 1), in: line),
                    let value = Double(line[captureRange]),

@@ -337,8 +337,8 @@ private struct StoryPage: View {
 // MARK: - Picker Page Scaffold
 
 /// Shared chrome for every CTA-block page: scrolling header + content above a
-/// fixed bottom band (gradient blend, one primary CTA, one quiet skip, and an
-/// optional toast slot). Used by the legacy picker, both new pickers, and the
+/// reserved bottom band (one primary CTA and one quiet skip). Used by the
+/// legacy picker, both new pickers, and the
 /// taste quiz.
 private struct PickerPageScaffold<Content: View>: View {
     let title: String
@@ -350,7 +350,6 @@ private struct PickerPageScaffold<Content: View>: View {
     let quietTitle: String
     let quietAccessibilityID: String
     let quietAction: () -> Void
-    var toast: AnyView? = nil
     let content: () -> Content
 
     init(
@@ -363,7 +362,6 @@ private struct PickerPageScaffold<Content: View>: View {
         quietTitle: String,
         quietAccessibilityID: String,
         quietAction: @escaping () -> Void,
-        toast: AnyView? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
@@ -375,104 +373,52 @@ private struct PickerPageScaffold<Content: View>: View {
         self.quietTitle = quietTitle
         self.quietAccessibilityID = quietAccessibilityID
         self.quietAction = quietAction
-        self.toast = toast
         self.content = content
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: SipSpacing.xl) {
-                    // Header
-                    VStack(alignment: .leading, spacing: SipSpacing.s) {
-                        Text(title)
-                            .font(SipTypography.title)
-                            .foregroundColor(SipColors.textPrimary)
-                        Text(subtitle)
-                            .font(SipTypography.subhead)
-                            .foregroundColor(SipColors.textSecondary)
-                    }
-                    .padding(.top, SipSpacing.xl)
-
-                    content()
-
-                    // Spacer so content clears the fixed buttons
-                    Spacer(minLength: 140)
+        ScrollView {
+            VStack(alignment: .leading, spacing: SipSpacing.xl) {
+                VStack(alignment: .leading, spacing: SipSpacing.s) {
+                    Text(title)
+                        .font(SipTypography.title)
+                        .foregroundColor(SipColors.textPrimary)
+                    Text(subtitle)
+                        .font(SipTypography.subhead)
+                        .foregroundColor(SipColors.textSecondary)
                 }
-                .padding(.horizontal, SipSpacing.xl)
+                .padding(.top, SipSpacing.xl)
+
+                content()
             }
-
-            // Fixed bottom area: toast + CTA + quiet skip
-            VStack(spacing: 0) {
-                if let toast {
-                    toast
+            .padding(.horizontal, SipSpacing.xl)
+            .padding(.bottom, SipSpacing.l)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: SipSpacing.m) {
+                Button(action: primaryAction) {
+                    Text(primaryTitle)
                 }
+                .buttonStyle(SipPrimaryButtonStyle())
+                .disabled(primaryDisabled)
+                .accessibilityIdentifier(primaryAccessibilityID)
 
-                // CTA hierarchy: one primary, one quiet skip.
-                VStack(spacing: SipSpacing.m) {
-                    Button(action: primaryAction) {
-                        Text(primaryTitle)
-                    }
-                    .buttonStyle(SipPrimaryButtonStyle())
-                    .disabled(primaryDisabled)
-                    .accessibilityIdentifier(primaryAccessibilityID)
-
-                    Button(action: quietAction) {
-                        Text(quietTitle)
-                    }
-                    .buttonStyle(SipQuietButtonStyle())
-                    .accessibilityIdentifier(quietAccessibilityID)
+                Button(action: quietAction) {
+                    Text(quietTitle)
                 }
-                .padding(.horizontal, SipSpacing.xl)
-                .padding(.top, SipSpacing.s)
-                // System dots are hidden on these pages; clear the home indicator.
-                .padding(.bottom, SipSpacing.xl)
-                .background(
-                    // Subtle gradient to blend with scroll content
-                    LinearGradient(
-                        gradient: Gradient(colors: [SipColors.background.opacity(0), SipColors.background]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea(edges: .bottom)
-                )
+                .buttonStyle(SipQuietButtonStyle())
+                .accessibilityIdentifier(quietAccessibilityID)
+            }
+            .padding(.horizontal, SipSpacing.xl)
+            .padding(.top, SipSpacing.m)
+            .padding(.bottom, SipSpacing.s)
+            .background(SipColors.background)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(SipColors.textSecondary.opacity(0.16))
+                    .frame(height: 0.5)
             }
         }
-    }
-}
-
-// MARK: - Corona Easter-Egg Toast
-
-private struct CoronaEggToast: View {
-    var body: some View {
-        HStack(spacing: SipSpacing.s) {
-            Text("🏎️")
-                .font(SipTypography.title)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\"One quarter mile at a time.\"")
-                    .font(SipTypography.subhead)
-                    .foregroundColor(SipColors.textPrimary)
-                Text("— Dominic Toretto")
-                    .font(SipTypography.caption)
-                    .foregroundColor(SipColors.textSecondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, SipSpacing.l)
-        .padding(.vertical, SipSpacing.m)
-        .background(
-            RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
-                .fill(SipColors.surfaceElevated)
-                .shadow(color: SipColors.background.opacity(0.35), radius: 8, x: 0, y: 4)
-        )
-        .padding(.horizontal, SipSpacing.xl)
-        .padding(.bottom, SipSpacing.m)
-        .transition(
-            .asymmetric(
-                insertion: .opacity.combined(with: .offset(y: 20)),
-                removal: .opacity.combined(with: .offset(y: 20))
-            )
-        )
     }
 }
 
@@ -484,7 +430,6 @@ private struct BeerPickerPage: View {
     let onAdvance: () -> Void
 
     @State private var selectedBeers: Set<String> = []
-    @State private var showCoronaEgg = false
     /// Monotonic guard: only the newest persistSelections snapshot may write.
     @State private var persistGeneration = 0
 
@@ -499,8 +444,7 @@ private struct BeerPickerPage: View {
             quietAccessibilityID: "onboardingPickerSkip",
             // Skip must NOT persist — write-through on every tap already
             // stored real picks; a skip only moves on.
-            quietAction: onAdvance,
-            toast: showCoronaEgg ? AnyView(CoronaEggToast()) : nil
+            quietAction: onAdvance
         ) {
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
@@ -528,21 +472,10 @@ private struct BeerPickerPage: View {
     }
 
     private func toggleBeer(_ beer: String) {
-        let wasSelected = selectedBeers.contains(beer)
-        if wasSelected {
+        if selectedBeers.contains(beer) {
             selectedBeers.remove(beer)
         } else {
             selectedBeers.insert(beer)
-            if beer == "Corona" {
-                withAnimation(.snappy(duration: 0.25)) {
-                    showCoronaEgg = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation(.snappy(duration: 0.25)) {
-                        showCoronaEgg = false
-                    }
-                }
-            }
         }
         // Write-through on every tap: swiping to the next page (instead of
         // tapping Next) used to silently discard all picks.
@@ -564,7 +497,8 @@ private struct BeerPickerPage: View {
                 // Same catalog+inference fusion the scan path uses, so the
                 // seed style for a beer matches what scanning it would resolve.
                 Array(Set(beers.compactMap {
-                    BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style?.rawValue
+                    (TastePreferences.styleForOnboardingBeer($0)
+                        ?? BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style)?.rawValue
                 })).sorted()
             }.value
             guard generation == persistGeneration else { return } // stale snapshot
@@ -593,7 +527,6 @@ private struct GoToPickerPage: View {
     @State private var selectedBeers: Set<String> = []
     @State private var selectedGoToStyles: Set<BeerStyle> = []
     @State private var selectedAdventure: String? = nil
-    @State private var showCoronaEgg = false
     /// Monotonic guard: only the newest persistSelections snapshot may write.
     @State private var persistGeneration = 0
 
@@ -635,8 +568,7 @@ private struct GoToPickerPage: View {
             quietTitle: "Skip",
             quietAccessibilityID: "onboardingPickerSkip",
             // Skip never writes — real picks were already written through.
-            quietAction: onAdvance,
-            toast: showCoronaEgg ? AnyView(CoronaEggToast()) : nil
+            quietAction: onAdvance
         ) {
             // Styles first: on a label the style is the signal, and one style
             // chip seeds more than any single beer.
@@ -734,21 +666,10 @@ private struct GoToPickerPage: View {
     }
 
     private func toggleBeer(_ beer: String) {
-        let wasSelected = selectedBeers.contains(beer)
-        if wasSelected {
+        if selectedBeers.contains(beer) {
             selectedBeers.remove(beer)
         } else {
             selectedBeers.insert(beer)
-            if beer == "Corona" {
-                withAnimation(.snappy(duration: 0.25)) {
-                    showCoronaEgg = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                    withAnimation(.snappy(duration: 0.25)) {
-                        showCoronaEgg = false
-                    }
-                }
-            }
         }
         // Write-through on every tap: swiping to the next page (instead of
         // tapping Next) must not silently discard picks.
@@ -775,7 +696,8 @@ private struct GoToPickerPage: View {
                 // Same catalog+inference fusion the scan path uses, so the
                 // seed style for a beer matches what scanning it would resolve.
                 Array(Set(beers.compactMap {
-                    BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style?.rawValue
+                    (TastePreferences.styleForOnboardingBeer($0)
+                        ?? BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style)?.rawValue
                 })).sorted()
             }.value
             guard generation == persistGeneration else { return } // stale snapshot
@@ -978,7 +900,8 @@ private struct StayAwayPickerPage: View {
                 for pick in picks {
                     if let direct = BeerStyle.allCases.first(where: { $0.rawValue.caseInsensitiveCompare(pick) == .orderedSame }) {
                         resolved.insert(direct.rawValue)
-                    } else if let style = BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
+                    } else if let style = TastePreferences.styleForOnboardingBeer(pick)
+                        ?? BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
                         resolved.insert(style.rawValue)
                     }
                 }

@@ -53,9 +53,12 @@ struct JournalEntryDetailView: View {
                             // SRM style tile — a stout and a lager should look
                             // different (shared swatch: hairline keeps stout
                             // visible on the dark sheet)
-                            SRMSwatch(style: entry.style.isEmpty ? nil : entry.style,
-                                      cornerRadius: SipRadius.card)
+                            StoredPhotoView(fileName: entry.photoFileName) {
+                                SRMSwatch(style: entry.style.isEmpty ? nil : entry.style,
+                                          cornerRadius: SipRadius.card)
+                            }
                                 .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous))
                                 .padding(.bottom, 6)
 
                             Text(entry.beerName)
@@ -223,5 +226,6 @@ struct JournalEntryDetailView_Previews: PreviewProvider {
             storageDirectory: FileManager.default.temporaryDirectory.appendingPathComponent("preview-journal-detail"),
             useSeedData: false
         ))
+        .environmentObject(DrinkStore())
     }
 }

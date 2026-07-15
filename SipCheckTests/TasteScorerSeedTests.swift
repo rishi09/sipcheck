@@ -252,4 +252,43 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(assessment.score, 2.0, accuracy: 0.0001)
         XCTAssertEqual(assessment.verdict, .tryIt)
     }
+
+    func testEveryOnboardingBeerMapsToAColdStartStyle() {
+        for beer in onboardingBeerOptions {
+            XCTAssertNotNil(
+                TastePreferences.styleForOnboardingBeer(beer),
+                "Missing cold-start style for \(beer)"
+            )
+        }
+        XCTAssertEqual(TastePreferences.styleForOnboardingBeer("Lagunitas"), .ipa)
+        XCTAssertEqual(TastePreferences.styleForOnboardingBeer("Guinness"), .stout)
+    }
+
+    func testNamedGoToBeerGetsExplicitGoToWeight() {
+        let defaults = UserDefaults.standard
+        let keys = ["knownBeers", "tasteSeedStyles", "tasteGoToStyles"]
+        let originals = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in originals {
+                if let value {
+                    defaults.set(value, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
+            }
+        }
+
+        TastePreferences.saveGoTo(beers: ["Lagunitas"], styleChips: [], seedStyles: ["IPA"])
+
+        XCTAssertEqual(defaults.string(forKey: "tasteSeedStyles"), "IPA")
+        XCTAssertEqual(defaults.string(forKey: "tasteGoToStyles"), "IPA")
+        let assessment = TasteScorer.assess(
+            name: "Two Hearted",
+            style: .ipa,
+            abv: 7.0,
+            profile: emptyProfile,
+            preferences: TastePreferences.current
+        )
+        XCTAssertEqual(assessment.verdict, .tryIt)
+    }
 }

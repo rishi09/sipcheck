@@ -82,14 +82,45 @@ final class ScanStoreTests: XCTestCase {
     // MARK: - Persistence
 
     func testPersistenceAcrossInstances() {
-        let scan = Scan(beerName: "Persistent IPA", style: "IPA", verdict: .tryIt, explanation: "Great")
+        let scan = Scan(
+            beerName: "Persistent IPA",
+            brand: "Persistent Brewing",
+            style: "IPA",
+            photoFileName: "scan-photo.jpg",
+            verdict: .tryIt,
+            explanation: "Great"
+        )
         store.addScan(scan)
 
         let store2 = ScanStore(storageDirectory: tempDirectory)
 
         XCTAssertEqual(store2.scans.count, 1)
         XCTAssertEqual(store2.scans.first?.beerName, "Persistent IPA")
+        XCTAssertEqual(store2.scans.first?.brand, "Persistent Brewing")
+        XCTAssertEqual(store2.scans.first?.photoFileName, "scan-photo.jpg")
         XCTAssertEqual(store2.scans.first?.verdict, .tryIt)
+    }
+
+    @MainActor
+    func testRemoteMergePreservesLocalOnlyPhotoAndBrand() {
+        let local = Scan(
+            beerName: "Local Beer",
+            brand: "Local Brewery",
+            photoFileName: "local-photo.jpg",
+            explanation: "Local"
+        )
+        store.addScan(local)
+
+        var remote = local
+        remote.brand = nil
+        remote.photoFileName = nil
+        remote.explanation = "Newer remote copy"
+        remote.lastModifiedLocal = Date().addingTimeInterval(60)
+        store.applyRemoteScans([remote])
+
+        XCTAssertEqual(store.scans.first?.brand, "Local Brewery")
+        XCTAssertEqual(store.scans.first?.photoFileName, "local-photo.jpg")
+        XCTAssertEqual(store.scans.first?.explanation, "Newer remote copy")
     }
 
     func testDeletePersists() {

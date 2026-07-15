@@ -3,103 +3,183 @@ import UIKit
 import Vision
 
 /// On-device OCR using Apple Vision framework for beer label text extraction.
-/// Uses .accurate recognition level to handle stylized fonts common on beer labels.
+/// Uses fast recognition first, with small accurate repairs for stylized text.
 /// Fully on-device - no network required.
 enum VisionOCRService {
+
+    /// Pay Vision's one-time model load while the user is looking at the check
+    /// screen, not after they choose a frame. This never touches the network;
+    /// the recognizer work runs off the main actor.
+    static func warmUp() async {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let size = CGSize(width: 900, height: 1_200)
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.boldSystemFont(ofSize: 72),
+                .foregroundColor: UIColor.black
+            ]
+            ("SAMPLE BREWERY" as NSString).draw(at: CGPoint(x: 110, y: 380), withAttributes: attributes)
+            ("PALE ALE" as NSString).draw(at: CGPoint(x: 240, y: 500), withAttributes: attributes)
+            ("6.5% ABV" as NSString).draw(at: CGPoint(x: 270, y: 620), withAttributes: attributes)
+        }
+        guard let cgImage = image.cgImage else { return }
+        _ = await Task.detached(priority: .utility) {
+            recognize(cgImage, level: .fast)
+        }.value
+    }
 
     /// Extract all recognized text from an image using Vision OCR.
     /// - Parameter image: The source UIImage (e.g., a photo of a beer label).
     /// - Returns: A tuple of the combined recognized text and the average confidence score (0.0-1.0).
     ///           Returns empty text with 0.0 confidence if no text is found or the image cannot be processed.
     static func extractText(from image: UIImage) async -> (text: String, confidence: Float) {
-        guard let cgImage = image.cgImage else {
+        guard let cgImage = preparedCGImage(from: image) else {
             return ("", 0.0)
         }
 
-        return await withCheckedContinuation { continuation in
-            // VNRecognizeTextRequest's completion runs synchronously inside
-            // handler.perform on this thread; the flag guards the (rare) path
-            // where perform throws after the completion already resumed.
-            var resumed = false
-            let resumeOnce: ((text: String, confidence: Float)) -> Void = { result in
-                guard !resumed else { return }
-                resumed = true
-                continuation.resume(returning: result)
-            }
-
-            let request = VNRecognizeTextRequest { request, error in
-                guard error == nil,
-                      let observations = request.results as? [VNRecognizedTextObservation],
-                      !observations.isEmpty else {
-                    resumeOnce(("", 0.0))
-                    return
-                }
-
-                // Sort observations top-to-bottom, left-to-right for natural reading order
-                let sorted = observations.sorted { a, b in
-                    // Vision coordinates have origin at bottom-left; higher y = higher on screen
-                    if abs(a.boundingBox.midY - b.boundingBox.midY) > 0.02 {
-                        return a.boundingBox.midY > b.boundingBox.midY
-                    }
-                    return a.boundingBox.midX < b.boundingBox.midX
-                }
-
-                var texts: [String] = []
-                var totalConfidence: Float = 0.0
-
-                for observation in sorted {
-                    // Take the top candidate for each observation
-                    guard let candidate = observation.topCandidates(1).first else {
-                        continue
-                    }
-                    let line = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !line.isEmpty {
-                        texts.append(line)
-                        totalConfidence += candidate.confidence
-                    }
-                }
-
-                if texts.isEmpty {
-                    resumeOnce(("", 0.0))
-                    return
-                }
-
-                let combinedText = texts.joined(separator: "\n")
-                let averageConfidence = totalConfidence / Float(texts.count)
-
-                resumeOnce((combinedText, averageConfidence))
-            }
-
-            // Configure for beer label text: accurate recognition handles stylized fonts better
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-
-            // CRITICAL: pass the photo's orientation. UIImagePickerController's
-            // portrait captures store landscape pixels + an orientation flag;
-            // without it Vision OCRs the label sideways and reads nothing.
-            let orientation = cgOrientation(from: image.imageOrientation)
-            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
-
-            do {
-                try handler.perform([request])
-            } catch {
-                resumeOnce(("", 0.0))
-            }
+        // Normal labels take the fast path. Accurate recognition remains a
+        // fallback for glare/stylized type instead of adding seconds to every
+        // grocery-aisle scan.
+        let fast = await Task.detached(priority: .userInitiated) {
+            recognize(cgImage, level: .fast)
+        }.value
+        if fast.confidence >= 0.35, fast.text.rangeOfCharacter(from: .letters) != nil {
+            return fast
         }
+
+        return await Task.detached(priority: .userInitiated) {
+            recognize(cgImage, level: .accurate)
+        }.value
     }
 
-    /// UIImage.Orientation → CGImagePropertyOrientation (no built-in bridge).
-    private static func cgOrientation(from orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
-        switch orientation {
-        case .up: return .up
-        case .down: return .down
-        case .left: return .left
-        case .right: return .right
-        case .upMirrored: return .upMirrored
-        case .downMirrored: return .downMirrored
-        case .leftMirrored: return .leftMirrored
-        case .rightMirrored: return .rightMirrored
-        @unknown default: return .up
+    private static func recognize(
+        _ cgImage: CGImage,
+        level: VNRequestTextRecognitionLevel
+    ) -> (text: String, confidence: Float) {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = level
+        request.usesLanguageCorrection = true
+
+        // `preparedCGImage` renders orientation into the pixels and caps large
+        // camera frames, so Vision always receives an upright bounded image.
+        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
+        guard (try? handler.perform([request])) != nil,
+              let observations = request.results,
+              !observations.isEmpty else { return ("", 0.0) }
+
+        let sorted = observations.sorted { a, b in
+            if abs(a.boundingBox.midY - b.boundingBox.midY) > 0.02 {
+                return a.boundingBox.midY > b.boundingBox.midY
+            }
+            return a.boundingBox.midX < b.boundingBox.midX
         }
+
+        var lines = sorted.compactMap { observation -> (text: String, confidence: Float, box: CGRect)? in
+            let alternatives = observation.topCandidates(5)
+            guard let candidate = alternatives.first(where: { unexpectedCharacterCount(in: $0.string) == 0 })
+                    ?? alternatives.first else { return nil }
+            let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return (text, candidate.confidence, observation.boundingBox)
+        }
+
+        // Fast OCR is usually enough, but stylized logos can be returned with
+        // symbol substitutions ("Q¢ion"). Re-read only that word's small
+        // rectangle accurately; this is much cheaper than a second full-frame
+        // request and preserves the responsive default path.
+        if level == .fast,
+           let repairIndex = lines.firstIndex(where: { shouldRepair($0.text) }) {
+            let region = expandedRegion(around: lines[repairIndex].box)
+            let repairImage = croppedImage(cgImage, to: region) ?? cgImage
+            let repair = recognize(repairImage, level: .accurate)
+            let replacement = BeerResolver.suggestedLabelName(from: repair.text)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !replacement.isEmpty,
+               unexpectedCharacterCount(in: replacement) < unexpectedCharacterCount(in: lines[repairIndex].text) {
+                lines[repairIndex].text = replacement
+                lines[repairIndex].confidence = repair.confidence
+            }
+        }
+
+        guard !lines.isEmpty else { return ("", 0.0) }
+
+        let totalConfidence = lines.reduce(Float.zero) { $0 + $1.confidence }
+        return (lines.map(\.text).joined(separator: "\n"), totalConfidence / Float(lines.count))
+    }
+
+    /// Fast recognition occasionally ranks a symbol-confused string (for
+    /// example "Q¢ion") above a clean alternate. Vision's candidates are
+    /// already confidence-ordered, so take the first one made of ordinary
+    /// label characters before falling back to its top result.
+    private static func unexpectedCharacterCount(in text: String) -> Int {
+        var allowed = CharacterSet.alphanumerics
+        allowed.formUnion(.whitespacesAndNewlines)
+        allowed.formUnion(CharacterSet(charactersIn: "&'\".,;:!?()-+–—/\\%$#@"))
+        return text.unicodeScalars.count { !allowed.contains($0) }
+    }
+
+    private static func shouldRepair(_ text: String) -> Bool {
+        let letterCount = text.unicodeScalars.count(where: CharacterSet.letters.contains)
+        return letterCount >= 4 && text.count <= 42 && unexpectedCharacterCount(in: text) > 0
+    }
+
+    private static func expandedRegion(around box: CGRect) -> CGRect {
+        let horizontal = max(0.04, box.width * 0.45)
+        let vertical = max(0.025, box.height * 1.25)
+        return box
+            .insetBy(dx: -horizontal, dy: -vertical)
+            .intersection(CGRect(x: 0, y: 0, width: 1, height: 1))
+    }
+
+    /// Vision boxes use a bottom-left normalized origin; CGImage crop rects use
+    /// top-left pixels. Cropping before the accurate request avoids paying its
+    /// full-frame preprocessing cost for a single suspicious logo word.
+    private static func croppedImage(_ image: CGImage, to region: CGRect) -> CGImage? {
+        let width = CGFloat(image.width)
+        let height = CGFloat(image.height)
+        let pixelRect = CGRect(
+            x: region.minX * width,
+            y: (1 - region.maxY) * height,
+            width: region.width * width,
+            height: region.height * height
+        )
+        .integral
+        .intersection(CGRect(x: 0, y: 0, width: width, height: height))
+        guard pixelRect.width >= 8, pixelRect.height >= 8 else { return nil }
+        return image.cropping(to: pixelRect)
+    }
+
+    /// Normalize orientation and limit the longest edge before OCR. Rendering
+    /// at scale 1 keeps the requested dimensions in pixels rather than points.
+    private static func preparedCGImage(from image: UIImage, maxDimension: CGFloat = 1_800) -> CGImage? {
+        guard let source = image.cgImage else { return nil }
+
+        let swapsAxes: Bool
+        switch image.imageOrientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            swapsAxes = true
+        default:
+            swapsAxes = false
+        }
+
+        let sourceWidth = CGFloat(swapsAxes ? source.height : source.width)
+        let sourceHeight = CGFloat(swapsAxes ? source.width : source.height)
+        let scale = min(1, maxDimension / max(sourceWidth, sourceHeight))
+        let targetSize = CGSize(
+            width: max(1, (sourceWidth * scale).rounded()),
+            height: max(1, (sourceHeight * scale).rounded())
+        )
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let normalized = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return normalized.cgImage
     }
 }

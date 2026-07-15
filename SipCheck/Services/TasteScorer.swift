@@ -136,7 +136,7 @@ enum TasteScorer {
         }
 
         let verdict = verdict(for: score)
-        let reason = reasons.isEmpty ? "fits your taste" : reasons.joined(separator: "; ")
+        let reason = reasons.isEmpty ? "no strong signal either way" : reasons.joined(separator: "; ")
         return Assessment(verdict: verdict, shortReason: reason, score: score)
     }
 

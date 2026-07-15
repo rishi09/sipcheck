@@ -81,13 +81,71 @@ enum BeerResolver {
         }
 
         return ResolvedBeer(
-            name: hit?.name ?? cleaned,
+            name: hit?.name ?? suggestedLabelName(from: cleaned),
             brewery: brewery,
             style: style,
             abv: abv,
             source: source,
             confidence: hit?.confidence
         )
+    }
+
+    /// Pick a human-readable identity line from an unresolved OCR blob. Vision
+    /// returns lines in page order, so a bottle-neck date or batch code often
+    /// precedes the large brand/name on the label. Catalog hits remain
+    /// authoritative; this is only the honest local best guess for long-tail
+    /// beers that are not in the bundle.
+    static func suggestedLabelName(from text: String) -> String {
+        let lines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard lines.count > 1 else { return lines.first ?? text }
+
+        let boilerplate = [
+            "alc", "alcohol", "vol", "abv", "beer", "biere", "brew", "brewed",
+            "craft", "draft", "ingredients", "bottled", "original", "product of",
+            "best before", "mfg", "batch", "serial", "warning", "drink and drive",
+            "ml", "cl", "fl oz", "fluid ounce", "imported", "distributed", "pride of"
+        ]
+
+        let identityKeys = lines.map { line in
+            let folded = line.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            let collapsed = folded.map { character in
+                character.isLetter || character.isNumber ? character : " "
+            }
+            return String(collapsed)
+                .split(separator: " ")
+                .joined(separator: " ")
+        }
+        let frequencies = Dictionary(grouping: identityKeys, by: { $0 }).mapValues(\.count)
+
+        let candidates = lines.enumerated().compactMap { index, line -> (String, Int, Int)? in
+            let lower = line.lowercased()
+            let letterCount = line.unicodeScalars.count(where: CharacterSet.letters.contains)
+            let digitCount = line.unicodeScalars.count(where: CharacterSet.decimalDigits.contains)
+            let words = line.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+
+            guard letterCount >= 4,
+                  digitCount == 0,
+                  words.count <= 5,
+                  line.count <= 42,
+                  !boilerplate.contains(where: lower.contains) else { return nil }
+
+            // Short, punctuation-free display lines are usually the large
+            // identity mark. Preserve page order as the final tie-breaker.
+            var score = words.count == 1 ? 8 : 5
+            if line.rangeOfCharacter(from: .punctuationCharacters) == nil { score += 3 }
+            if line == line.uppercased() || line == line.capitalized { score += 1 }
+            score += max(0, (frequencies[identityKeys[index]] ?? 1) - 1) * 8
+            return (line, score, index)
+        }
+
+        return candidates.max {
+            if $0.1 != $1.1 { return $0.1 < $1.1 }
+            return $0.2 > $1.2
+        }?.0 ?? lines.first ?? text
     }
 
     /// Resolve then score against the taste library in one shot — the instant verdict.

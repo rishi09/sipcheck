@@ -23,8 +23,9 @@ channel — don't make the user shuttle context between chats.
 **Active Tracks** (update when claiming/releasing):
 | Track | Branch | Reserved files |
 |---|---|---|
-| Design modernization (2026-07-03) | `claude/review-project-status-5ihff` | ALL visual/styling work: `SipCheck/Views/DesignSystem.swift` and the visual layer of every file in `SipCheck/Views/**` (layout/colors/typography/components), plus `Assets.xcassets`. Implementing `plans/reports/DESIGN_INSPIRATION.md` top-8 + Liquid Glass adoption. Functional/logic fixes to views are still fair game for other tracks — coordinate if a fix requires layout changes. `ScanningPipeline.swift` released. |
-| Simulator E2E tap-and-fix (2026-07-02) | `claude/ios-simulator-e2e-testing-t5mxgm` | Everything else — small fixes, merge to main as found. Merged so far: CloudKit test-mode crash fix, dark scheme, VerdictCardView (previousDrink banner + padding), NotificationService prompt-timing APIs, JournalEntryDetailView + tappable rows, tab-bar clearance, rewritten UI tests, CI simulator E2E workflows. CheckTabView edits were reverted per reservation — absorption list in `plans/reports/E2E_FINDINGS.md`. |
+| Design modernization (completed/merged) | `claude/review-project-status-5ihff` | Released. The product changes are in `main`; no visual files remain reserved by this track. |
+| Simulator E2E tap-and-fix (completed/merged) | `claude/ios-simulator-e2e-testing-t5mxgm` | Released. Its handoff items were absorbed by the functional E2E finish; no files remain reserved. |
+| Functional E2E finish (completed 2026-07-15) | `claude/codex-e2e-finish` | Released after simulator verification; no files remain reserved by this track. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.

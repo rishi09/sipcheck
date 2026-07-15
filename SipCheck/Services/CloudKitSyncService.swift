@@ -16,7 +16,8 @@ final class CloudKitSyncService {
 
     private init() {
         let args = ProcessInfo.processInfo.arguments
-        disabled = args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
+        let isUnitTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        disabled = isUnitTest || args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
         container = disabled ? nil : CKContainer(identifier: "iCloud.com.rishishah.sipcheck")
     }
 

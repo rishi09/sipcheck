@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1170" height="1600" viewBox="0 0 1170 1600">
+  <rect width="1170" height="1600" fill="#f7f4ed"/>
+  <rect x="70" y="70" width="1030" height="1460" rx="18" fill="#17181b"/>
+  <text x="585" y="210" fill="#f5a623" font-family="Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="700" text-anchor="middle">SAMPLE TAP LIST</text>
+  <line x1="150" y1="275" x2="1020" y2="275" stroke="#55d5d0" stroke-width="5"/>
+
+  <text x="150" y="440" fill="#ffffff" font-family="Helvetica Neue, Arial, sans-serif" font-size="48" font-weight="600">Two Hearted IPA - 7.0% ABV - $8</text>
+  <text x="150" y="535" fill="#aeb0b8" font-family="Helvetica Neue, Arial, sans-serif" font-size="32">Bright citrus, pine, and a dry finish</text>
+  <line x1="150" y1="620" x2="1020" y2="620" stroke="#4a4c52" stroke-width="3"/>
+
+  <text x="150" y="785" fill="#ffffff" font-family="Helvetica Neue, Arial, sans-serif" font-size="48" font-weight="600">Allagash White Wheat - 5.2% ABV - $7</text>
+  <text x="150" y="880" fill="#aeb0b8" font-family="Helvetica Neue, Arial, sans-serif" font-size="32">Coriander, orange peel, and soft spice</text>
+  <line x1="150" y1="965" x2="1020" y2="965" stroke="#4a4c52" stroke-width="3"/>
+
+  <text x="150" y="1130" fill="#ffffff" font-family="Helvetica Neue, Arial, sans-serif" font-size="48" font-weight="600">Guinness Draught Stout - 4.2% ABV - $6</text>
+  <text x="150" y="1225" fill="#aeb0b8" font-family="Helvetica Neue, Arial, sans-serif" font-size="32">Roasted malt with a smooth finish</text>
+
+  <rect x="285" y="1355" width="600" height="90" rx="12" fill="#2a2c31"/>
+  <text x="585" y="1415" fill="#55d5d0" font-family="Helvetica Neue, Arial, sans-serif" font-size="34" font-weight="600" text-anchor="middle">HAPPY HOUR: 20% OFF</text>
+</svg>

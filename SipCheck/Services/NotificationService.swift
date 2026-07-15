@@ -22,6 +22,10 @@ class NotificationService: NSObject, ObservableObject {
 
     private let center = UNUserNotificationCenter.current()
 
+    private var followUpsEnabled: Bool {
+        UserDefaults.standard.object(forKey: "followUpNotificationsEnabled") as? Bool ?? true
+    }
+
     override init() {
         super.init()
         center.delegate = self
@@ -55,6 +59,7 @@ class NotificationService: NSObject, ObservableObject {
     /// Schedule a follow-up only when permission was already granted — never
     /// triggers the system prompt.
     func scheduleFollowUpIfAuthorized(for scan: Scan) {
+        guard followUpsEnabled else { return }
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized
                     || settings.authorizationStatus == .provisional else { return }
@@ -65,6 +70,7 @@ class NotificationService: NSObject, ObservableObject {
     /// Ask for permission (contextual moment: the user explicitly wants a
     /// reminder), then schedule if granted.
     func requestAuthorizationAndScheduleFollowUp(for scan: Scan) {
+        guard followUpsEnabled else { return }
         requestAuthorization { granted in
             guard granted else { return }
             self.scheduleFollowUp(for: scan)
@@ -79,6 +85,7 @@ class NotificationService: NSObject, ObservableObject {
     /// future call site can reintroduce the spam. Skips SKIP IT verdicts.
     /// Uses 48h for TRY IT, 72h for YOUR CALL.
     func scheduleFollowUp(for scan: Scan) {
+        guard followUpsEnabled else { return }
         guard scan.wantToTry else { return }
         guard scan.verdict != .skipIt else { return }
 
@@ -124,6 +131,11 @@ class NotificationService: NSObject, ObservableObject {
     func cancelFollowUp(forScanID id: UUID) {
         center.removePendingNotificationRequests(withIdentifiers: [id.uuidString])
         center.removeDeliveredNotifications(withIdentifiers: [id.uuidString])
+    }
+
+    func cancelAllFollowUps() {
+        center.removeAllPendingNotificationRequests()
+        center.removeAllDeliveredNotifications()
     }
 }
 

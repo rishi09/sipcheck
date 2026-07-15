@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import PhotosUI
 
 struct CameraView: UIViewControllerRepresentable {
     @Binding var capturedImage: UIImage?
@@ -46,14 +47,25 @@ struct CameraCaptureButton: View {
     @State private var showingPermissionAlert = false
 
     var body: some View {
-        // Sits inside AddBeerView's Form (opaque row), not over a live feed —
-        // per spec §3 WO-7 this is a standard primary button, no glass here.
-        Button {
-            checkCameraPermission()
-        } label: {
-            Label("Take Photo", systemImage: "camera.fill")
+        VStack(spacing: SipSpacing.s) {
+            // Sits inside AddBeerView's Form (opaque row), not over a live feed.
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                Button {
+                    checkCameraPermission()
+                } label: {
+                    Label("Take Photo", systemImage: "camera.fill")
+                }
+                .buttonStyle(SipPrimaryButtonStyle())
+            }
+
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                PhotoLibraryButton(title: "Choose from Library", capturedImage: $capturedImage)
+                    .buttonStyle(SipSecondaryButtonStyle())
+            } else {
+                PhotoLibraryButton(title: "Choose Beer Photo", capturedImage: $capturedImage)
+                    .buttonStyle(SipPrimaryButtonStyle())
+            }
         }
-        .buttonStyle(SipPrimaryButtonStyle())
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
         }
@@ -89,6 +101,45 @@ struct CameraCaptureButton: View {
             showingPermissionAlert = true
         @unknown default:
             break
+        }
+    }
+}
+
+/// Shared photo-library input for simulator testing and existing label/menu
+/// photos. Both camera and library paths write the same `capturedImage` binding,
+/// so downstream OCR and persistence behavior stays identical.
+struct PhotoLibraryButton: View {
+    let title: String
+    @Binding var capturedImage: UIImage?
+    @State private var selection: PhotosPickerItem?
+    @State private var isLoading = false
+
+    var body: some View {
+        PhotosPicker(selection: $selection, matching: .images) {
+            HStack(spacing: SipSpacing.s) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                Text(isLoading ? "Loading Photo..." : title)
+            }
+        }
+        .disabled(isLoading)
+        .accessibilityIdentifier("chooseBeerPhoto")
+        .onChange(of: selection) { _, item in
+            guard let item else { return }
+            isLoading = true
+            Task {
+                let data = try? await item.loadTransferable(type: Data.self)
+                let image = data.flatMap(UIImage.init(data:))
+                await MainActor.run {
+                    if let image { capturedImage = image }
+                    selection = nil
+                    isLoading = false
+                }
+            }
         }
     }
 }

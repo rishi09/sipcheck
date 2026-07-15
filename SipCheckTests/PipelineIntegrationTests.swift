@@ -47,4 +47,67 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(result1.beerInfo.abv, result2.beerInfo.abv, "ABV should be consistent across runs")
         XCTAssertEqual(result1.scanSource, result2.scanSource, "Scan source should be consistent across runs")
     }
+
+    // MARK: - Menu flow
+
+    func testMenuParserRanksOneWinnerAndKeepsRunnerUp() {
+        let menu = """
+        IPAs
+        Two Hearted IPA — 7.0% — $8
+        Allagash White Wheat — 5.2% — $7
+        """
+        let preferences = TastePreferences(
+            vibe: "",
+            adventure: "Mix It Up",
+            dislikes: [],
+            goToStyles: [BeerStyle.ipa.rawValue]
+        )
+
+        let result = MenuParser.evaluate(
+            menu,
+            profile: TasteProfile(),
+            preferences: preferences
+        )
+
+        XCTAssertEqual(result.ranked.count, 2, "Style section headers must not become beers")
+        XCTAssertEqual(result.winner?.name, "Two Hearted IPA")
+        XCTAssertEqual(result.ranked.dropFirst().first?.name, "Allagash White Wheat")
+    }
+
+    func testMenuParserHandlesTwoDecimalABVAndIgnoresDiscounts() {
+        XCTAssertEqual(MenuParser.extractABV(from: "House Tripel — 7.25%"), 7.25)
+        XCTAssertEqual(MenuParser.extractABV(from: "Happy hour 20% off — Lager 5.2%"), 5.2)
+        XCTAssertEqual(MenuParser.extractABV(from: "Pale Ale — ABV: 6.5"), 6.5)
+        XCTAssertEqual(MenuParser.extractABV(from: "Pilsner — ALC. 5.9 BY VOL"), 5.9)
+
+        let imported = MenuParser.parse("House Pilsner — ALC. 5.9 BY VOL — $7")
+        XCTAssertEqual(imported.first?.name, "House Pilsner")
+        XCTAssertEqual(imported.first?.abv, 5.9)
+    }
+
+    func testUnresolvedLabelNameSkipsBottleCodesAndLegalCopy() {
+        let ocr = """
+        4143 12.18
+        Orion
+        OKINAWA'S CRAFT
+        THE DRAFT
+        BEER/BIERE
+        633 mL 5% alc. / vol.
+        """
+
+        XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "Orion")
+    }
+
+    func testUnresolvedLabelNamePrefersRepeatedBrandOverCountryCopy() {
+        let ocr = """
+        BIA VIỆT
+        PRIDE OF
+        VIETNAN
+        BIA VIỆT
+        Cold Brew
+        LAGER 3S
+        """
+
+        XCTAssertEqual(BeerResolver.suggestedLabelName(from: ocr), "BIA VIỆT")
+    }
 }

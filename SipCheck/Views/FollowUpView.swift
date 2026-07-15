@@ -13,8 +13,11 @@ struct FollowUpView: View {
             VStack(spacing: SipSpacing.m) {
                 // SRM style tile — the beer's color, not a stock glyph
                 // (shared swatch: hairline keeps stout tiles visible, crit #3)
-                SRMSwatch(style: scan.style, cornerRadius: SipRadius.card)
+                StoredPhotoView(fileName: scan.photoFileName) {
+                    SRMSwatch(style: scan.style, cornerRadius: SipRadius.card)
+                }
                     .frame(width: 72, height: 72)
+                    .clipShape(RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous))
                     .padding(.top, SipSpacing.xxl)
 
                 Text(scan.beerName)
@@ -52,8 +55,10 @@ struct FollowUpView: View {
                 Button("Yes, I tried it") {
                     let prefill = AddBeerPrefill(
                         name: scan.beerName,
+                        brand: scan.brand ?? "",
                         style: scan.style ?? BeerStyle.other.rawValue,
                         abv: scan.abv,
+                        photoFileName: scan.photoFileName,
                         scanId: scan.id
                     )
                     onTried?(prefill)
@@ -104,6 +109,7 @@ struct FollowUpView_Previews: PreviewProvider {
                 onNotYet: {},
                 onNotGoing: {}
             )
+            .environmentObject(DrinkStore())
             .previewDisplayName("Try It Scan")
 
             FollowUpView(
@@ -112,6 +118,7 @@ struct FollowUpView_Previews: PreviewProvider {
                 onNotYet: {},
                 onNotGoing: {}
             )
+            .environmentObject(DrinkStore())
             .previewDisplayName("Skip It Scan")
         }
     }

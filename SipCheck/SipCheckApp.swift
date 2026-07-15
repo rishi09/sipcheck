@@ -178,18 +178,21 @@ private struct RootView: View {
                 let rating: Rating = isLoved ? .like : .neutral
                 let drink = Drink(
                     name: scan.beerName,
+                    brand: scan.brand ?? "",
                     style: scan.style ?? "Other",
                     rating: rating,
+                    photoFileName: scan.photoFileName,
                     abv: scan.abv
                 )
                 drinkStore.addDrink(drink)
                 // Also create a JournalEntry so it appears in the Journal tab
                 let journalEntry = JournalEntry(
                     beerName: scan.beerName,
-                    brand: "",
+                    brand: scan.brand ?? "",
                     style: scan.style ?? "",
                     abv: scan.abv,
                     rating: isLoved ? 5 : 3,
+                    photoFileName: scan.photoFileName,
                     linkedScanId: scan.id
                 )
                 journalStore.addEntry(journalEntry)

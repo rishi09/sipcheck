@@ -58,11 +58,30 @@ struct TastePreferences {
         return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
+    /// The onboarding beer buttons intentionally use familiar shorthand
+    /// ("Lagunitas", "Guinness") rather than exact catalog product names.
+    /// Resolve those product cues explicitly so the cold-start signal does not
+    /// depend on a fuzzy catalog hit for a brewery-only label.
+    static func styleForOnboardingBeer(_ beer: String) -> BeerStyle? {
+        switch beer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "modelo", "corona", "heineken", "coors light", "bud light": return .lager
+        case "stella artois": return .pilsner
+        case "blue moon", "allagash white": return .wheat
+        case "sam adams": return .amber
+        case "guinness": return .stout
+        case "sierra nevada": return .paleAle
+        case "lagunitas", "hazy little thing", "dogfish head", "stone ipa", "goose island": return .ipa
+        default: return nil
+        }
+    }
+
     /// Test runs must be hermetic — mirror CloudKitSyncService's gate so the
     /// iCloud key-value store is never touched under test launch args.
     private static var cloudDisabled: Bool {
         let args = ProcessInfo.processInfo.arguments
-        return args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
+        return args.contains("--disable-cloudkit")
+            || args.contains("--isolated-storage")
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     /// Quiz answers previously lived only in this device's UserDefaults, so
@@ -141,10 +160,15 @@ struct TastePreferences {
     /// `saveKnownBeers` so the legacy (control) picker never blanks
     /// "tasteGoToStyles" it doesn't know about.
     static func saveGoTo(beers: [String], styleChips: [String], seedStyles: [String]) {
+        // A named beer selected under "What's your go-to?" is an explicit
+        // preference, not merely something the user has sampled. Keep the
+        // seed channel for compatibility, and also give its resolved styles
+        // the same full-weight channel as directly tapped style chips.
+        let explicitGoToStyles = Array(Set(styleChips).union(seedStyles)).sorted()
         let values = [
             "knownBeers": beers.sorted().joined(separator: ","),
             "tasteSeedStyles": seedStyles.sorted().joined(separator: ","),
-            "tasteGoToStyles": styleChips.sorted().joined(separator: ",")
+            "tasteGoToStyles": explicitGoToStyles.joined(separator: ",")
         ]
         for (key, value) in values {
             UserDefaults.standard.set(value, forKey: key)

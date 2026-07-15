@@ -14,7 +14,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Views/Tabs/CheckTabView.swift:339`
 **MenuParser is dead code — the menu flow ('surface ONE clear winner') is not wired into the app at all; a menu photo goes through the single-beer label pipeline.**
 
-- **Status:** ⚪ OPEN — next phase — menu mode: wire MenuParser + one-winner UI
+- **Status:** ✅ FIXED — menu auto-detection now ranks parsed candidates, surfaces one winner, and keeps the runner-up behind a tap; verified with the deterministic tap-menu fixture and simulator walkthrough (2026-07-15)
 - **Field scenario:** At a restaurant with the waiter approaching, the user photographs a 12-beer tap list. Instead of 'order this' with a winner, the app returns one arbitrary/garbled beer name (whatever the LLM picks out of the blob) or, offline, a Scan whose beerName is the entire multi-line menu text, scored as if it were one beer.
 - **Detail:** No view or pipeline calls MenuParser.parse/evaluate/pickWinner; the only external reference to MenuParser is BeerResolver.swift:61 using its extractABV helper (verified by repo-wide grep). CheckTabView has exactly one image path, runScan(image:) → ScanningPipeline.scan(image:), which sends the whole OCR blob to an LLM expecting ONE beer (ScanningPipeline.swift:76) and returns a single BeerInfo. There is no menu-vs-label detection and no ranked-winner UI.
 
@@ -77,7 +77,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Views/Tabs/CheckTabView.swift:388`
 **The menu flow is unwired: MenuParser.evaluate/pickWinner has zero callers, so photographing a menu never produces the required single ranked winner**
 
-- **Status:** ⚪ OPEN — next phase — menu mode
+- **Status:** ✅ FIXED — MenuParser is wired into the image path with one-winner and runner-up UI; covered by parser/integration tests and simulator E2E (2026-07-15)
 - **Field scenario:** At a restaurant with a 12-beer tap list, the user snaps the menu; offline they get a verdict card whose title is the whole menu text scored as one 'beer', and online they get a verdict for whichever single beer the LLM happened to pick — never the taste-ranked 'order this' winner the product requires.
 - **Detail:** Grep across SipCheck/ finds no call sites for MenuParser.parse/evaluate/pickWinner (SipCheck/Services/MenuParser.swift:41, :76, :115) outside the file itself — only MenuParser.extractABV is used, on a single name string inside BeerResolver.resolve (BeerResolver.swift:61). A menu photo goes down the one-beer label path: ScanningPipeline.scan(image:) OCRs the whole menu and sends the blob to the text LLM, which extracts one arbitrary beer (ScanningPipeline.swift:76), or with no provider stubs beerInfo.name to the ENTIRE multi-line menu text (ScanningPipeline.swift:118-119). CheckTabView.buildSca
 
@@ -91,21 +91,21 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Services/MenuParser.swift:76`
 **The menu path — a locked product requirement ('menu → ONE clear winner') — is not wired into the app at all; MenuParser.evaluate/pickWinner is dead code.**
 
-- **Status:** ⚪ OPEN — next phase — menu mode wiring
+- **Status:** ✅ FIXED — automatic menu detection produces one ranked winner and an optional tap-to-reveal runner-up (2026-07-15)
 - **Field scenario:** User at a restaurant photographs the tap list (one of the three locked input types); instead of 'order this' with a tap-for-runner-up, the whole menu text is treated as one beer name — the LLM or keyword matcher latches onto whichever style word appears first and returns a single meaningless verdict for the entire menu.
 - **Detail:** The only production caller of MenuParser is BeerResolver.resolve using extractABV on a single line (BeerResolver.swift:61). MenuParser.evaluate / pickWinner (MenuParser.swift:76-121) and TasteScorer.ranksAhead are never invoked from any view or pipeline. CheckTabView offers only 'Scan Label' and 'Enter beer name' (CheckTabView.swift:145-173); there is no menu detection (e.g. multi-line OCR with several style/ABV/price lines) and no winner UI. A menu photo is funneled through the single-beer pipeline as one blob.
 
 ### [HIGH] `SipCheck/Views/Tabs/CheckTabView.swift:45`
 **The scanning spinner screen has no cancel button — the user is trapped for the full duration of the network waits.**
 
-- **Status:** ✅ FIXED — verdict-first refactor (`4cc5cf4`) — network off the critical path; recognizing is sub-second
+- **Status:** ✅ FIXED — network is off the critical path; real label fixtures resolve on-device in about 2.2-2.5s after OCR warmup (2026-07-15)
 - **Field scenario:** Scan hangs on store Wi-Fi captive portal; user watches 'Forming an opinion...' loop for a minute with no cancel, gives up, force-quits the app in the aisle.
 - **Detail:** When isScanning is true the entire tab is replaced by scanningView (CheckTabView.swift:45-46, 179-217), which contains only a spinner and cycling phrases. There is no cancel/back control, and scanTask is only cancelled from resetScanState via the verdict card's 'Scan Another' button (CheckTabView.swift:53-55, 461). Combined with the up-to-60s network critical path, the user cannot abort a hung scan, retake the photo, or drop to typed entry; their only escape is switching tabs (which doesn't cancel the task) or killing the app.
 
 ### [HIGH] `SipCheck/Services/MenuParser.swift:115`
 **Menu mode is completely unwired: MenuParser.pickWinner is never called from any view, so a menu photo is treated as one giant single-beer label.**
 
-- **Status:** ⚪ OPEN — next phase — menu mode wiring
+- **Status:** ✅ FIXED — the image flow calls MenuParser's evaluation path and renders its winner/runner-up in VerdictCardView (2026-07-15)
 - **Field scenario:** User photographs a 20-beer tap list at a restaurant with the waiter approaching; instead of 'order the Two Hearted', the app returns one verdict card for an arbitrary/garbled 'beer' the LLM plucked from the blob (or the raw blob itself offline) — the flagship menu use case simply does not exist in the shipped UI.
 - **Detail:** MenuParser.evaluate/pickWinner (MenuParser.swift:74-121) — the component that implements the locked 'menus must surface ONE clear winner' requirement — has zero call sites in the UI (grep shows only BeerResolver using MenuParser.extractABV). CheckTabView offers only 'Scan Label' and feeds every image through ScanningPipeline.scan(image:) (CheckTabView.swift:339), which OCRs the whole menu into one blob and asks the network LLM to extract a single beer's name/style/ABV (ScanningPipeline.swift:76). There is no menu/label mode distinction anywhere in the scan UI, no ranked list, no runner-up tap.
 
@@ -126,7 +126,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [HIGH] `SipCheck/Views/OnboardingView.swift:209`
 **Onboarding beer-picker selections ('knownBeers') are written to UserDefaults but never read anywhere in the codebase, so the 'calibrate your taste' page is completely inert.**
 
-- **Status:** ⚪ OPEN — onboarding batch
+- **Status:** ✅ FIXED — every onboarding beer maps to an explicit style and named go-to picks seed the full-weight taste profile; all 16 choices are covered by tests (2026-07-15)
 - **Field scenario:** New user taps Guinness, Stone IPA, Sierra Nevada, Corona etc. during onboarding, walks into Trader Joe's, and scans a stout: the verdict engine has zero liked-style history (favoriteStyles is empty), so their picks are silently discarded and scan #1 behaves as if they told the app nothing about beers they already know.
 - **Detail:** BeerPickerPage.advance() writes the selected beers to UserDefaults key 'knownBeers' (OnboardingView.swift:209). A repo-wide grep shows that is the ONLY occurrence of 'knownBeers' — no code in TastePreferences, TasteScorer, TasteProfile, BeerResolver, or any store ever reads it. The page explicitly promises 'Tap any you've tried. We'll use it to calibrate your taste.' (OnboardingView.swift:89), and the locked cold-start constraint says the quiz 'seeds the taste library so scan #1 is personalized'. The taste library (TasteProfile.build, TasteProfile.swift:14) is built only from drinkStore.drinks
 
@@ -154,21 +154,21 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Views/Components/VerdictCardView.swift:84`
 **The verdict card is a dead end for the 'I'm buying it' moment: no way to log/journal the beer now — only 'Save for Later' and 'Scan Another'.**
 
-- **Status:** ⚪ OPEN — design phase — verdict card needs a log-it-now action (DESIGN #5)
+- **Status:** ✅ FIXED — verdict cards can open Add Beer immediately with the resolved metadata and captured photo prefilled (2026-07-15)
 - **Field scenario:** User gets 'TRY IT', tosses the beer in the cart, and wants to mark it tried right there — there is no button; they must remember to do it from the Journal tab manually or wait two days for a notification, so the taste library (which powers every future verdict) never learns.
 - **Detail:** VerdictCardView's only actions are onSaveForLater and onScanAnother (VerdictCardView.swift:84-115). There is no 'Drinking it / Log it' action that opens AddBeerView, even though CheckTabView already has the full showingAddBeer + AddBeerPrefill machinery wired (CheckTabView.swift:95-107) — it is reachable only via FollowUpView, and CheckTabView's own FollowUpView sheet is dead code because showingFollowUp is never set to true anywhere in the view (declared CheckTabView.swift:23, only ever set false at 77-90). The only working path to logging a scan is the 48/72-hour-later push notification (Not
 
 ### [MEDIUM] `SipCheck/Services/MenuParser.swift:167`
 **extractABV inspects only the first %-token and returns nil if it is implausible, misses no-%-sign formats ('ABV: 7', 'ALC 5.9 BY VOL'), fails on two-decimal ABVs ('7.25%'), and accepts '20% off' as a 20.0 ABV.**
 
-- **Status:** ⚪ OPEN — next phase — menu mode wiring
+- **Status:** ✅ FIXED — ABV extraction handles multiple candidates, two decimals, `ABV:`/`ALC ... BY VOL`, and ignores discount percentages; covered by tests (2026-07-15)
 - **Field scenario:** A tap list printed as 'Two Hearted IPA — ABV: 7 — $6' produces abv=nil (loses the ABV proximity signal and tiebreak); a menu with a 'Happy Hour 50% off' banner text on the beer's line loses its real ABV; a '20% off' line scores a phantom 20% ABV penalty ('20% is off your usual strength').
 - **Detail:** extractABV (MenuParser.swift:167-175) takes abvRegex.firstMatch and, when the value falls outside 0.5...20.0, returns nil instead of scanning subsequent matches — so 'Happy hour 50% off — Pliny the Elder 8.0%' yields no ABV although 8.0% is right there. plausibleABV includes 20.0, so '20% off pints' parses as ABV=20 and triggers the max strength penalty (TasteScorer.swift:94). The regex `(\d{1,2}(?:\.\d)?)\s?%` (line 148) allows only one decimal digit, so '7.25%' matches as '25' (rejected → nil); and it requires a % sign, so common menu/label formats 'ABV: 7', 'ABV 6.5', 'ALC. 5.9 BY VOL' are 
 
 ### [MEDIUM] `SipCheck/Services/MenuParser.swift:64`
 **Style-word section headers ('IPAs', 'Stouts', 'Sours') pass the parse-confidence floor as beer candidates and can be ranked as the menu winner.**
 
-- **Status:** ⚪ OPEN — next phase — menu mode wiring
+- **Status:** ✅ FIXED — style-only menu section headings are filtered before ranking; covered by menu tests (2026-07-15)
 - **Field scenario:** A menu sectioned 'IPAs / Lagers / Sours' where the user loves IPAs: the app's single clear winner is the literal word 'IPAs' — 'order this: IPAs' — instead of any orderable beer.
 - **Detail:** sectionRegex (MenuParser.swift:141) only knows generic headers (on tap/drafts/bottles/cans/beer/menu/drinks). A header line like 'IPAs' or 'Local Sours' is ≥3 chars, not a section header per the regex, and inferStyle returns a style for it, so the `style != nil || abv != nil || hasPrice` floor (line 64) keeps it. With a liked style weight (e.g. ipa = 3.0) and no ABV, the header scores 3.0 while a real IPA at 9.5% scores 3.0 - 1.25 + ... less — the header can outrank every actual beer and become MenuVerdict.winner.
 
@@ -196,21 +196,21 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Services/NotificationService.swift:59`
 **The system notification-permission dialog pops over the very first scan verdict, interrupting the in-the-moment flow.**
 
-- **Status:** ⚪ OPEN
+- **Status:** ✅ FIXED — authorization is requested only after the user explicitly chooses Save for Later, never over the first verdict (2026-07-15)
 - **Field scenario:** First-ever scan at Trader Joe's: the instant the TRY IT card appears, an 'SipCheck Would Like to Send You Notifications' alert covers it. User, in a hurry, dismisses with Don't Allow — the verdict was obscured at the critical moment and the entire follow-up loop (48/72h check-ins) is permanently disabled.
 - **Detail:** finalizeScan calls notificationService.scheduleFollowUp for every non-skip scan (CheckTabView.swift:448), and scheduleFollowUp unconditionally calls requestAuthorization() (NotificationService.swift:56-59) which triggers UNUserNotificationCenter's modal permission alert the first time. There is no pre-permission priming and no deferral to a calmer moment (e.g. onboarding or Save for Later). If the user reflexively taps 'Don't Allow' in the aisle, all follow-up notifications are silently dead forever, and center.add failures are only printed.
 
 ### [MEDIUM] `SipCheck/Views/Tabs/CheckTabView.swift:448`
 **finalizeScan schedules a follow-up push notification for every non-skip scan, not just saved ones — scanning the aisle generates notification spam.**
 
-- **Status:** 🟡 PARTIAL — permission timing fixed; whether every non-skip scan should schedule a follow-up (vs only Save-for-Later) is a product call — flagged for owner
+- **Status:** ✅ FIXED — only Save for Later schedules a follow-up; ordinary comparison scans do not create reminders (2026-07-15)
 - **Field scenario:** User comparison-scans 8 cans at Trader Joe's and buys one; over the next three days their lock screen fills with 'Did you try Boatswain Twin Screw? 🍺', 'Ever get around to Simpler Times Lager?' — seven of them about beers left on the shelf — until they disable notifications.
 - **Detail:** finalizeScan calls notificationService.scheduleFollowUp(for: scan) for every completed scan (CheckTabView.swift:446-451); scheduleFollowUp only skips .skipIt verdicts (NotificationService.swift:56-61) and pays no attention to wantToTry (which is false at this point, CheckTabView.swift:430). saveForLater then schedules again (CheckTabView.swift:457). So every TRY IT / YOUR CALL verdict the user merely glanced at becomes a 48-72h reminder.
 
 ### [MEDIUM] `SipCheck/Views/Components/VerdictCardView.swift:14`
 **The verdict is not the visually dominant element: a 320pt empty gray placeholder box tops the card, pushing the 34pt verdict to mid-screen, and the user's actual photo is discarded.**
 
-- **Status:** ⚪ OPEN — design phase — kill the gray box (DESIGN #2/§4)
+- **Status:** ✅ FIXED — the empty gray block is gone; captured/library photos are no longer discarded and persist into Add Beer, Journal, detail, and relaunch; verified with two real label fixtures (2026-07-15)
 - **Field scenario:** User glances at the phone held at arm's length over the cart: the top 40% of the screen is an empty gray rectangle with a faint mug; they have to squint/scroll to find whether it said TRY IT or SKIP IT.
 - **Detail:** The card leads with a fixed 320pt Rectangle placeholder containing a dim mug icon and the beer name (VerdictCardView.swift:14-26) — there is no image property on Scan and the capturedImage from the camera is never passed in (CheckTabView.swift:48-56), so this area is always empty chrome. The verdict itself is 34pt text (SipTypography.display, DesignSystem.swift:25) sitting below it (VerdictCardView.swift:38-42) with no thumbs-up/down glyph. At arm's length the eye lands on a big blank gray box, not the 👍/👎 answer the 8-second use case demands; on smaller phones the action buttons are pushed be
 
@@ -294,7 +294,7 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [MEDIUM] `SipCheck/Views/AddBeerView.swift:124`
 **Save button stays enabled during the async save, so a double-tap creates duplicate Drink + JournalEntry records that skew the taste profile and sync to CloudKit**
 
-- **Status:** 🔵 OPEN — recommend E2E track — double-tap Save duplicates
+- **Status:** ✅ FIXED — AddBeerView gates Save with `isSaving`; persistence and dismissal execute once (2026-07-15)
 - **Field scenario:** Trader Joe's aisle, spouse waiting: user taps Save, the sheet doesn't dismiss instantly because the label photo is compressing, they tap Save again. Two identical 'Hazy Little Thing' entries appear in the journal and drinks list, the style is double-weighted in TasteScorer, and deleting one by hand still leaves the duplicate on the other device until sync catches up.
 - **Detail:** saveBeer() (:177-231) launches a Task that first awaits drinkStore.savePhoto (ImageCompressor at 1024px — hundreds of ms for a 12MP camera photo) before inserting the drink and dismissing. There is no isSaving flag; the toolbar Save button (:123-129) is only gated on `canSave` (non-empty name), and the form stays fully interactive. Each tap generates a fresh `UUID()` (:178), so a second tap produces a second Drink and a second mirrored JournalEntry with distinct IDs — de-duplication by ID can never catch them, and both upload to CloudKit (DrinkStore.swift:46) so the duplicates propagate to the
 
@@ -399,6 +399,6 @@ Statuses: ✅ fixed · 🟡 partial/superseded · 🔵 open, recommended for the
 ### [LOW] `SipCheck/Services/DrinkStore.swift:118`
 **Every drink/journal mutation re-encodes and rewrites the full array synchronously on the main thread, and photo loads do synchronous disk I/O inside view body**
 
-- **Status:** ⚪ OPEN — perf (SPEED_PLAN Later)
+- **Status:** 🟡 PARTIAL — photo reads now use `loadPhotoAsync`; full-array JSON writes remain synchronous and are still a later performance item (2026-07-15)
 - **Field scenario:** A user with a few hundred logged beers taps Save on AddBeerView while the verdict/journal UI is up: two full-file JSON encodes+writes land on the main thread in one frame, producing a visible hitch right at the moment the CLAUDE.md 'fast in-the-moment' requirement cares about most; opening a beer with a photo stutters on first render.
 - **Detail:** saveDrinks() (:115-123) encodes drinks + tombstones and writes to disk inline; all callers run on the main actor (addDrink from AddBeerView.swift:218-229 inside MainActor.run, and from the notification lovedIt handler at SipCheckApp.swift:173). JournalStore.saveEntries (JournalStore.swift:105-112) is identical, and AddBeerView performs both writes back-to-back in one main-actor block (:219-220), plus a third for the scan link (:227). Cost grows linearly with history size, on every single log. Writes ARE atomic (.atomic at :119), so this is jank, not corruption risk. Also loadPhoto (:165-175) d

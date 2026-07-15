@@ -11,10 +11,11 @@ struct JournalEntryRow: View {
 
     var body: some View {
         HStack(spacing: SipSpacing.m) {
-            // SRM style tile — the beer's color is the thumbnail (shared
-            // swatch: hairline keeps stout tiles visible on the dark canvas)
-            SRMSwatch(style: entry.style.isEmpty ? nil : entry.style)
+            StoredPhotoView(fileName: entry.photoFileName) {
+                SRMSwatch(style: entry.style.isEmpty ? nil : entry.style)
+            }
                 .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: SipRadius.badge, style: .continuous))
 
             // Name on line 1; style + rating share the metadata baseline
             VStack(alignment: .leading, spacing: SipSpacing.xs) {
@@ -75,6 +76,40 @@ struct JournalEntryRow: View {
     }
 }
 
+/// Async disk-backed image with a caller-provided semantic fallback. This is
+/// shared by journal rows, details, and Want to Try cards so a captured photo
+/// appears everywhere without blocking SwiftUI's render pass on file I/O.
+struct StoredPhotoView<Placeholder: View>: View {
+    @EnvironmentObject private var drinkStore: DrinkStore
+    let fileName: String?
+    private let placeholder: Placeholder
+    @State private var image: UIImage?
+
+    init(fileName: String?, @ViewBuilder placeholder: () -> Placeholder) {
+        self.fileName = fileName
+        self.placeholder = placeholder()
+    }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder
+            }
+        }
+        .task(id: fileName) {
+            guard let fileName else {
+                image = nil
+                return
+            }
+            image = await drinkStore.loadPhotoAsync(named: fileName)
+        }
+    }
+}
+
 struct JournalEntryRow_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 0) {
@@ -98,6 +133,7 @@ struct JournalEntryRow_Previews: PreviewProvider {
             ))
         }
         .background(SipColors.background)
+        .environmentObject(DrinkStore())
         .previewDisplayName("Journal Entry Rows")
     }
 }
