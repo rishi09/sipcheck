@@ -117,6 +117,7 @@ struct SettingsTabView: View {
                     Toggle(isOn: $followUpNotificationsEnabled) {
                         Text("Follow-up reminders")
                     }
+                    .accessibilityIdentifier("followUpRemindersToggle")
                     .onChange(of: followUpNotificationsEnabled) { _, enabled in
                         if !enabled {
                             NotificationService.shared.cancelAllFollowUps()
@@ -147,8 +148,14 @@ struct SettingsTabView: View {
                     Button("Replay Onboarding") {
                         showResetOnboardingAlert = true
                     }
+                    .accessibilityIdentifier("replayOnboardingButton")
                     .alert("Replay Onboarding?", isPresented: $showResetOnboardingAlert) {
                         Button("Replay", role: .destructive) {
+                            // Replay starts from a clean reminder baseline but
+                            // deliberately preserves iOS notification permission.
+                            followUpNotificationsEnabled = false
+                            NotificationService.shared.resetForOnboardingReplay()
+
                             // Dismiss this sheet first; if we flip the flags while the
                             // sheet is up, the RootView swap happens underneath it and
                             // never becomes visible. Flip them after dismissal settles.
@@ -158,6 +165,7 @@ struct SettingsTabView: View {
                                 hasCompletedOnboarding = false
                             }
                         }
+                        .accessibilityIdentifier("confirmReplayOnboardingButton")
                         Button("Cancel", role: .cancel) {}
                     } message: {
                         Text("Takes you back through the age gate and intro screens right now.")
@@ -291,19 +299,17 @@ private struct TastePreferencesEditorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     // Go-to / stay-away grids first: they're the default
-                    // flow's primary taste signals. Locks are live — a chip
-                    // claimed on one side is inert (dimmed + captioned) on
-                    // the other, mirroring the onboarding cross-exclusion.
+                    // flow's primary taste signals. The two answers stay
+                    // independently editable; the scorer gives a hard avoid
+                    // precedence if the same pick appears in both.
                     VStack(alignment: .leading, spacing: SipSpacing.m) {
                         Text("Your go-tos")
                             .font(SipTypography.headline)
                             .foregroundColor(SipColors.textPrimary)
                         picksGrid(
                             styleSelected: { goToStyles.contains($0) },
-                            styleLocked: { avoidStyles.contains($0) ? "stay-away" : nil },
                             onTapStyle: toggleGoToStyle,
                             beerSelected: { goToBeers.contains($0) },
-                            beerLocked: { avoidBeers.contains($0) ? "stay-away" : nil },
                             onTapBeer: toggleGoToBeer
                         )
                     }
@@ -314,10 +320,8 @@ private struct TastePreferencesEditorView: View {
                             .foregroundColor(SipColors.textPrimary)
                         picksGrid(
                             styleSelected: { avoidStyles.contains($0) },
-                            styleLocked: { goToStyles.contains($0) ? "go-to" : nil },
                             onTapStyle: toggleAvoidStyle,
                             beerSelected: { avoidBeers.contains($0) },
-                            beerLocked: { goToBeers.contains($0) ? "go-to" : nil },
                             onTapBeer: toggleAvoidBeer
                         )
                     }
@@ -417,10 +421,8 @@ private struct TastePreferencesEditorView: View {
     /// pickers offer, so edits restore identically on a replay.
     private func picksGrid(
         styleSelected: @escaping (BeerStyle) -> Bool,
-        styleLocked: @escaping (BeerStyle) -> String?,
         onTapStyle: @escaping (BeerStyle) -> Void,
         beerSelected: @escaping (String) -> Bool,
-        beerLocked: @escaping (String) -> String?,
         onTapBeer: @escaping (String) -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: SipSpacing.s) {
@@ -433,7 +435,6 @@ private struct TastePreferencesEditorView: View {
                     ChipButton(
                         label: styleChipLabel(style),
                         isSelected: styleSelected(style),
-                        lockedCaption: styleLocked(style),
                         anchorCaption: styleChipAnchor(style)
                     ) {
                         onTapStyle(style)
@@ -448,8 +449,7 @@ private struct TastePreferencesEditorView: View {
                 ForEach(onboardingBeerOptions, id: \.self) { beer in
                     ChipButton(
                         label: beer,
-                        isSelected: beerSelected(beer),
-                        lockedCaption: beerLocked(beer)
+                        isSelected: beerSelected(beer)
                     ) {
                         onTapBeer(beer)
                     }

@@ -22,11 +22,11 @@ enum OnboardingVariant: String, CaseIterable, Identifiable {
                     .legacyBeerPicker,
                     .quiz(includeAdventure: true, includeDislikes: true)]
         case .goToStayAway:
-            return [.story(index: 0), .story(index: 1), .story(index: 2),
+            return [.story(index: 0), .story(index: 1),
                     .goToPicker,
                     .stayAwayPicker]
         case .goToStayAwayPlusVibe:
-            return [.story(index: 0), .story(index: 1), .story(index: 2),
+            return [.story(index: 0), .story(index: 1),
                     .goToPicker,
                     .stayAwayPicker,
                     .quiz(includeAdventure: false, includeDislikes: false)]
@@ -228,12 +228,12 @@ struct OnboardingView: View {
 
     private var pageOneCopy: (title: String, description: String) {
         switch copyVariantPage1 {
-        case "B": return ("Stop guessing. Buy better beer.", "SipCheck learns what you actually like.")
-        case "C": return ("Never waste a sip again", "Buy better beer, every single time.")
-        // D = A's punchline warranted by the palate-vs-crowd contrast — the
-        // body line is the differentiator, not a mechanism clause.
-        case "D": return ("Buy better beer.", "Picked for your taste, not the crowd's.")
-        default:  return ("Buy better beer.", "Know what you'll like before you buy.")
+        case "B": return ("Know what to buy.", "A quick answer, tuned to your taste.")
+        case "C": return ("Find your next favorite.", "Personal picks before you buy.")
+        // D keeps the palate-vs-crowd contrast as the differentiator while
+        // every variant leads with the shopper's outcome, not the machinery.
+        case "D": return ("Buy beer you'll love.", "Picked for your taste, not the crowd's.")
+        default:  return ("Pick the right beer, fast.", "Personalized to your taste, right when you need it.")
         }
     }
 
@@ -250,25 +250,31 @@ struct OnboardingView: View {
                 // Beer-native amber hero (matches the Check idle motif) — the
                 // age gate already owns the teal mug; don't repeat it here.
                 iconStyle: AnyShapeStyle(StyleGradient.gradient(for: "IPA")),
+                contentAccessibilityID: "onboardingStoryBuyingHelp",
                 continueAccessibilityID: ctaID,
                 onAdvance: onAdvance
             )
         case 1:
             if scanVignetteRaw == "icon" {
-                // No animation to carry "scan a label", so the words do it.
                 return StoryPage(
                     icon: "camera.fill",
-                    title: "Scan a label, get a verdict",
-                    description: "Based on your taste, not the hype.",
+                    title: variant == .control ? "Scan a label, get a verdict" : "Your call, in a glance.",
+                    description: variant == .control
+                        ? "Based on your taste, not the hype."
+                        : "A personal TRY IT or SKIP IT that gets sharper with every rating.",
+                    contentAccessibilityID: "onboardingStoryVerdictLearning",
                     continueAccessibilityID: ctaID,
                     onAdvance: onAdvance
                 )
             }
             return StoryPage(
                 icon: "camera.fill",
-                title: "Try it. Skip it. Your call.",
-                description: "Point your camera. Get your verdict.",
+                title: variant == .control ? "Try it. Skip it. Your call." : "Your call, in a glance.",
+                description: variant == .control
+                    ? "Point your camera. Get your verdict."
+                    : "A personal TRY IT or SKIP IT that gets sharper with every rating.",
                 hero: AnyView(ScanVignetteView(variant: ScanVignetteVariant(rawValue: scanVignetteRaw) ?? .full)),
+                contentAccessibilityID: "onboardingStoryVerdictLearning",
                 continueAccessibilityID: ctaID,
                 onAdvance: onAdvance
             )
@@ -277,6 +283,7 @@ struct OnboardingView: View {
                 icon: "sparkles",
                 title: "The more you log, the better it gets",
                 description: "Every beer you rate teaches SipCheck your taste. Your picks get sharper every week.",
+                contentAccessibilityID: "onboardingStoryLearningControl",
                 continueAccessibilityID: ctaID,
                 onAdvance: onAdvance
             )
@@ -294,6 +301,7 @@ private struct StoryPage: View {
     /// `icon` renders in its place.
     var hero: AnyView? = nil
     var iconStyle: AnyShapeStyle = AnyShapeStyle(SipColors.accent)
+    let contentAccessibilityID: String
     let continueAccessibilityID: String
     let onAdvance: () -> Void
 
@@ -313,11 +321,13 @@ private struct StoryPage: View {
                 .font(SipTypography.title)
                 .foregroundColor(SipColors.textPrimary)
                 .multilineTextAlignment(.center)
+                .accessibilityIdentifier("\(contentAccessibilityID)Title")
             Text(description)
                 .font(SipTypography.body)
                 .foregroundColor(SipColors.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+                .accessibilityIdentifier("\(contentAccessibilityID)Description")
             Spacer()
 
             // Swipe-only advance is undiscoverable — every story page gets an
@@ -345,6 +355,228 @@ private func onboardingGridColumns(
         repeating: GridItem(.flexible(minimum: 0), spacing: SipSpacing.s),
         count: count
     )
+}
+
+// MARK: - Visual Beer Picker
+
+/// Compact, code-native product cues for onboarding. The palette and wordmark
+/// are deliberately brand-specific so a familiar can is recognizable before
+/// the user has to read a dense list of names.
+private struct OnboardingBeerBrand {
+    let top: Color
+    let bottom: Color
+    let label: Color
+    let ink: Color
+    let accent: Color
+    let mark: String
+}
+
+private func onboardingBeerBrand(for beer: String) -> OnboardingBeerBrand {
+    switch beer {
+    case "Modelo":
+        return OnboardingBeerBrand(top: Color(hex: "#E7D5A6"), bottom: Color(hex: "#B9903C"), label: Color(hex: "#F5E9C8"), ink: Color(hex: "#18233A"), accent: Color(hex: "#C62828"), mark: "MODELO")
+    case "Corona":
+        return OnboardingBeerBrand(top: Color(hex: "#F6E6A7"), bottom: Color(hex: "#D4A72C"), label: Color(hex: "#F8F1D7"), ink: Color(hex: "#163B69"), accent: Color(hex: "#D4A72C"), mark: "CORONA")
+    case "Heineken":
+        return OnboardingBeerBrand(top: Color(hex: "#168544"), bottom: Color(hex: "#075A2C"), label: Color(hex: "#F2F0DF"), ink: Color(hex: "#075A2C"), accent: Color(hex: "#D9272E"), mark: "HEINEKEN")
+    case "Blue Moon":
+        return OnboardingBeerBrand(top: Color(hex: "#214B83"), bottom: Color(hex: "#102B52"), label: Color(hex: "#E7EDF4"), ink: Color(hex: "#14335F"), accent: Color(hex: "#F18A2A"), mark: "BLUE\nMOON")
+    case "Sam Adams":
+        return OnboardingBeerBrand(top: Color(hex: "#133C67"), bottom: Color(hex: "#09223E"), label: Color(hex: "#F4E9D3"), ink: Color(hex: "#12355B"), accent: Color(hex: "#B4292E"), mark: "SAM\nADAMS")
+    case "Guinness":
+        return OnboardingBeerBrand(top: Color(hex: "#26221D"), bottom: Color(hex: "#090909"), label: Color(hex: "#E8D6A3"), ink: Color(hex: "#15100B"), accent: Color(hex: "#C9A24B"), mark: "GUINNESS")
+    case "Sierra Nevada":
+        return OnboardingBeerBrand(top: Color(hex: "#30653A"), bottom: Color(hex: "#173B23"), label: Color(hex: "#E8D8A4"), ink: Color(hex: "#23462A"), accent: Color(hex: "#C56D2E"), mark: "SIERRA\nNEVADA")
+    case "Lagunitas":
+        return OnboardingBeerBrand(top: Color(hex: "#F0E8D6"), bottom: Color(hex: "#C8B998"), label: Color(hex: "#F6F1E6"), ink: Color(hex: "#17304C"), accent: Color(hex: "#B5202A"), mark: "LAGUNITAS")
+    case "Hazy Little Thing":
+        return OnboardingBeerBrand(top: Color(hex: "#58B9A7"), bottom: Color(hex: "#277C75"), label: Color(hex: "#F0B52E"), ink: Color(hex: "#173F3A"), accent: Color(hex: "#F6D66A"), mark: "HAZY\nLITTLE")
+    case "Coors Light":
+        return OnboardingBeerBrand(top: Color(hex: "#E8EAEC"), bottom: Color(hex: "#AEB5BC"), label: Color(hex: "#F6F6F3"), ink: Color(hex: "#A4232C"), accent: Color(hex: "#4E7EA7"), mark: "COORS")
+    case "Bud Light":
+        return OnboardingBeerBrand(top: Color(hex: "#1A69B7"), bottom: Color(hex: "#084B8D"), label: Color(hex: "#E9F2F8"), ink: Color(hex: "#145B9F"), accent: Color(hex: "#F5F3F0"), mark: "BUD\nLIGHT")
+    case "Stella Artois":
+        return OnboardingBeerBrand(top: Color(hex: "#F0E6CF"), bottom: Color(hex: "#CDBE9E"), label: Color(hex: "#F5EFE2"), ink: Color(hex: "#9C1F27"), accent: Color(hex: "#C79C32"), mark: "STELLA")
+    case "Allagash White":
+        return OnboardingBeerBrand(top: Color(hex: "#3E7EB5"), bottom: Color(hex: "#22527D"), label: Color(hex: "#F0E0A8"), ink: Color(hex: "#204E78"), accent: Color(hex: "#E6AD31"), mark: "ALLAGASH")
+    case "Dogfish Head":
+        return OnboardingBeerBrand(top: Color(hex: "#476B3E"), bottom: Color(hex: "#223B27"), label: Color(hex: "#1C1C1C"), ink: Color(hex: "#F29A38"), accent: Color(hex: "#F29A38"), mark: "DOGFISH")
+    case "Stone IPA":
+        return OnboardingBeerBrand(top: Color(hex: "#252525"), bottom: Color(hex: "#090909"), label: Color(hex: "#147A5A"), ink: Color(hex: "#F3F1E8"), accent: Color(hex: "#58B98E"), mark: "STONE")
+    default: // Goose Island
+        return OnboardingBeerBrand(top: Color(hex: "#23735B"), bottom: Color(hex: "#104B3B"), label: Color(hex: "#F3E9C9"), ink: Color(hex: "#175A47"), accent: Color(hex: "#E2B52D"), mark: "GOOSE")
+    }
+}
+
+private func onboardingAccessibilitySlug(_ value: String) -> String {
+    value.lowercased()
+        .replacingOccurrences(of: "&", with: "and")
+        .replacingOccurrences(of: " ", with: "-")
+}
+
+private struct OnboardingBeerCan: View {
+    let beer: String
+
+    private var brand: OnboardingBeerBrand { onboardingBeerBrand(for: beer) }
+
+    var body: some View {
+        let can = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        ZStack {
+            can.fill(
+                LinearGradient(
+                    colors: [brand.top, brand.bottom],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+
+            VStack(spacing: 0) {
+                Capsule()
+                    .fill(SipColors.textPrimary.opacity(0.4))
+                    .frame(width: 34, height: 3)
+                    .padding(.top, 4)
+                Spacer()
+                Capsule()
+                    .fill(SipColors.background.opacity(0.28))
+                    .frame(width: 34, height: 3)
+                    .padding(.bottom, 4)
+            }
+
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(brand.label)
+                .frame(width: 44, height: 35)
+                .overlay {
+                    Text(brand.mark)
+                        .font(SipTypography.caption.weight(.black))
+                        .foregroundColor(brand.ink)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(brand.mark.contains("\n") ? 2 : 1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 2)
+                }
+
+            Circle()
+                .fill(brand.accent)
+                .frame(width: 9, height: 9)
+                .offset(x: 18, y: -27)
+        }
+        .frame(width: 54, height: 78)
+        .clipShape(can)
+        .overlay(can.strokeBorder(SipColors.textPrimary.opacity(0.18), lineWidth: 1))
+        .accessibilityHidden(true)
+    }
+}
+
+private struct OnboardingBeerTile: View {
+    let beer: String
+    let isSelected: Bool
+    let accessibilityPrefix: String
+    let action: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: SipSpacing.s) {
+                OnboardingBeerCan(beer: beer)
+
+                Text(beer)
+                    .font(SipTypography.caption.weight(.semibold))
+                    .foregroundColor(isSelected ? SipColors.textPrimary : SipColors.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
+                    .minimumScaleFactor(0.75)
+                    .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 34)
+            }
+            .padding(.horizontal, SipSpacing.s)
+            .padding(.vertical, SipSpacing.s)
+            .frame(width: dynamicTypeSize.isAccessibilitySize ? 118 : 102,
+                   height: dynamicTypeSize.isAccessibilitySize ? 158 : 132)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? SipColors.accentSubtle : SipColors.surface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isSelected ? SipColors.accent : SipColors.textSecondary.opacity(0.2),
+                                  lineWidth: isSelected ? 2 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(SipTypography.headline)
+                        .foregroundStyle(SipColors.background, SipColors.accent)
+                        .padding(SipSpacing.xs)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(beer)
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint("Double tap to \(isSelected ? "remove" : "select")")
+        .accessibilityIdentifier("\(accessibilityPrefix).\(onboardingAccessibilitySlug(beer))")
+    }
+}
+
+private struct OnboardingBeerCarousel: View {
+    let selectedBeers: Set<String>
+    let accessibilityPrefix: String
+    let onToggle: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: SipSpacing.s) {
+                ForEach(onboardingBeerOptions, id: \.self) { beer in
+                    OnboardingBeerTile(
+                        beer: beer,
+                        isSelected: selectedBeers.contains(beer),
+                        accessibilityPrefix: accessibilityPrefix
+                    ) {
+                        onToggle(beer)
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+}
+
+private struct OnboardingStyleStrip: View {
+    let selectedStyles: Set<BeerStyle>
+    let accessibilityPrefix: String
+    let onToggle: (BeerStyle) -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var rows: [GridItem] {
+        let rowCount = dynamicTypeSize.isAccessibilitySize ? 1 : 2
+        return Array(repeating: GridItem(.fixed(dynamicTypeSize.isAccessibilitySize ? 68 : 48), spacing: SipSpacing.s),
+                     count: rowCount)
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHGrid(rows: rows, spacing: SipSpacing.s) {
+                ForEach(onboardingStyleChips, id: \.self) { style in
+                    ChipButton(
+                        label: styleChipLabel(style),
+                        isSelected: selectedStyles.contains(style),
+                        anchorCaption: styleChipAnchor(style),
+                        fillsAvailableWidth: true
+                    ) {
+                        onToggle(style)
+                    }
+                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 176 : 152)
+                    .accessibilityIdentifier("\(accessibilityPrefix).\(onboardingAccessibilitySlug(style.rawValue))")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .frame(height: dynamicTypeSize.isAccessibilitySize ? 72 : 106)
+    }
 }
 
 /// Shared chrome for every CTA-block page: scrolling header + content above a
@@ -527,9 +759,9 @@ private struct BeerPickerPage: View {
 
 // MARK: - Go-To Picker Page
 
-/// "What's your go-to?" — positive cold-start seed: style chips, the beer
-/// grid, and an optional adventure row. Chips the stay-away page already
-/// claimed render locked (dimmed, no-op) rather than hidden.
+/// "What's your go-to?" — positive cold-start seed from recognizable beer
+/// cans and compact style chips. The modern flow asks only the two behavioral
+/// poles: always-buy and always-avoid.
 private struct GoToPickerPage: View {
     /// "primary" | "alt" — the Lab's `onboardingPickerCopyVariant` value.
     let copyVariant: String
@@ -537,29 +769,13 @@ private struct GoToPickerPage: View {
     let isPreview: Bool
     let onAdvance: () -> Void
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedBeers: Set<String> = []
     @State private var selectedGoToStyles: Set<BeerStyle> = []
-    @State private var selectedAdventure: String? = nil
+    /// Replays intentionally open blank. This distinguishes an untouched page
+    /// (Next/Skip preserves saved data) from an explicit new answer.
+    @State private var hasEditedSelections = false
     /// Monotonic guard: only the newest persistSelections snapshot may write.
     @State private var persistGeneration = 0
-
-    // Cross-exclusion: anything already claimed by the stay-away page is
-    // locked here (visible but inert) — never hidden. Computed at render
-    // time, NOT captured in onAppear: a paged TabView pre-builds neighbor
-    // pages and fires their appearance early, so a stored snapshot would
-    // freeze pre-answer state and the locks would never track real picks.
-    private var lockedBeers: Set<String> {
-        let exact = Set(TastePreferences.savedAvoidBeers).intersection(Set(onboardingBeerOptions))
-        let styles = TastePreferences.current.avoidStyles
-        let sameStyle = onboardingBeerOptions.filter {
-            TastePreferences.onboardingBeer($0, conflictsWith: styles)
-        }
-        return exact.union(sameStyle)
-    }
-    private var lockedStyles: Set<BeerStyle> {
-        Set(TastePreferences.current.avoidStyles.compactMap { BeerStyle(rawValue: $0) })
-    }
 
     private var title: String {
         copyVariant == "alt" ? "What's in your fridge right now?" : "What's your go-to?"
@@ -585,93 +801,27 @@ private struct GoToPickerPage: View {
             // Skip never writes — real picks were already written through.
             quietAction: onAdvance
         ) {
-            // Styles first: on a label the style is the signal, and one style
-            // chip seeds more than any single beer.
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Styles")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                // Wider cells than the beer grid: the exemplar anchor line
-                // ("like Sierra Nevada") must fit on one line.
-                LazyVGrid(
-                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
-                    alignment: .leading,
-                    spacing: SipSpacing.s
-                ) {
-                    ForEach(onboardingStyleChips, id: \.self) { style in
-                        ChipButton(
-                            label: styleChipLabel(style),
-                            isSelected: selectedGoToStyles.contains(style),
-                            lockedCaption: lockedStyles.contains(style) ? "stay-away" : nil,
-                            anchorCaption: styleChipAnchor(style),
-                            fillsAvailableWidth: true
-                        ) {
-                            toggleStyle(style)
-                        }
-                    }
-                }
-            }
-
             VStack(alignment: .leading, spacing: SipSpacing.m) {
                 Text("Beers")
                     .font(SipTypography.headline)
                     .foregroundColor(SipColors.textPrimary)
-                LazyVGrid(
-                    columns: onboardingGridColumns(normalCount: 3, dynamicTypeSize: dynamicTypeSize),
-                    alignment: .leading,
-                    spacing: SipSpacing.s
-                ) {
-                    ForEach(onboardingBeerOptions, id: \.self) { beer in
-                        ChipButton(
-                            label: beer,
-                            isSelected: selectedBeers.contains(beer),
-                            lockedCaption: lockedBeers.contains(beer) ? "stay-away" : nil,
-                            fillsAvailableWidth: true
-                        ) {
-                            toggleBeer(beer)
-                        }
-                    }
-                }
+                OnboardingBeerCarousel(
+                    selectedBeers: selectedBeers,
+                    accessibilityPrefix: "onboardingGoToBeerTile",
+                    onToggle: toggleBeer
+                )
             }
 
-            // Optional — answering never gates Next; persisted via the
-            // targeted saveAdventure so it can't blank a real vibe.
-            QuizQuestion(
-                question: "How adventurous?",
-                options: TastePreferences.adventureOptions,
-                multiSelect: false,
-                selectedSingle: $selectedAdventure,
-                selectedMulti: .constant([])
-            )
-        }
-        .onAppear {
-            restoreSavedSelections()
-        }
-        .onChange(of: selectedAdventure) { _, newValue in
-            // Write-through on every tap. Targeted writer: the 3-key quiz
-            // save() would blank a real vibe saved elsewhere.
-            // Preview-suppressed like every other persistence path.
-            if let newValue, !isPreview {
-                TastePreferences.saveAdventure(newValue)
+            VStack(alignment: .leading, spacing: SipSpacing.m) {
+                Text("Styles")
+                    .font(SipTypography.headline)
+                    .foregroundColor(SipColors.textPrimary)
+                OnboardingStyleStrip(
+                    selectedStyles: selectedGoToStyles,
+                    accessibilityPrefix: "onboardingGoToStyle",
+                    onToggle: toggleStyle
+                )
             }
-        }
-    }
-
-    /// Replay/reinstall: restore prior picks (guard-if-empty per field) so the
-    /// first new tap's write-through doesn't overwrite a fuller saved set.
-    private func restoreSavedSelections() {
-        let current = TastePreferences.current
-        if selectedBeers.isEmpty {
-            selectedBeers = Set(TastePreferences.savedKnownBeers)
-                .intersection(Set(onboardingBeerOptions))
-                .subtracting(lockedBeers)
-        }
-        if selectedGoToStyles.isEmpty {
-            selectedGoToStyles = Set(current.goToStyles.compactMap { BeerStyle(rawValue: $0) })
-                .subtracting(lockedStyles)
-        }
-        if selectedAdventure == nil, !current.adventure.isEmpty {
-            selectedAdventure = current.adventure
         }
     }
 
@@ -681,6 +831,7 @@ private struct GoToPickerPage: View {
         } else {
             selectedGoToStyles.insert(style)
         }
+        hasEditedSelections = true
         // Write-through on every tap.
         persistSelections()
     }
@@ -691,6 +842,7 @@ private struct GoToPickerPage: View {
         } else {
             selectedBeers.insert(beer)
         }
+        hasEditedSelections = true
         // Write-through on every tap: swiping to the next page (instead of
         // tapping Next) must not silently discard picks.
         persistSelections()
@@ -702,7 +854,9 @@ private struct GoToPickerPage: View {
     /// the LATEST tap's snapshot win — unordered task completion must not let
     /// a stale subset be the last write.
     private func persistSelections() {
-        guard !isPreview else { return } // Lab preview never touches taste data
+        // An untouched replay page is visually blank by design. Next and Skip
+        // must not turn that presentation choice into a destructive clear.
+        guard hasEditedSelections, !isPreview else { return }
         persistGeneration += 1
         let generation = persistGeneration
         let beers = Array(selectedBeers)
@@ -745,33 +899,18 @@ private struct StayAwayPickerPage: View {
     let isPreview: Bool
     let onAdvance: () -> Void
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var selectedAvoidBeers: Set<String> = []
     @State private var selectedAvoidStyles: Set<BeerStyle> = []
     /// Styles the current picks resolve to — the inline echo's source.
     /// Display-only mirror of what persistAvoidSelections saves, so it also
     /// updates in Lab previews (resolution is read-only; persistence isn't).
     @State private var echoedAvoidStyles: [String] = []
+    /// Replays intentionally open blank. An untouched page must preserve the
+    /// saved hard-avoid profile even when its primary CTA is used.
+    @State private var hasEditedAvoidSelections = false
     /// Monotonic guard (own counter, parallel to the go-to page's): only the
     /// newest persistAvoidSelections snapshot may write.
     @State private var avoidGeneration = 0
-
-    // Cross-exclusion: anything already claimed by the go-to page is locked
-    // here (visible but inert) — never hidden. Computed at render time, NOT
-    // captured in onAppear: a paged TabView pre-builds neighbor pages and
-    // fires their appearance early — a stored snapshot would freeze the
-    // pre-answer state and never reflect the go-to picks the user just made.
-    private var lockedBeers: Set<String> {
-        let exact = Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
-        let styles = TastePreferences.current.goToStyles
-        let sameStyle = onboardingBeerOptions.filter {
-            TastePreferences.onboardingBeer($0, conflictsWith: styles)
-        }
-        return exact.union(sameStyle)
-    }
-    private var lockedStyles: Set<BeerStyle> {
-        Set(TastePreferences.current.goToStyles.compactMap { BeerStyle(rawValue: $0) })
-    }
 
     private var title: String {
         copyVariant == "alt" ? "Any hard passes?" : "What do you always walk past?"
@@ -810,50 +949,25 @@ private struct StayAwayPickerPage: View {
             quietAction: onAdvance
         ) {
             VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Styles")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                // Wider cells than the beer grid: the exemplar anchor line
-                // ("like Guinness") must fit on one line.
-                LazyVGrid(
-                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
-                    alignment: .leading,
-                    spacing: SipSpacing.s
-                ) {
-                    ForEach(onboardingStyleChips, id: \.self) { style in
-                        ChipButton(
-                            label: styleChipLabel(style),
-                            isSelected: selectedAvoidStyles.contains(style),
-                            lockedCaption: lockedStyles.contains(style) ? "go-to" : nil,
-                            anchorCaption: styleChipAnchor(style),
-                            fillsAvailableWidth: true
-                        ) {
-                            toggleStyle(style)
-                        }
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
                 Text("Beers")
                     .font(SipTypography.headline)
                     .foregroundColor(SipColors.textPrimary)
-                LazyVGrid(
-                    columns: onboardingGridColumns(normalCount: 3, dynamicTypeSize: dynamicTypeSize),
-                    alignment: .leading,
-                    spacing: SipSpacing.s
-                ) {
-                    ForEach(onboardingBeerOptions, id: \.self) { beer in
-                        ChipButton(
-                            label: beer,
-                            isSelected: selectedAvoidBeers.contains(beer),
-                            lockedCaption: lockedBeers.contains(beer) ? "go-to" : nil,
-                            fillsAvailableWidth: true
-                        ) {
-                            toggleBeer(beer)
-                        }
-                    }
-                }
+                OnboardingBeerCarousel(
+                    selectedBeers: selectedAvoidBeers,
+                    accessibilityPrefix: "onboardingStayAwayBeerTile",
+                    onToggle: toggleBeer
+                )
+            }
+
+            VStack(alignment: .leading, spacing: SipSpacing.m) {
+                Text("Styles")
+                    .font(SipTypography.headline)
+                    .foregroundColor(SipColors.textPrimary)
+                OnboardingStyleStrip(
+                    selectedStyles: selectedAvoidStyles,
+                    accessibilityPrefix: "onboardingStayAwayStyle",
+                    onToggle: toggleStyle
+                )
             }
 
             // Inline echo of the style generalization the picks resolve to
@@ -869,27 +983,6 @@ private struct StayAwayPickerPage: View {
                     .transition(.opacity)
             }
         }
-        .onAppear {
-            restoreSavedSelections()
-        }
-    }
-
-    /// Restore prior picks (guard-if-empty per field). Saved avoid picks are
-    /// a mixed list: style rawValues split back into style chips, known beer
-    /// options back into beer chips.
-    private func restoreSavedSelections() {
-        let savedPicks = TastePreferences.savedAvoidBeers
-        if selectedAvoidStyles.isEmpty {
-            selectedAvoidStyles = Set(savedPicks.compactMap { BeerStyle(rawValue: $0) })
-        }
-        if selectedAvoidBeers.isEmpty {
-            selectedAvoidBeers = Set(savedPicks).intersection(Set(onboardingBeerOptions))
-        }
-        if echoedAvoidStyles.isEmpty {
-            // Saved picks were already resolved at save time — echo them
-            // directly instead of re-running resolution.
-            echoedAvoidStyles = TastePreferences.current.avoidStyles
-        }
     }
 
     private func toggleStyle(_ style: BeerStyle) {
@@ -898,6 +991,7 @@ private struct StayAwayPickerPage: View {
         } else {
             selectedAvoidStyles.insert(style)
         }
+        hasEditedAvoidSelections = true
         // Write-through on every tap.
         persistAvoidSelections()
     }
@@ -908,6 +1002,7 @@ private struct StayAwayPickerPage: View {
         } else {
             selectedAvoidBeers.insert(beer)
         }
+        hasEditedAvoidSelections = true
         // Write-through on every tap.
         persistAvoidSelections()
     }
@@ -918,6 +1013,9 @@ private struct StayAwayPickerPage: View {
     /// stouts). Off-main with a generation guard — the LATEST tap's snapshot
     /// wins.
     private func persistAvoidSelections() {
+        // Blank is a presentation state until the user touches a choice. This
+        // keeps replaying and advancing from erasing a real saved hard avoid.
+        guard hasEditedAvoidSelections else { return }
         avoidGeneration += 1
         let generation = avoidGeneration
         let picks = selectedAvoidBeers.sorted() + selectedAvoidStyles.map(\.rawValue).sorted()
@@ -957,8 +1055,8 @@ private struct StayAwayPickerPage: View {
 // MARK: - Taste Quiz Page
 
 private struct TasteQuizPage: View {
-    /// Q2 ("How adventurous?") — control only; the new flows ask it on the
-    /// go-to page instead.
+    /// Q2 ("How adventurous?") — control only. The modern flows use only the
+    /// always-buy and always-avoid poles, with an optional vibe experiment.
     let includeAdventure: Bool
     /// Q3 ("Anything you hate?") — control only; the new flows have a whole
     /// stay-away page, so the question would overlap.

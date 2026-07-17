@@ -137,6 +137,16 @@ class NotificationService: NSObject, ObservableObject {
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
     }
+
+    /// Return app-owned reminder state to a clean first-run baseline without
+    /// touching the user's system notification authorization. Save for Later
+    /// remains the interaction that can request and schedule a follow-up.
+    func resetForOnboardingReplay() {
+        UserDefaults.standard.set(false, forKey: "followUpNotificationsEnabled")
+        cancelAllFollowUps()
+        pendingFollowUpScanID = nil
+        pendingFollowUpAction = nil
+    }
 }
 
 // MARK: - UNUserNotificationCenterDelegate

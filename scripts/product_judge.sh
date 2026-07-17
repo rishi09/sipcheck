@@ -142,7 +142,7 @@ if ui_has_id "checkTab" || ui_has_label "Check"; then
   report "App launches to tab bar" "PASS"
 elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Never Waste a Sip" || ui_contains "Buy better beer" || ui_has_label "Continue"; then
   report "App launches to onboarding" "PASS" "(expected for first-time)"
-  # Onboarding Lab flows: three story pages advance with "Continue", then the
+  # Default onboarding has two story pages, then the
   # go-to picker (or control's legacy had-before picker) skips with "Skip".
   # The default goToStayAway flow ends on the stay-away page, whose quiet
   # "Nothing's off the table" completes onboarding. Control/plusVibe end on
@@ -150,7 +150,10 @@ elif ui_contains "onboarding" || ui_contains "Welcome" || ui_contains "Never Was
   # so the quiet skip is the reliable path.
   tap_label "Continue" 2
   tap_label "Continue" 2
-  tap_label "Continue" 2
+  # The debug-only control variant retains a third story screen.
+  if ui_has_label "Continue"; then
+    tap_label "Continue" 2
+  fi
   tap_label "Skip" 2
   if ui_has_label "Nothing's off the table"; then
     tap_label "Nothing's off the table" 2

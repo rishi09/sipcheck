@@ -126,7 +126,102 @@ final class SipCheckUITests: XCTestCase {
         snap("01-profile")
     }
 
-    // MARK: - Flow 6: Journal edit persists across relaunch
+    func testRecentScanOpensDetail() {
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(app.staticTexts["Recent Scans"].waitForExistence(timeout: 3))
+
+        let recentScan = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "recentScanRow_")
+        ).firstMatch
+        XCTAssertTrue(recentScan.waitForExistence(timeout: 3),
+                      "Recent scans should be exposed as tappable rows")
+        recentScan.tap()
+
+        XCTAssertTrue(app.otherElements["recentScanDetail"].waitForExistence(timeout: 3)
+                      || app.navigationBars["Scan Details"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.otherElements["recentScanDetailPhoto"].exists
+                      || app.images["recentScanDetailPhoto"].exists,
+                      "Scan detail should expose its captured-photo region")
+        XCTAssertTrue(app.staticTexts["Why this verdict"].exists)
+        snap("02-recent-scan-detail")
+    }
+
+    // MARK: - Flow 6: Replay reset + shortened, blank-slate onboarding
+
+    func testReplayResetsRemindersAndShowsShortVisualOnboarding() {
+        openSettings()
+
+        let reminderToggle = app.switches["followUpRemindersToggle"]
+        XCTAssertTrue(reminderToggle.waitForExistence(timeout: 3))
+        if (reminderToggle.value as? String) != "1" {
+            reminderToggle.tap()
+        }
+        XCTAssertEqual(reminderToggle.value as? String, "1")
+
+        replayOnboarding()
+        XCTAssertTrue(app.buttons["I'm 21 or Older"].waitForExistence(timeout: 4))
+        app.buttons["I'm 21 or Older"].tap()
+
+        XCTAssertTrue(app.staticTexts["Pick the right beer, fast."].waitForExistence(timeout: 3))
+        app.buttons["onboardingContinuePage0"].tap()
+
+        XCTAssertTrue(app.staticTexts["Your call, in a glance."].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["A personal TRY IT or SKIP IT that gets sharper with every rating."].exists)
+        app.buttons["onboardingContinuePage1"].tap()
+
+        let goToModelo = app.buttons["onboardingGoToBeerTile.modelo"]
+        XCTAssertTrue(goToModelo.waitForExistence(timeout: 3),
+                      "Two story pages should lead directly to the beer-first picker")
+        XCTAssertEqual(goToModelo.value as? String, "Not selected")
+        goToModelo.tap()
+        XCTAssertEqual(goToModelo.value as? String, "Selected")
+        snap("01-go-to-visual-picker")
+        app.buttons["onboardingPickerNext"].tap()
+
+        let avoidModelo = app.buttons["onboardingStayAwayBeerTile.modelo"]
+        XCTAssertTrue(avoidModelo.waitForExistence(timeout: 3))
+        XCTAssertTrue(avoidModelo.isEnabled,
+                      "A go-to pick must not gray or lock the same option on the next page")
+        XCTAssertEqual(avoidModelo.value as? String, "Not selected",
+                       "Every pole question should open as a blank slate")
+        snap("02-stay-away-blank-slate")
+        avoidModelo.tap()
+        XCTAssertEqual(avoidModelo.value as? String, "Selected",
+                       "The same beer must remain independently selectable")
+        app.buttons["onboardingStayAwaySkip"].tap()
+
+        XCTAssertTrue(app.buttons["Scan Label"].waitForExistence(timeout: 4))
+        openSettings()
+        let resetToggle = app.switches["followUpRemindersToggle"]
+        XCTAssertTrue(resetToggle.waitForExistence(timeout: 3))
+        XCTAssertEqual(resetToggle.value as? String, "0",
+                       "Replay should return app-owned reminder state to off")
+        snap("03-reminders-reset")
+    }
+
+    private func openSettings() {
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(app.buttons["settingsButton"].waitForExistence(timeout: 3))
+        app.buttons["settingsButton"].tap()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
+    }
+
+    private func replayOnboarding() {
+        let replay = app.buttons["replayOnboardingButton"]
+        for _ in 0..<4 where !replay.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(replay.waitForExistence(timeout: 3))
+        replay.tap()
+
+        // SwiftUI exposes the alert action through both its accessibility node
+        // and the backing system button on some simulator runtimes.
+        let confirmation = app.buttons["confirmReplayOnboardingButton"].firstMatch
+        XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
+        confirmation.tap()
+    }
+
+    // MARK: - Flow 7: Journal edit persists across relaunch
 
     func testJournalEditPersistsAfterRelaunch() {
         app.buttons["Journal"].tap()

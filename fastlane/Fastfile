@@ -78,12 +78,54 @@ platform :ios do
       UI.important("SKIP_UPLOAD=true (branch build): compile/sign gate passed; not spending a TestFlight upload against Apple's daily cap.")
     else
       begin
+        app = Spaceship::ConnectAPI::App.find("com.rishishah.sipcheck")
+        UI.user_error!("Could not find SipCheck in App Store Connect.") unless app
+
+        internal_groups = app.get_beta_groups.select(&:is_internal_group)
+        UI.user_error!("No internal TestFlight groups exist; cannot prove phone availability.") if internal_groups.empty?
+
+        # Groups with all-build access receive the build automatically. Assign
+        # the new build explicitly to every other internal group so processing
+        # success also means the existing phone testers can install it.
+        manual_group_names = internal_groups
+          .reject(&:has_access_to_all_builds)
+          .map(&:name)
+
         upload_to_testflight(
           api_key: api_key,
-          skip_waiting_for_build_processing: true,
-          skip_submission: true
+          # The user-facing release gate is "ready to install," not merely
+          # "Transporter accepted the upload." Wait for App Store Connect to
+          # finish processing so a green main run is actionable evidence.
+          skip_waiting_for_build_processing: false,
+          skip_submission: false,
+          distribute_external: false,
+          groups: manual_group_names
         )
-        UI.success("UPLOAD_OK: build submitted to TestFlight.")
+
+        processed_build = Spaceship::ConnectAPI::Build.all(
+          app_id: app.id,
+          build_number: build_number
+        ).first
+        UI.user_error!("Processed TestFlight build #{build_number} could not be found.") unless processed_build
+        UI.user_error!("Build #{build_number} is not ready for internal testing.") unless processed_build.ready_for_internal_testing?
+
+        assigned_groups = []
+        assignment_deadline = Time.now + 120
+        loop do
+          assigned_groups = internal_groups.select do |group|
+            group.has_access_to_all_builds || group.fetch_builds.any? { |build| build.id == processed_build.id }
+          end
+          break if assigned_groups.count == internal_groups.count
+          break if Time.now >= assignment_deadline
+          UI.message("Waiting for internal TestFlight group assignment...")
+          sleep(5)
+        end
+        if assigned_groups.count != internal_groups.count
+          missing_groups = internal_groups.reject { |group| assigned_groups.any? { |assigned| assigned.id == group.id } }
+          UI.user_error!("Build #{build_number} is not available to internal groups: #{missing_groups.map(&:name).join(', ')}")
+        end
+
+        UI.success("UPLOAD_OK: build #{build_number} processed and available to internal groups: #{assigned_groups.map(&:name).join(', ')}")
       rescue => e
         if e.message.include?("Upload limit reached")
           # Apple's per-app daily cap: the archive is good, only the upload is
