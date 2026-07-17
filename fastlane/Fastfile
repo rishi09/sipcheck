@@ -87,9 +87,7 @@ platform :ios do
         # Groups with all-build access receive the build automatically. Assign
         # the new build explicitly to every other internal group so processing
         # success also means the existing phone testers can install it.
-        manual_group_names = internal_groups
-          .reject(&:has_access_to_all_builds)
-          .map(&:name)
+        manual_groups = internal_groups.reject(&:has_access_to_all_builds)
 
         upload_to_testflight(
           api_key: api_key,
@@ -97,9 +95,12 @@ platform :ios do
           # "Transporter accepted the upload." Wait for App Store Connect to
           # finish processing so a green main run is actionable evidence.
           skip_waiting_for_build_processing: false,
-          skip_submission: false,
-          distribute_external: false,
-          groups: manual_group_names
+          # Pilot's submission path defaults to beta review when groups are
+          # supplied, even for internal-only distribution. That requires
+          # external beta metadata. Stop after processing, then attach the
+          # internal groups directly through Connect API below.
+          skip_submission: true,
+          distribute_external: false
         )
 
         processed_build = Spaceship::ConnectAPI::Build.all(
@@ -122,6 +123,11 @@ platform :ios do
             "(processing=#{processed_build.processing_state.inspect}, " \
             "internal=#{internal_state.inspect}, expired=#{processed_build.expired.inspect})."
           )
+        end
+
+        unless manual_groups.empty?
+          UI.message("Assigning build #{build_number} to internal TestFlight groups...")
+          processed_build.add_beta_groups(beta_groups: manual_groups)
         end
 
         assigned_groups = []
