@@ -31,7 +31,7 @@ channel — don't make the user shuttle context between chats.
 | Persistence finish (completed 2026-07-15) | `claude/codex-persistence-finish` | Released after 48 focused persistence tests, 98 full tests, local simulator/device Release builds, signed branch build 90, and published E2E run 41. No files remain reserved. |
 | Physical validation + recommendation stress tests (completed 2026-07-15) | `claude/codex-physical-validation` | Released after 112 tests, signed iPhone build plus live DataScanner/Foundation Models smoke, 17-photo corpus validation, signed CI archive, and E2E run 42. No files remain reserved. |
 | Founder feedback fixes (completed 2026-07-17) | `claude/codex-feedback-fixes` | Released after iPhone 17 Pro and compact simulator verification, 113 tests, clean signed Release run `29620235876`, and 8-flow E2E run 46. No files remain reserved. |
-| TestFlight internal distribution recovery (active 2026-07-17) | `claude/codex-testflight-recovery` | `CLAUDE.md`, `fastlane/Fastfile`, and `plans/reports/FOUNDER_FEEDBACK_2026-07-17.md`. |
+| TestFlight internal distribution recovery (completed 2026-07-17) | `claude/codex-testflight-recovery` | Released after Fastlane source review and clean signed Release run `29621103239`. No files remain reserved. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
