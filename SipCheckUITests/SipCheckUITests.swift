@@ -17,7 +17,12 @@ final class SipCheckUITests: XCTestCase {
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
-        app.launchArguments = ["--mock-ai", "--seed-data", "--isolated-storage"]
+        app.launchArguments = [
+            "--mock-ai",
+            "--seed-data",
+            "--isolated-storage",
+            "--follow-up-reminders-off"
+        ]
         app.launch()
     }
 
@@ -153,9 +158,6 @@ final class SipCheckUITests: XCTestCase {
 
         let reminderToggle = revealReminderToggle()
         XCTAssertTrue(reminderToggle.waitForExistence(timeout: 3))
-        if (reminderToggle.value as? String) != "0" {
-            reminderToggle.tap()
-        }
         XCTAssertEqual(reminderToggle.value as? String, "0")
 
         replayOnboarding()
@@ -238,7 +240,7 @@ final class SipCheckUITests: XCTestCase {
 
     private func revealReminderToggle() -> XCUIElement {
         let toggle = app.switches["followUpRemindersToggle"]
-        for _ in 0..<5 where !toggle.exists {
+        for _ in 0..<5 where !toggle.isHittable {
             app.swipeUp()
         }
         return toggle

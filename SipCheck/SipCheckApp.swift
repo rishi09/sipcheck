@@ -33,6 +33,9 @@ struct SipCheckApp: App {
         if useIsolatedStorage {
             UserDefaults.standard.set(true, forKey: "hasConfirmedAge")
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+            if args.contains("--follow-up-reminders-off") {
+                UserDefaults.standard.set(false, forKey: "followUpNotificationsEnabled")
+            }
         }
 
         if useIsolatedStorage {
