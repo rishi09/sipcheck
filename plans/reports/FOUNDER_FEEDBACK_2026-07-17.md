@@ -25,3 +25,5 @@
 `fastlane` now waits for App Store Connect processing, assigns the build to existing internal groups that do not already receive every build, and verifies both internal-testing readiness and group availability before printing `UPLOAD_OK`.
 
 Build 98 uploaded successfully but Fastlane then attempted external beta review because internal group names were passed through Pilot; App Store Connect rejected the missing external beta description before group verification. The recovery lane stops Pilot after processing and attaches internal groups directly through Connect API, avoiding external-review metadata. Clean signed recovery run: `29621103239`.
+
+Final TestFlight run `29621233008` emitted `UPLOAD_OK`: build 100 finished App Store Connect processing and is available to the internal `Testing` group.
