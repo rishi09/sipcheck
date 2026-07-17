@@ -153,10 +153,10 @@ final class SipCheckUITests: XCTestCase {
 
         let reminderToggle = revealReminderToggle()
         XCTAssertTrue(reminderToggle.waitForExistence(timeout: 3))
-        if (reminderToggle.value as? String) != "1" {
+        if (reminderToggle.value as? String) != "0" {
             reminderToggle.tap()
         }
-        XCTAssertEqual(reminderToggle.value as? String, "1")
+        XCTAssertEqual(reminderToggle.value as? String, "0")
 
         replayOnboarding()
         XCTAssertTrue(app.buttons["I'm 21 or Older"].waitForExistence(timeout: 4))
@@ -175,6 +175,9 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertEqual(goToModelo.value as? String, "Not selected")
         goToModelo.tap()
         XCTAssertEqual(goToModelo.value as? String, "Selected")
+        let goToIPA = app.buttons["onboardingGoToStyle.ipa"]
+        XCTAssertTrue(goToIPA.waitForExistence(timeout: 3))
+        goToIPA.tap()
         snap("01-go-to-visual-picker")
         app.buttons["onboardingPickerNext"].tap()
 
@@ -188,14 +191,26 @@ final class SipCheckUITests: XCTestCase {
         avoidModelo.tap()
         XCTAssertEqual(avoidModelo.value as? String, "Selected",
                        "The same beer must remain independently selectable")
+        let avoidIPA = app.buttons["onboardingStayAwayStyle.ipa"]
+        XCTAssertTrue(avoidIPA.waitForExistence(timeout: 3))
+        avoidIPA.tap()
         app.buttons["onboardingStayAwaySkip"].tap()
 
         XCTAssertTrue(app.buttons["Scan Label"].waitForExistence(timeout: 4))
+        app.buttons["Enter beer name"].tap()
+        let beerField = app.textFields["beerTextInput"]
+        XCTAssertTrue(beerField.waitForExistence(timeout: 3))
+        beerField.tap()
+        beerField.typeText("Lagunitas IPA")
+        app.buttons["Check This Beer"].tap()
+        XCTAssertTrue(app.staticTexts["TRY IT"].waitForExistence(timeout: 10),
+                      "'Nothing's off the table' must clear the just-entered IPA avoid")
+
         openSettings()
         let resetToggle = revealReminderToggle()
         XCTAssertTrue(resetToggle.waitForExistence(timeout: 3))
-        XCTAssertEqual(resetToggle.value as? String, "0",
-                       "Replay should return app-owned reminder state to off")
+        XCTAssertEqual(resetToggle.value as? String, "1",
+                       "Replay should restore the reminder trigger's default-on state")
         snap("03-reminders-reset")
     }
 

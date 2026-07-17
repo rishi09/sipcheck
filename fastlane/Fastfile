@@ -107,7 +107,22 @@ platform :ios do
           build_number: build_number
         ).first
         UI.user_error!("Processed TestFlight build #{build_number} could not be found.") unless processed_build
-        UI.user_error!("Build #{build_number} is not ready for internal testing.") unless processed_build.ready_for_internal_testing?
+        internal_state = processed_build.build_beta_detail&.internal_build_state
+        accepted_internal_states = [
+          Spaceship::ConnectAPI::BuildBetaDetail::InternalState::READY_FOR_BETA_TESTING,
+          Spaceship::ConnectAPI::BuildBetaDetail::InternalState::IN_BETA_TESTING
+        ]
+        valid_internal_build =
+          processed_build.processing_state == Spaceship::ConnectAPI::Build::ProcessingState::VALID &&
+          processed_build.expired != true &&
+          accepted_internal_states.include?(internal_state)
+        unless valid_internal_build
+          UI.user_error!(
+            "Build #{build_number} is not available for internal testing " \
+            "(processing=#{processed_build.processing_state.inspect}, " \
+            "internal=#{internal_state.inspect}, expired=#{processed_build.expired.inspect})."
+          )
+        end
 
         assigned_groups = []
         assignment_deadline = Time.now + 120

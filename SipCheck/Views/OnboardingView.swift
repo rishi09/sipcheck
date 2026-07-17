@@ -944,9 +944,7 @@ private struct StayAwayPickerPage: View {
             primaryAction: advance,
             quietTitle: "Nothing's off the table",
             quietAccessibilityID: "onboardingStayAwaySkip",
-            // Skip never writes — advancing/completing without a pick must
-            // leave saved avoid data untouched.
-            quietAction: onAdvance
+            quietAction: clearAvoidsAndAdvance
         ) {
             VStack(alignment: .leading, spacing: SipSpacing.m) {
                 Text("Beers")
@@ -1048,6 +1046,20 @@ private struct StayAwayPickerPage: View {
 
     private func advance() {
         persistAvoidSelections()
+        onAdvance()
+    }
+
+    private func clearAvoidsAndAdvance() {
+        // This label is an explicit answer, not a generic skip. Invalidate any
+        // in-flight resolution from a prior tap before clearing the channel.
+        avoidGeneration += 1
+        selectedAvoidBeers.removeAll()
+        selectedAvoidStyles.removeAll()
+        echoedAvoidStyles.removeAll()
+        hasEditedAvoidSelections = true
+        if !isPreview {
+            TastePreferences.saveAvoidBeers([], avoidStyles: [])
+        }
         onAdvance()
     }
 }

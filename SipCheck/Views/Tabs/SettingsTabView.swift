@@ -151,9 +151,9 @@ struct SettingsTabView: View {
                     .accessibilityIdentifier("replayOnboardingButton")
                     .alert("Replay Onboarding?", isPresented: $showResetOnboardingAlert) {
                         Button("Replay", role: .destructive) {
-                            // Replay starts from a clean reminder baseline but
-                            // deliberately preserves iOS notification permission.
-                            followUpNotificationsEnabled = false
+                            // Replay clears prior reminders and restores the
+                            // app trigger without changing iOS permission.
+                            followUpNotificationsEnabled = true
                             NotificationService.shared.resetForOnboardingReplay()
 
                             // Dismiss this sheet first; if we flip the flags while the
@@ -547,7 +547,7 @@ private struct TastePreferencesEditorView: View {
             goToBeers = Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
         }
         if goToStyles.isEmpty {
-            goToStyles = Set(saved.goToStyles.compactMap { BeerStyle(rawValue: $0) })
+            goToStyles = Set(TastePreferences.savedGoToStyles.compactMap { BeerStyle(rawValue: $0) })
         }
         // Saved avoid picks are a mixed list: style rawValues split back into
         // style chips, known beer options back into beer chips.

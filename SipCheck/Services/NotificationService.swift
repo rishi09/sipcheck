@@ -142,7 +142,7 @@ class NotificationService: NSObject, ObservableObject {
     /// touching the user's system notification authorization. Save for Later
     /// remains the interaction that can request and schedule a follow-up.
     func resetForOnboardingReplay() {
-        UserDefaults.standard.set(false, forKey: "followUpNotificationsEnabled")
+        UserDefaults.standard.set(true, forKey: "followUpNotificationsEnabled")
         cancelAllFollowUps()
         pendingFollowUpScanID = nil
         pendingFollowUpAction = nil

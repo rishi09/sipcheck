@@ -121,6 +121,32 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(assessment.score, -5.5, accuracy: 0.0001)
     }
 
+    func testOverlappingGoToRemainsAvailableForEditingWhileAvoidWinsScoring() {
+        let defaults = UserDefaults.standard
+        let keys = ["tasteGoToStyles", "tasteAvoidStyles"]
+        let originals = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in originals {
+                if let value {
+                    defaults.set(value, forKey: key)
+                } else {
+                    defaults.removeObject(forKey: key)
+                }
+            }
+        }
+
+        defaults.set("Stout", forKey: "tasteGoToStyles")
+        defaults.set("Stout", forKey: "tasteAvoidStyles")
+
+        XCTAssertEqual(TastePreferences.savedGoToStyles, ["Stout"])
+        XCTAssertEqual(TastePreferences.current.goToStyles, [])
+        XCTAssertEqual(TastePreferences.current.avoidStyles, ["Stout"])
+
+        defaults.set("", forKey: "tasteAvoidStyles")
+        XCTAssertEqual(TastePreferences.current.goToStyles, ["Stout"],
+                       "Clearing the avoid must reveal, not erase, the independent go-to answer")
+    }
+
     // MARK: - 5. Menu ranking: quiz dislike (-5.0) ranks ahead of avoid seed (-5.5)
 
     func testQuizDislikeRanksAheadOfAvoidSeed() {

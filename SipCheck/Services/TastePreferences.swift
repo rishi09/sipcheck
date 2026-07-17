@@ -55,6 +55,14 @@ struct TastePreferences {
         return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
     }
 
+    /// Raw go-to styles for editing. `current.goToStyles` intentionally drops
+    /// overlaps with hard avoids for scoring, but both independent answers
+    /// must remain selected when the user reopens Settings.
+    static var savedGoToStyles: [String] {
+        let raw = seedValue(forKey: "tasteGoToStyles")
+        return raw.isEmpty ? [] : raw.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
     /// The raw onboarding stay-away picks — a MIXED list of beer names and
     /// style rawValues — for restoring the stay-away picker on replay and for
     /// future re-derivation. The scorer never reads this; it consumes the
