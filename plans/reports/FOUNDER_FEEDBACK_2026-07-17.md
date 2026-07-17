@@ -17,7 +17,8 @@
 - iPhone 17 Pro simulator: a real persisted photo was injected and rendered in both the recent-scan row and Scan Details.
 - iPhone 16e simulator: first story, combined second story, and beer-first picker were visually reviewed at the compact viewport with no clipping or overlap.
 - Unit/integration suite: 113 tests passed with zero failures.
-- The additional full iPhone 16e UI run hit an Xcode event-synthesis timeout while tapping the unchanged Journal tab. The two feedback-specific UI tests passed independently on iPhone 17 Pro; the clean CI simulator lane remains the final full-suite gate.
+- Clean CI compact-simulator E2E run 46 (`29620235864`): all 8 flows passed with zero failures, including recent-scan detail and the full reminder/onboarding/IPA-clear path.
+- Clean signed Release run `29620235876`: archive and export passed with branch upload correctly disabled.
 
 ## Release gate
 
