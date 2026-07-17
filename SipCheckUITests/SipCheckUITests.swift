@@ -151,7 +151,7 @@ final class SipCheckUITests: XCTestCase {
     func testReplayResetsRemindersAndShowsShortVisualOnboarding() {
         openSettings()
 
-        let reminderToggle = app.switches["followUpRemindersToggle"]
+        let reminderToggle = revealReminderToggle()
         XCTAssertTrue(reminderToggle.waitForExistence(timeout: 3))
         if (reminderToggle.value as? String) != "1" {
             reminderToggle.tap()
@@ -192,7 +192,7 @@ final class SipCheckUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Scan Label"].waitForExistence(timeout: 4))
         openSettings()
-        let resetToggle = app.switches["followUpRemindersToggle"]
+        let resetToggle = revealReminderToggle()
         XCTAssertTrue(resetToggle.waitForExistence(timeout: 3))
         XCTAssertEqual(resetToggle.value as? String, "0",
                        "Replay should return app-owned reminder state to off")
@@ -219,6 +219,14 @@ final class SipCheckUITests: XCTestCase {
         let confirmation = app.buttons["confirmReplayOnboardingButton"].firstMatch
         XCTAssertTrue(confirmation.waitForExistence(timeout: 3))
         confirmation.tap()
+    }
+
+    private func revealReminderToggle() -> XCUIElement {
+        let toggle = app.switches["followUpRemindersToggle"]
+        for _ in 0..<5 where !toggle.exists {
+            app.swipeUp()
+        }
+        return toggle
     }
 
     // MARK: - Flow 7: Journal edit persists across relaunch
