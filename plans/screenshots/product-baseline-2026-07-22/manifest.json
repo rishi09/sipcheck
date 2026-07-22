@@ -1,0 +1,358 @@
+{
+  "schema": 1,
+  "baseline_id": "product-baseline-2026-07-22",
+  "canonical": {
+    "source_sha": "6f5ce77418b431dd23e082b33dfabbe0a4f8f268",
+    "workflow_run": "https://github.com/rishi09/sipcheck/actions/runs/29959748718",
+    "artifact": "product-screenshot-baseline-6f5ce77418b431dd23e082b33dfabbe0a4f8f268",
+    "capture_manifest": "capture-manifest.json",
+    "build_configuration": "Release",
+    "bundle_id": "com.rishishah.sipcheck",
+    "device": "iPhone 17 Pro",
+    "runtime": "iOS.26.2",
+    "xcode": "Xcode 26.3\nBuild version 17C529",
+    "appearance": "dark",
+    "locale": "en_US",
+    "capture_count": 25,
+    "captures": [
+      {
+        "height": 2622,
+        "id": "primary.onboarding.01-age-gate",
+        "path": "primary/onboarding/01-age-gate.png",
+        "sha256": "9ec8b095a17ce31d1dbb297fe191618a16706ab300a0e04a7d429e28b74062d4",
+        "state": "Fresh install",
+        "title": "Age gate",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.02-under-age-recovery",
+        "path": "primary/onboarding/02-under-age-recovery.png",
+        "sha256": "270581179b2989075163676925406254aed67ecf17e058d4b5991068eb6b6d3e",
+        "state": "Under 21 selected",
+        "title": "Under-age recovery",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.03-outcome-story",
+        "path": "primary/onboarding/03-outcome-story.png",
+        "sha256": "417c67161e60d20949cd06c243fee3c98e82357aedfb8196b546feebaa6021c9",
+        "state": "First onboarding story",
+        "title": "Outcome story",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.04-verdict-story",
+        "path": "primary/onboarding/04-verdict-story.png",
+        "sha256": "a412344a694ecc0d84764033f6c7cfd5d7a9aefeb883220586ccd2ea5819e07d",
+        "state": "Second onboarding story",
+        "title": "Verdict story",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.05-go-to-blank",
+        "path": "primary/onboarding/05-go-to-blank.png",
+        "sha256": "5c7d088b634abdd8148882550d6754805a54b7e957a505bd392cb702ff4e0fcf",
+        "state": "Blank-slate purchase recall",
+        "title": "Go-to picker",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.06-go-to-selected",
+        "path": "primary/onboarding/06-go-to-selected.png",
+        "sha256": "a8f89b0375c2d486411e5ffc1d8853eecd0d229198e4aa5c480afc392070dc83",
+        "state": "Modelo and IPA selected",
+        "title": "Go-to selections",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.07-stay-away-blank",
+        "path": "primary/onboarding/07-stay-away-blank.png",
+        "sha256": "6647e3d19d55ede969787f1f51189b9da9de31470a53844c8008816a9072d782",
+        "state": "Independent blank slate",
+        "title": "Stay-away picker",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.onboarding.08-stay-away-selected",
+        "path": "primary/onboarding/08-stay-away-selected.png",
+        "sha256": "fcc05e815dbc278a5ddbf00e2ff407e23015d4842766f1f6253164deb13d5a9d",
+        "state": "Named avoid with category echo",
+        "title": "Stay-away selection",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.01-idle",
+        "path": "primary/check/01-idle.png",
+        "sha256": "b7132a217ce05b8cb9ede07464ccf31474bbde15b233305654cd970c6922247b",
+        "state": "Seeded Release launch",
+        "title": "Check",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.02-typed-suggestions",
+        "path": "primary/check/02-typed-suggestions.png",
+        "sha256": "872130e89a8446f305d3ed2deb26bd14aa46f9f4ba17f1d7df4ef61c40a3ab52",
+        "state": "Keyboard and offline catalog suggestions",
+        "title": "Typed lookup",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.03-personalized-verdict",
+        "path": "primary/check/03-personalized-verdict.png",
+        "sha256": "dd2300a0d107216bc3ec1bd4994cfc55fabe21960dcf893c652e3f9ad31dd777",
+        "state": "Exact prior-rating history",
+        "title": "Personalized verdict",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.04-saved-for-later",
+        "path": "primary/check/04-saved-for-later.png",
+        "sha256": "b4a1c1ea408ebc177c6ed0f8fa2fa48227fa227360c1c9026b0004fbef53d6f9",
+        "state": "Optimistic saved state",
+        "title": "Saved for later",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.05-add-beer-prefill",
+        "path": "primary/check/05-add-beer-prefill.png",
+        "sha256": "6ff87c4b5a6d41fb1cf4602b0381c9055b766b36fe478c8c69a0cace9a6e1ee7",
+        "state": "Resolved metadata prefilled from verdict",
+        "title": "Add Beer",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.journal.01-library",
+        "path": "primary/journal/01-library.png",
+        "sha256": "c39c523ac77af7da10192402dc0e35789ac17723c80370e891f481282f56a065",
+        "state": "Want to Try and seeded history",
+        "title": "Journal",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.journal.02-no-match",
+        "path": "primary/journal/02-no-match.png",
+        "sha256": "a63dcdf8c58b149959fad049173bcb3897009e0f08ad55bb959f2326e0a6ef8e",
+        "state": "Search excludes all history",
+        "title": "Journal no-match",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.journal.03-detail",
+        "path": "primary/journal/03-detail.png",
+        "sha256": "d9a80b1b3b79566c0e414c87bfef5234c7069c79a65dec29156d73ea27c11993",
+        "state": "Editable rating, notes, Save, and Delete hierarchy",
+        "title": "Journal detail",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.profile.01-overview",
+        "path": "primary/profile/01-overview.png",
+        "sha256": "2fd80b7bfca6cb0d54c17107edc0a9abba312e7026e0458c228cd410accf3bf0",
+        "state": "Persona, stats, and top styles",
+        "title": "Profile overview",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.profile.02-recent-scans",
+        "path": "primary/profile/02-recent-scans.png",
+        "sha256": "f3e06f9efae19f1b6f3f67a64e5707395346e3708dc0084f4afc29b5de76cbfc",
+        "state": "Verdict history list",
+        "title": "Recent scans",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.profile.03-scan-detail",
+        "path": "primary/profile/03-scan-detail.png",
+        "sha256": "7249dc9fefd25bd7db2160d2b0e3da1f6f59fad783e78df0ed70c4a328124a50",
+        "state": "Persisted rationale and metadata",
+        "title": "Scan detail",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.settings.01-release-settings",
+        "path": "primary/settings/01-release-settings.png",
+        "sha256": "b9a0dece74768ef93401764af43dc3a83440c8c07c3bb575c7a05547029a31cf",
+        "state": "Shipping Release controls",
+        "title": "Settings",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.settings.02-taste-preferences",
+        "path": "primary/settings/02-taste-preferences.png",
+        "sha256": "469c1453968a88d16164271cf107bba8036880f872b3b5f3f36c60d070d1d59d",
+        "state": "Editable go-to and stay-away profile",
+        "title": "Taste preferences",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.settings.03-data-and-about",
+        "path": "primary/settings/03-data-and-about.png",
+        "sha256": "8a79283536bca6dcd21de1c2f44a8ab4e355cdb208a4f3d183d0cd9c9dfa4a58",
+        "state": "Export, replay, clear, version, and policies",
+        "title": "Settings data controls",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.06-menu-photo-picker",
+        "path": "primary/check/06-menu-photo-picker.png",
+        "sha256": "5240927b4b71f78ea1125179c18ba7e47850da909cd4cc7557846745421e79ee",
+        "state": "Single deterministic menu fixture",
+        "title": "Menu photo picker",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.07-menu-winner",
+        "path": "primary/check/07-menu-winner.png",
+        "sha256": "54beae16f43cfed5cee9c1525a8b0a75c1156daa7e0d2108c9560dacc5eb45ac",
+        "state": "On-device best-of-menu recommendation",
+        "title": "Menu winner",
+        "width": 1206
+      },
+      {
+        "height": 2622,
+        "id": "primary.check.08-menu-runner-up",
+        "path": "primary/check/08-menu-runner-up.png",
+        "sha256": "85a56821350d0410da5b5bb6d68894ef4eb91b6b3dbb204ce26f9a24918d1c49",
+        "state": "Second-ranked menu option expanded",
+        "title": "Menu runner-up",
+        "width": 1206
+      }
+    ],
+    "visual_inspection": "passed"
+  },
+  "supplemental_compact": {
+    "source_sha": "2e8d5999f3085118db4bb9329bbaab366ba0fa05",
+    "workflow_run": "https://github.com/rishi09/sipcheck/actions/runs/29950213544",
+    "build_configuration": "Debug",
+    "device": "iPhone SE (3rd generation)",
+    "runtime": "iOS.26.2",
+    "xcode": "Xcode 26.3",
+    "appearance": "dark",
+    "locale": "en_US",
+    "capture_count": 12,
+    "captures": [
+      {
+        "path": "compact/check/01-idle.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "1df18fbdf6dd76cbfee5fcec3dc89c5d9f327cb44a6c86b56d01007df1592485",
+        "id": "compact.check.01-idle"
+      },
+      {
+        "path": "compact/check/02-typed-suggestions.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "c54c6dc9c35f4d0e0edb0318f429a931f0c8a859b4db30f7bbd5e3f98cece63a",
+        "id": "compact.check.02-typed-suggestions"
+      },
+      {
+        "path": "compact/check/03-personalized-verdict.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "5b880d8fa8619eb58c8bad2696a456afcca9cee21e1790dcce1a0774b84ca3f6",
+        "id": "compact.check.03-personalized-verdict"
+      },
+      {
+        "path": "compact/journal/01-seeded-list.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "52b70b957d62a523caf8a593d565116d5debc0bd918183cd4c75b7288fa5d510",
+        "id": "compact.journal.01-seeded-list"
+      },
+      {
+        "path": "compact/journal/02-detail.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "9480a1af323fad998eff478241a242c4a7122ddabf3a4b6670ad5c02564d8755",
+        "id": "compact.journal.02-detail"
+      },
+      {
+        "path": "compact/journal/03-search.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "7042e6a0e7d1fced5ac128338fd724044199d6cd011019b806a21a22f7386d2f",
+        "id": "compact.journal.03-search"
+      },
+      {
+        "path": "compact/journal/04-persisted-detail.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "5e609c62ef41052d97e0189bac79c1cec1f6b8719a85e68c35bfc28247cede94",
+        "id": "compact.journal.04-persisted-detail"
+      },
+      {
+        "path": "compact/onboarding/01-go-to-selected.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "bd3f9b38aa592c396599363f42705cde420eb66ba5a541425899cb99d2319aa6",
+        "id": "compact.onboarding.01-go-to-selected"
+      },
+      {
+        "path": "compact/onboarding/02-stay-away-blank.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "52aa7caf05bf29712ef937dc8301bd3e5f6f3e2c92bf51fca087da3f1711bb8d",
+        "id": "compact.onboarding.02-stay-away-blank"
+      },
+      {
+        "path": "compact/profile/01-overview.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "0dc3cdd29460d7e9e864dcdf38557ef8467db98329714ea4d80a3f3c953191e3",
+        "id": "compact.profile.01-overview"
+      },
+      {
+        "path": "compact/profile/02-scan-detail.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "4fe104fa8f1089a4ae9d15c243317a523ecc546234aa17a45c98714e4bee130b",
+        "id": "compact.profile.02-scan-detail"
+      },
+      {
+        "path": "compact/settings/01-reminders.png",
+        "width": 750,
+        "height": 1334,
+        "sha256": "41d78f147402c43ac2ddea8e41f269a575e07888c49b4c37e1d80f7de012e69f",
+        "id": "compact.settings.01-reminders"
+      }
+    ],
+    "visual_inspection": "passed"
+  },
+  "derived": [
+    {
+      "path": "contact-sheet-primary.png",
+      "width": 848,
+      "height": 1788,
+      "sha256": "1e372593c817407299ad490654f32e412f24dc40b0f5ba5c201e62635c11f6f5"
+    },
+    {
+      "path": "contact-sheet-compact.png",
+      "width": 792,
+      "height": 1034,
+      "sha256": "fef7597f997fbb99ad90b83d3643da7cae494f0e0b51ccf0cc7b7e15399e06aa"
+    }
+  ]
+}
