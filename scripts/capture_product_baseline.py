@@ -392,7 +392,10 @@ def capture(session: CaptureSession) -> None:
         "Taste preferences",
         "Editable go-to and stay-away profile",
     )
-    session.tap_id("tastePreferencesDoneButton")
+    session.tap_matching(
+        lambda node: identifier(node) == "tastePreferencesDoneButton",
+        "taste preferences Done button",
+    )
     session.swipe(200, 700, 200, 240)
     session.swipe(200, 700, 200, 240)
     session.snap(
