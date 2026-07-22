@@ -403,6 +403,42 @@ def capture(session: CaptureSession) -> None:
         "Settings data controls",
         "Export, replay, clear, version, and policies",
     )
+
+    # Exercise the simulator-supported photo-library route with the single
+    # menu fixture installed by the workflow. The fixed Pro viewport makes the
+    # first Photos grid cell deterministic while the surrounding state is
+    # still verified through the live accessibility tree.
+    session.launch("--seed-data", "--disable-cloudkit", "-AppleLanguages", "(en)",
+                   "-AppleLocale", "en_US")
+    session.tap_label("Scan Label")
+    session.wait(lambda node: label(node) == "Photos", "Photos picker")
+    session.snap(
+        "primary/check/06-menu-photo-picker.png",
+        "Menu photo picker",
+        "Single deterministic menu fixture",
+    )
+    session.axe("tap", "-x", "67", "-y", "300", "--post-delay", "1")
+    session.wait(
+        lambda node: label(node) == "Two Hearted IPA",
+        "menu winner",
+        timeout=45,
+    )
+    session.wait(lambda node: label(node) == "See runner-up", "runner-up control")
+    session.snap(
+        "primary/check/07-menu-winner.png",
+        "Menu winner",
+        "On-device best-of-menu recommendation",
+    )
+    session.tap_label("See runner-up")
+    session.wait(
+        lambda node: label(node) == "Allagash White Wheat",
+        "expanded menu runner-up",
+    )
+    session.snap(
+        "primary/check/08-menu-runner-up.png",
+        "Menu runner-up",
+        "Second-ranked menu option expanded",
+    )
     session.write_manifest()
 
 
