@@ -63,6 +63,7 @@ review/analyze overrides automatic delivery.
 | Founder feedback fixes (completed 2026-07-17) | `Codex/codex-feedback-fixes` | Released after iPhone 17 Pro and compact simulator verification, 113 tests, clean signed Release run `29620235876`, and 8-flow E2E run 46. No files remain reserved. |
 | TestFlight internal distribution recovery (completed 2026-07-17) | `Codex/codex-testflight-recovery` | Released after Fastlane source review and clean signed Release run `29621103239`. No files remain reserved. |
 | Multi-client delivery automation (completed 2026-07-22) | `codex/multihome-delivery` | Released after aligning Codex, Claude, and CLI branch triggers and documenting agent-owned delivery. No files remain reserved. |
+| Product screenshot baseline (active) | `codex/product-screenshot-baseline` | Reserved: `plans/screenshots/product-baseline-2026-07-22/` and the matching baseline index/report only. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
