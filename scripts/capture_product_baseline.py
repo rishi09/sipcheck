@@ -292,8 +292,10 @@ def capture(session: CaptureSession) -> None:
         "Typed lookup",
         "Keyboard and offline catalog suggestions",
     )
-    session.tap_id("checkBeerButton")
-    session.wait_id("verdictCard", timeout=20)
+    # Selecting the canonical offline-catalog row exercises the same submit
+    # path without relying on a bottom-edge coordinate tap in headless AXe.
+    session.tap_id("suggestionRow_0")
+    session.wait_id("verdictCard", timeout=30)
     session.snap(
         "primary/check/03-personalized-verdict.png",
         "Personalized verdict",
@@ -406,7 +408,21 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args()
     session = CaptureSession(arguments.udid, arguments.output)
-    capture(session)
+    try:
+        capture(session)
+    except Exception:
+        # Preserve the failing screen and AX tree; a red run should still say
+        # exactly where the live product diverged from the capture contract.
+        try:
+            session.snap(
+                "failure/failing-state.png",
+                "Capture failure",
+                "Unexpected state at the point of failure",
+            )
+            session.write_manifest()
+        except Exception as evidence_error:
+            print(f"could not save failure evidence: {evidence_error}", flush=True)
+        raise
     print(f"captured {len(session.captures)} screenshots", flush=True)
 
 
