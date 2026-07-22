@@ -433,7 +433,7 @@ def capture(session: CaptureSession) -> None:
     )
     session.tap_label("See runner-up")
     session.wait(
-        lambda node: label(node) == "Allagash White Wheat",
+        lambda node: label(node) == "Hide runner-up",
         "expanded menu runner-up",
     )
     session.snap(
