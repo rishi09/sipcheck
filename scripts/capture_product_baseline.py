@@ -374,7 +374,6 @@ def capture(session: CaptureSession) -> None:
         "Scan detail",
         "Persisted rationale and metadata",
     )
-    session.tap_id("recentScanDetailClose")
 
     session.launch("--disable-cloudkit", "-AppleLanguages", "(en)",
                    "-AppleLocale", "en_US")
