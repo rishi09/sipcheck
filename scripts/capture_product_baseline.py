@@ -295,23 +295,25 @@ def capture(session: CaptureSession) -> None:
     # Selecting the canonical offline-catalog row exercises the same submit
     # path without relying on a bottom-edge coordinate tap in headless AXe.
     session.tap_id("suggestionRow_0")
-    session.wait_id("verdictCard", timeout=30)
+    # SwiftUI flattens VerdictCardView into its visible children in Release,
+    # so the container/button identifiers are intentionally not relied on.
+    session.wait(lambda node: label(node) == "TRY IT", "TRY IT verdict", timeout=30)
     session.snap(
         "primary/check/03-personalized-verdict.png",
         "Personalized verdict",
         "Exact prior-rating history",
     )
 
-    session.tap_id("saveForLater")
+    session.tap_label("Save for Later")
     time.sleep(1)
     session.dismiss_notification_prompt()
-    session.wait_id("verdictCard")
+    session.wait(lambda node: label(node) == "Saved", "saved confirmation")
     session.snap(
         "primary/check/04-saved-for-later.png",
         "Saved for later",
         "Optimistic saved state",
     )
-    session.tap_id("logItButton")
+    session.tap_label("Drinking it — log it")
     session.wait_id("beerName")
     session.snap(
         "primary/check/05-add-beer-prefill.png",
