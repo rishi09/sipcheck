@@ -10,12 +10,13 @@ name: E2E Simulator
 on:
   workflow_dispatch:
   push:
-    branches: ["claude/**"]
+    branches: ["codex/**", "claude/**", "cli/**"]
     paths-ignore:
       - "docs/**"
       - "plans/**"
       - "**.md"
       - ".drive/**"
+      - ".github/**"
 
 permissions:
   contents: write # to push screenshots to the e2e-artifacts branch

@@ -7,7 +7,7 @@ name: TestFlight
 # the repo is public.
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main, 'codex/**', 'claude/**', 'cli/**']
     # Doc/report/tooling-only pushes don't need a 25-min macOS build +
     # TestFlight upload. `.drive/**` is the E2E/motion session git-dispatch
     # channel; `scripts/**` is CI tooling — neither ships in the app.
@@ -17,6 +17,7 @@ on:
       - 'plans/**'
       - 'scripts/**'
       - '.drive/**'
+      - '.github/**'
   workflow_dispatch:
 
 concurrency:

@@ -27,7 +27,7 @@ on:
   # session (the GitHub integration used by remote sessions lacks
   # actions:write, so it cannot use workflow_dispatch directly).
   push:
-    branches: ["claude/**"]
+    branches: ["codex/**", "claude/**", "cli/**"]
     paths: [".drive/request.json"]
 
 permissions:

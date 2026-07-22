@@ -25,10 +25,10 @@ on:
         description: "Comma-separated flow names, or 'default' (tab_tour,text_verdict,save_for_later,journal_detail,onboarding)"
         default: "default"
   # Git-based dispatch for remote sessions without actions:write — push a
-  # change to .drive/motion-request.json on a claude/** branch:
+  # change to .drive/motion-request.json on a supported agent branch:
   #   {"flows": "tab_tour,text_verdict"}
   push:
-    branches: ["claude/**"]
+    branches: ["codex/**", "claude/**", "cli/**"]
     paths: [".drive/motion-request.json"]
 
 permissions:
