@@ -411,13 +411,15 @@ def capture(session: CaptureSession) -> None:
     session.launch("--seed-data", "--disable-cloudkit", "-AppleLanguages", "(en)",
                    "-AppleLocale", "en_US")
     session.tap_label("Scan Label")
-    session.wait(lambda node: label(node) == "Photos", "Photos picker")
+    # AXe continues to expose the presenting app while Apple's out-of-process
+    # Photos picker is foregrounded, so pixels are the readiness signal here.
+    time.sleep(2)
     session.snap(
         "primary/check/06-menu-photo-picker.png",
         "Menu photo picker",
         "Single deterministic menu fixture",
     )
-    session.axe("tap", "-x", "67", "-y", "300", "--post-delay", "1")
+    session.axe("tap", "-x", "67", "-y", "380", "--post-delay", "1")
     session.wait(
         lambda node: label(node) == "Two Hearted IPA",
         "menu winner",
