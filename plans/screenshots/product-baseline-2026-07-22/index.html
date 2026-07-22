@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>SipCheck Product Screenshot Baseline</title>
+  <style>
+    :root {
+      --background: #101214;
+      --surface: #191c1f;
+      --surface-raised: #22262a;
+      --surface-active: #30363b;
+      --border: #353b40;
+      --border-strong: #4b535a;
+      --text: #f4f6f7;
+      --muted: #a7afb6;
+      --accent: #4fc9c3;
+      --accent-ink: #071b1a;
+      --amber: #e9a33a;
+      --green: #56c868;
+      --danger: #f06c5f;
+      --content-width: 1480px;
+    }
+
+    * {
+      box-sizing: border-box;
+      letter-spacing: 0;
+    }
+
+    html {
+      background: var(--background);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--background);
+    }
+
+    button,
+    select,
+    a {
+      font: inherit;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    button,
+    select {
+      color: var(--text);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    a:hover {
+      color: #7cddd8;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: 1px solid var(--border);
+      background: rgba(16, 18, 20, 0.96);
+      backdrop-filter: blur(16px);
+    }
+
+    .topbar-inner {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      width: min(100% - 32px, var(--content-width));
+      min-height: 82px;
+      margin: 0 auto;
+      padding: 12px 0;
+    }
+
+    .identity {
+      min-width: 0;
+    }
+
+    .identity-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.2;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .baseline-date {
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .identity p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .text-link {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .text-link:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+
+    .controls-band {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: min(100% - 32px, var(--content-width));
+      margin: 0 auto;
+      padding: 12px 0;
+    }
+
+    .segmented {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--background);
+    }
+
+    .segmented button {
+      min-height: 34px;
+      padding: 0 13px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    .surface-select {
+      min-height: 42px;
+      min-width: 168px;
+      padding: 0 34px 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--background);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .visible-count {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    main {
+      width: min(100% - 32px, var(--content-width));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+
+    .section-heading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+    }
+
+    .section-heading h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .section-heading span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+      gap: 16px;
+    }
+
+    .shot-card {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--surface);
+    }
+
+    .shot-card:hover {
+      border-color: var(--border-strong);
+    }
+
+    .image-button {
+      position: relative;
+      display: block;
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+      background: #070809;
+      cursor: zoom-in;
+    }
+
+    .image-button:focus-visible,
+    .segmented button:focus-visible,
+    .surface-select:focus-visible,
+    .viewer-control:focus-visible,
+    .viewer-close:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .image-button img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #070809;
+    }
+
+    .image-button::after {
+      content: "Open";
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      min-width: 46px;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 5px;
+      background: rgba(7, 8, 9, 0.86);
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 750;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+
+    .image-button:hover::after,
+    .image-button:focus-visible::after {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .card-copy {
+      padding: 13px 14px 15px;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 8px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 0 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .tag.release {
+      border-color: rgba(79, 201, 195, 0.42);
+      color: var(--accent);
+    }
+
+    .tag.compact {
+      border-color: rgba(233, 163, 58, 0.44);
+      color: var(--amber);
+    }
+
+    .surface-name {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+
+    .shot-title {
+      margin: 0;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.3;
+      font-weight: 750;
+      overflow-wrap: anywhere;
+    }
+
+    .shot-state {
+      min-height: 36px;
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .empty-state {
+      display: none;
+      min-height: 300px;
+      place-items: center;
+      border: 1px dashed var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty-state.visible {
+      display: grid;
+    }
+
+    dialog {
+      width: min(1180px, calc(100vw - 32px));
+      max-width: none;
+      height: min(930px, calc(100vh - 32px));
+      max-height: none;
+      padding: 0;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    dialog::backdrop {
+      background: rgba(0, 0, 0, 0.82);
+    }
+
+    .viewer-shell {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      height: 100%;
+    }
+
+    .viewer-header,
+    .viewer-footer {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 60px;
+      padding: 10px 14px;
+      border-color: var(--border);
+      background: var(--surface);
+    }
+
+    .viewer-header {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .viewer-footer {
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+    }
+
+    .viewer-heading {
+      min-width: 0;
+    }
+
+    .viewer-heading strong {
+      display: block;
+      overflow: hidden;
+      font-size: 15px;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .viewer-heading span {
+      display: block;
+      margin-top: 3px;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .viewer-close {
+      flex: 0 0 auto;
+      width: 40px;
+      height: 40px;
+      margin-left: auto;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-raised);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .viewer-main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 270px;
+      min-height: 0;
+      background: #070809;
+    }
+
+    .viewer-image-wrap {
+      display: grid;
+      min-height: 0;
+      place-items: center;
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .viewer-image {
+      display: block;
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .viewer-details {
+      padding: 22px 18px;
+      overflow: auto;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .detail-label {
+      display: block;
+      margin: 18px 0 5px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .detail-label:first-child {
+      margin-top: 0;
+    }
+
+    .detail-value {
+      margin: 0;
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .original-link {
+      display: inline-flex;
+      min-height: 38px;
+      align-items: center;
+      margin-top: 22px;
+      padding: 0 11px;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 750;
+    }
+
+    .viewer-control {
+      min-width: 94px;
+      min-height: 38px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-raised);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .viewer-control:disabled {
+      cursor: default;
+      opacity: 0.4;
+    }
+
+    .viewer-position {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 800px) {
+      .topbar-inner {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .top-actions {
+        justify-content: flex-start;
+      }
+
+      .controls {
+        align-items: stretch;
+        flex-wrap: wrap;
+      }
+
+      .segmented {
+        width: 100%;
+      }
+
+      .segmented button {
+        flex: 1 1 0;
+        padding: 0 7px;
+      }
+
+      .surface-select {
+        flex: 1 1 180px;
+      }
+
+      .visible-count {
+        align-self: center;
+      }
+
+      .gallery {
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 12px;
+      }
+
+      .viewer-main {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      .viewer-details {
+        max-height: 190px;
+        border-top: 1px solid var(--border);
+        border-left: 0;
+      }
+    }
+
+    @media (max-width: 470px) {
+      .identity-row {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      h1 {
+        white-space: normal;
+      }
+
+      .text-link {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+
+      .gallery {
+        grid-template-columns: 1fr;
+      }
+
+      .image-button {
+        aspect-ratio: 10 / 16;
+      }
+
+      dialog {
+        width: 100vw;
+        height: 100vh;
+        border: 0;
+        border-radius: 0;
+      }
+    }
+
+    @media (max-height: 560px) and (orientation: landscape) {
+      dialog {
+        width: 100vw;
+        height: 100vh;
+        border: 0;
+        border-radius: 0;
+      }
+
+      .viewer-header,
+      .viewer-footer {
+        min-height: 44px;
+        padding: 4px 10px;
+      }
+
+      .viewer-close {
+        width: 34px;
+        height: 34px;
+      }
+
+      .viewer-main {
+        grid-template-columns: minmax(0, 1fr) 210px;
+        grid-template-rows: minmax(0, 1fr);
+      }
+
+      .viewer-image-wrap {
+        padding: 8px;
+      }
+
+      .viewer-details {
+        max-height: none;
+        padding: 12px;
+        border-top: 0;
+        border-left: 1px solid var(--border);
+      }
+
+      .detail-label {
+        margin-top: 8px;
+      }
+
+      .original-link {
+        min-height: 32px;
+        margin-top: 10px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar" aria-label="Gallery header">
+    <div class="topbar-inner">
+      <div class="identity">
+        <div class="identity-row">
+          <h1>SipCheck Product Baseline</h1>
+          <span class="baseline-date">July 22, 2026</span>
+        </div>
+        <p>37 inspected simulator screenshots from the pre-change product.</p>
+      </div>
+      <nav class="top-actions" aria-label="Baseline resources">
+        <a class="text-link" href="manifest.json">Manifest</a>
+        <a class="text-link" href="../../reports/PRODUCT_SCREENSHOT_BASELINE.md">Audit report</a>
+        <a class="text-link" href="https://github.com/rishi09/sipcheck/actions/runs/29959748718">Release run</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="controls-band">
+    <div class="controls" role="group" aria-label="Gallery filters">
+      <div class="segmented" role="group" aria-label="Screenshot set">
+        <button type="button" data-lane="all" aria-pressed="true">All 37</button>
+        <button type="button" data-lane="canonical" aria-pressed="false">Release 25</button>
+        <button type="button" data-lane="compact" aria-pressed="false">Compact 12</button>
+      </div>
+      <label>
+        <span class="sr-only">Surface</span>
+        <select class="surface-select" id="surfaceFilter" aria-label="Filter by surface">
+          <option value="all">All surfaces</option>
+          <option value="onboarding">Onboarding</option>
+          <option value="check">Check</option>
+          <option value="journal">Journal</option>
+          <option value="profile">Profile</option>
+          <option value="settings">Settings</option>
+        </select>
+      </label>
+      <span class="visible-count" id="visibleCount" aria-live="polite">37 screenshots</span>
+    </div>
+  </div>
+
+  <main>
+    <div class="section-heading">
+      <h2 id="galleryHeading">All screenshots</h2>
+      <span id="gallerySubheading">Release and compact baselines</span>
+    </div>
+    <section class="gallery" id="gallery" aria-labelledby="galleryHeading"></section>
+    <div class="empty-state" id="emptyState">
+      <p>No screenshots match these filters.</p>
+    </div>
+  </main>
+
+  <dialog id="viewer" aria-labelledby="viewerTitle">
+    <div class="viewer-shell">
+      <header class="viewer-header" aria-label="Image viewer header">
+        <div class="viewer-heading">
+          <strong id="viewerTitle"></strong>
+          <span id="viewerState"></span>
+        </div>
+        <button class="viewer-close" id="viewerClose" type="button" aria-label="Close viewer" title="Close">&times;</button>
+      </header>
+      <div class="viewer-main">
+        <div class="viewer-image-wrap">
+          <img class="viewer-image" id="viewerImage" src="primary/onboarding/01-age-gate.png" alt="Selected SipCheck screenshot">
+        </div>
+        <aside class="viewer-details" aria-label="Screenshot details">
+          <span class="detail-label">Set</span>
+          <p class="detail-value" id="viewerLane"></p>
+          <span class="detail-label">Surface</span>
+          <p class="detail-value" id="viewerSurface"></p>
+          <span class="detail-label">Dimensions</span>
+          <p class="detail-value" id="viewerDimensions"></p>
+          <span class="detail-label">File</span>
+          <p class="detail-value" id="viewerPath"></p>
+          <a class="original-link" id="originalLink" href="" target="_blank" rel="noopener">Open original image</a>
+        </aside>
+      </div>
+      <footer class="viewer-footer">
+        <button class="viewer-control" id="viewerPrevious" type="button" title="Previous screenshot">&larr; Previous</button>
+        <span class="viewer-position" id="viewerPosition"></span>
+        <button class="viewer-control" id="viewerNext" type="button" title="Next screenshot">Next &rarr;</button>
+      </footer>
+    </div>
+    <span class="sr-only" id="viewerAnnouncement" aria-live="polite" aria-atomic="true"></span>
+  </dialog>
+
+  <script>
+    const screenshots = [
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/01-age-gate.png", title: "Age gate", state: "Fresh install", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/02-under-age-recovery.png", title: "Under-age recovery", state: "Under 21 selected", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/03-outcome-story.png", title: "Outcome story", state: "First onboarding story", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/04-verdict-story.png", title: "Verdict story", state: "Second onboarding story", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/05-go-to-blank.png", title: "Go-to picker", state: "Blank-slate purchase recall", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/06-go-to-selected.png", title: "Go-to selections", state: "Modelo and IPA selected", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/07-stay-away-blank.png", title: "Stay-away picker", state: "Independent blank slate", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "onboarding", path: "primary/onboarding/08-stay-away-selected.png", title: "Stay-away selection", state: "Named avoid with category echo", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/01-idle.png", title: "Check", state: "Seeded Release launch", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/02-typed-suggestions.png", title: "Typed lookup", state: "Keyboard and offline catalog suggestions", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/03-personalized-verdict.png", title: "Personalized verdict", state: "Exact prior-rating history", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/04-saved-for-later.png", title: "Saved for later", state: "Optimistic saved state", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/05-add-beer-prefill.png", title: "Add Beer", state: "Resolved metadata prefilled from verdict", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/06-menu-photo-picker.png", title: "Menu photo picker", state: "Single deterministic menu fixture", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/07-menu-winner.png", title: "Menu winner", state: "On-device best-of-menu recommendation", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "check", path: "primary/check/08-menu-runner-up.png", title: "Menu runner-up", state: "Second-ranked menu option expanded", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "journal", path: "primary/journal/01-library.png", title: "Journal", state: "Want to Try and seeded history", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "journal", path: "primary/journal/02-no-match.png", title: "Journal no-match", state: "Search excludes all history", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "journal", path: "primary/journal/03-detail.png", title: "Journal detail", state: "Editable rating, notes, Save, and Delete hierarchy", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "profile", path: "primary/profile/01-overview.png", title: "Profile overview", state: "Persona, stats, and top styles", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "profile", path: "primary/profile/02-recent-scans.png", title: "Recent scans", state: "Verdict history list", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "profile", path: "primary/profile/03-scan-detail.png", title: "Scan detail", state: "Persisted rationale and metadata", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "settings", path: "primary/settings/01-release-settings.png", title: "Settings", state: "Shipping Release controls", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "settings", path: "primary/settings/02-taste-preferences.png", title: "Taste preferences", state: "Editable go-to and stay-away profile", width: 1206, height: 2622 },
+      { lane: "canonical", surface: "settings", path: "primary/settings/03-data-and-about.png", title: "Settings data controls", state: "Export, replay, clear, version, and policies", width: 1206, height: 2622 },
+      { lane: "compact", surface: "onboarding", path: "compact/onboarding/01-go-to-selected.png", title: "Go-to selections", state: "Compact selected picker", width: 750, height: 1334 },
+      { lane: "compact", surface: "onboarding", path: "compact/onboarding/02-stay-away-blank.png", title: "Stay-away picker", state: "Compact blank slate", width: 750, height: 1334 },
+      { lane: "compact", surface: "check", path: "compact/check/01-idle.png", title: "Check", state: "Compact launch", width: 750, height: 1334 },
+      { lane: "compact", surface: "check", path: "compact/check/02-typed-suggestions.png", title: "Typed lookup", state: "Compact keyboard and suggestions", width: 750, height: 1334 },
+      { lane: "compact", surface: "check", path: "compact/check/03-personalized-verdict.png", title: "Personalized verdict", state: "Compact verdict layout", width: 750, height: 1334 },
+      { lane: "compact", surface: "journal", path: "compact/journal/01-seeded-list.png", title: "Journal", state: "Compact seeded list", width: 750, height: 1334 },
+      { lane: "compact", surface: "journal", path: "compact/journal/02-detail.png", title: "Journal detail", state: "Compact Guinness detail", width: 750, height: 1334 },
+      { lane: "compact", surface: "journal", path: "compact/journal/03-search.png", title: "Journal search", state: "Compact filtered list", width: 750, height: 1334 },
+      { lane: "compact", surface: "journal", path: "compact/journal/04-persisted-detail.png", title: "Persisted detail", state: "Compact edited beer after relaunch", width: 750, height: 1334 },
+      { lane: "compact", surface: "profile", path: "compact/profile/01-overview.png", title: "Profile overview", state: "Compact stats and recent scans", width: 750, height: 1334 },
+      { lane: "compact", surface: "profile", path: "compact/profile/02-scan-detail.png", title: "Scan detail", state: "Compact persisted rationale", width: 750, height: 1334 },
+      { lane: "compact", surface: "settings", path: "compact/settings/01-reminders.png", title: "Settings reminders", state: "Compact Debug settings", width: 750, height: 1334 }
+    ];
+
+    const surfaceOrder = ["onboarding", "check", "journal", "profile", "settings"];
+    const laneButtons = Array.from(document.querySelectorAll("[data-lane]"));
+    const surfaceFilter = document.getElementById("surfaceFilter");
+    const gallery = document.getElementById("gallery");
+    const emptyState = document.getElementById("emptyState");
+    const visibleCount = document.getElementById("visibleCount");
+    const galleryHeading = document.getElementById("galleryHeading");
+    const gallerySubheading = document.getElementById("gallerySubheading");
+    const viewer = document.getElementById("viewer");
+    const viewerImage = document.getElementById("viewerImage");
+    const viewerTitle = document.getElementById("viewerTitle");
+    const viewerState = document.getElementById("viewerState");
+    const viewerLane = document.getElementById("viewerLane");
+    const viewerSurface = document.getElementById("viewerSurface");
+    const viewerDimensions = document.getElementById("viewerDimensions");
+    const viewerPath = document.getElementById("viewerPath");
+    const viewerPosition = document.getElementById("viewerPosition");
+    const viewerAnnouncement = document.getElementById("viewerAnnouncement");
+    const viewerPrevious = document.getElementById("viewerPrevious");
+    const viewerNext = document.getElementById("viewerNext");
+    const originalLink = document.getElementById("originalLink");
+    let selectedLane = "all";
+    let filteredScreenshots = [];
+    let viewerIndex = 0;
+
+    function laneLabel(lane) {
+      return lane === "canonical" ? "Release" : "Compact";
+    }
+
+    function sortedScreenshots(items) {
+      return [...items].sort((left, right) => {
+        const laneDifference = (left.lane === "canonical" ? 0 : 1) - (right.lane === "canonical" ? 0 : 1);
+        if (laneDifference !== 0) return laneDifference;
+        const surfaceDifference = surfaceOrder.indexOf(left.surface) - surfaceOrder.indexOf(right.surface);
+        if (surfaceDifference !== 0) return surfaceDifference;
+        return left.path.localeCompare(right.path);
+      });
+    }
+
+    function createCard(shot, index) {
+      const card = document.createElement("article");
+      card.className = "shot-card";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "image-button";
+      button.setAttribute("aria-label", `Open ${shot.title}, ${laneLabel(shot.lane)} ${shot.surface} screenshot`);
+      button.addEventListener("click", () => openViewer(index));
+
+      const image = document.createElement("img");
+      image.src = shot.path;
+      image.alt = `${shot.title}. ${shot.state}.`;
+      image.loading = index < 6 ? "eager" : "lazy";
+      image.decoding = "async";
+      image.width = shot.width;
+      image.height = shot.height;
+      button.append(image);
+
+      const copy = document.createElement("div");
+      copy.className = "card-copy";
+      const tagClass = shot.lane === "canonical" ? "release" : "compact";
+      copy.innerHTML = `
+        <div class="card-meta">
+          <span class="tag ${tagClass}">${laneLabel(shot.lane)}</span>
+          <span class="surface-name">${shot.surface}</span>
+        </div>
+        <h3 class="shot-title">${shot.title}</h3>
+        <p class="shot-state">${shot.state}</p>
+      `;
+
+      card.append(button, copy);
+      return card;
+    }
+
+    function renderGallery() {
+      const selectedSurface = surfaceFilter.value;
+      filteredScreenshots = sortedScreenshots(screenshots.filter((shot) => {
+        const laneMatches = selectedLane === "all" || shot.lane === selectedLane;
+        const surfaceMatches = selectedSurface === "all" || shot.surface === selectedSurface;
+        return laneMatches && surfaceMatches;
+      }));
+
+      gallery.replaceChildren(...filteredScreenshots.map(createCard));
+      emptyState.classList.toggle("visible", filteredScreenshots.length === 0);
+      visibleCount.textContent = `${filteredScreenshots.length} ${filteredScreenshots.length === 1 ? "screenshot" : "screenshots"}`;
+
+      const laneHeading = selectedLane === "all" ? "All screenshots" : `${laneLabel(selectedLane)} screenshots`;
+      const surfaceHeading = selectedSurface === "all" ? "" : `: ${selectedSurface}`;
+      galleryHeading.textContent = laneHeading + surfaceHeading;
+      gallerySubheading.textContent = selectedLane === "all"
+        ? "Release and compact baselines"
+        : selectedLane === "canonical"
+          ? "iPhone 17 Pro, Release, iOS 26.2"
+          : "iPhone SE, Debug XCUITest, iOS 26.2";
+    }
+
+    function updateViewer() {
+      const shot = filteredScreenshots[viewerIndex];
+      if (!shot) return;
+      viewerImage.src = shot.path;
+      viewerImage.alt = `${shot.title}. ${shot.state}.`;
+      viewerTitle.textContent = shot.title;
+      viewerState.textContent = shot.state;
+      viewerLane.textContent = shot.lane === "canonical" ? "Canonical Release" : "Compact supplement";
+      viewerSurface.textContent = shot.surface.charAt(0).toUpperCase() + shot.surface.slice(1);
+      viewerDimensions.textContent = `${shot.width} x ${shot.height} px`;
+      viewerPath.textContent = shot.path;
+      viewerPosition.textContent = `${viewerIndex + 1} of ${filteredScreenshots.length}`;
+      viewerAnnouncement.textContent = `${shot.title}, ${viewerIndex + 1} of ${filteredScreenshots.length}`;
+      viewerPrevious.disabled = viewerIndex === 0;
+      viewerNext.disabled = viewerIndex === filteredScreenshots.length - 1;
+      originalLink.href = shot.path;
+    }
+
+    function openViewer(index) {
+      viewerIndex = index;
+      updateViewer();
+      viewer.showModal();
+    }
+
+    laneButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        selectedLane = button.dataset.lane;
+        laneButtons.forEach((candidate) => {
+          candidate.setAttribute("aria-pressed", String(candidate === button));
+        });
+        renderGallery();
+      });
+    });
+
+    surfaceFilter.addEventListener("change", renderGallery);
+    document.getElementById("viewerClose").addEventListener("click", () => viewer.close());
+    viewerPrevious.addEventListener("click", () => {
+      if (viewerIndex > 0) {
+        viewerIndex -= 1;
+        updateViewer();
+      }
+    });
+    viewerNext.addEventListener("click", () => {
+      if (viewerIndex < filteredScreenshots.length - 1) {
+        viewerIndex += 1;
+        updateViewer();
+      }
+    });
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer) viewer.close();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (!viewer.open) return;
+      if (event.key === "ArrowLeft" && viewerIndex > 0) {
+        viewerIndex -= 1;
+        updateViewer();
+      }
+      if (event.key === "ArrowRight" && viewerIndex < filteredScreenshots.length - 1) {
+        viewerIndex += 1;
+        updateViewer();
+      }
+    });
+
+    renderGallery();
+  </script>
+</body>
+</html>

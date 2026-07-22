@@ -64,6 +64,7 @@ review/analyze overrides automatic delivery.
 | TestFlight internal distribution recovery (completed 2026-07-17) | `Codex/codex-testflight-recovery` | Released after Fastlane source review and clean signed Release run `29621103239`. No files remain reserved. |
 | Multi-client delivery automation (completed 2026-07-22) | `codex/multihome-delivery` | Released after aligning Codex, Claude, and CLI branch triggers and documenting agent-owned delivery. No files remain reserved. |
 | Product screenshot baseline (completed 2026-07-22) | `codex/product-screenshot-baseline` | Released after 25 canonical Release and 12 compact screenshots were captured, visually audited, hashed, indexed, and published. No files remain reserved. |
+| Screenshot HTML gallery (completed 2026-07-22) | `codex/screenshot-html-gallery` | Released after the 37-screen local gallery, filtering, lightbox navigation, responsive layout, and accessibility behavior were verified. No files remain reserved. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.

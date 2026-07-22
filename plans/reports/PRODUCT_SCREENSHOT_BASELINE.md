@@ -3,6 +3,9 @@
 **Status:** Immutable pre-change visual source of truth for parallel SipCheck work.
 Do not replace these files in place. A later baseline should use a new dated directory.
 
+**[Open the standalone HTML gallery](../screenshots/product-baseline-2026-07-22/index.html)**
+to browse every screenshot, filter by surface, and open full-resolution images.
+
 ## Provenance
 
 | Lane | Source | Build | Device | Size | Result |
