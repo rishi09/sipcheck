@@ -76,3 +76,8 @@ adaptations remain under their listed licenses.
   install coordinator; no assertion or compilation failure was observed. Branch CI is the clean-runner
   source of truth for execution and visual artifacts. The branch simulator workflow now runs both
   `SipCheckTests` and `SipCheckUITests` so the new recommendation oracles are an enforced gate.
+- [Signed Release run 30138986488](https://github.com/rishi09/sipcheck/actions/runs/30138986488):
+  passed compile/sign with the optional OpenAI credential authenticated; branch upload correctly skipped.
+- [E2E run 50](https://github.com/rishi09/sipcheck/actions/runs/30138986486): 118 unit/integration
+  tests and 8 UI flows passed with zero failures. Published onboarding screenshots were reviewed for
+  search-mode switching, selection state, artwork rendering, clipping, and overlap.
