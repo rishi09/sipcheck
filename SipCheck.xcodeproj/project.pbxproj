@@ -54,6 +54,7 @@
 		D1000006 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000006; };
 		D1000007 /* ScanVignette.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000007; };
 		D1000008 /* TasteScorerSeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2000008; };
+		K1000001 /* RecommendationArchetypeEvalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = K2000001; };
 		E1000001 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000001; };
 		E1000002 /* FollowUpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2000002; };
 		F1000001 /* TastePreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2000001; };
@@ -138,6 +139,7 @@
 		D2000006 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
 		D2000007 /* ScanVignette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanVignette.swift; sourceTree = "<group>"; };
 		D2000008 /* TasteScorerSeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasteScorerSeedTests.swift; sourceTree = "<group>"; };
+		K2000001 /* RecommendationArchetypeEvalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationArchetypeEvalTests.swift; sourceTree = "<group>"; };
 		E2000001 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		E2000002 /* FollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowUpView.swift; sourceTree = "<group>"; };
 		F2000001 /* TastePreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TastePreferences.swift; sourceTree = "<group>"; };
@@ -328,6 +330,7 @@
 				B2000007 /* ScanStoreTests.swift */,
 				B2000008 /* JournalStoreTests.swift */,
 				D2000008 /* TasteScorerSeedTests.swift */,
+				K2000001 /* RecommendationArchetypeEvalTests.swift */,
 			);
 			path = SipCheckTests;
 			sourceTree = "<group>";
@@ -518,6 +521,7 @@
 				B1000007 /* ScanStoreTests.swift in Sources */,
 				B1000008 /* JournalStoreTests.swift in Sources */,
 				D1000008 /* TasteScorerSeedTests.swift in Sources */,
+				K1000001 /* RecommendationArchetypeEvalTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -83,7 +83,7 @@ jobs:
           xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
 
-      - name: Run E2E UI tests
+      - name: Run unit and E2E UI tests
         id: tests
         run: |
           set +e
@@ -91,6 +91,7 @@ jobs:
             -project SipCheck.xcodeproj \
             -scheme SipCheck \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -only-testing:SipCheckTests \
             -only-testing:SipCheckUITests \
             -resultBundlePath TestResults/e2e.xcresult \
             > xcodebuild-full.log 2>&1

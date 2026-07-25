@@ -1,6 +1,126 @@
 import SwiftUI
 import AVFoundation
 
+/// Settles the recommendation from local evidence before anything is shown.
+/// A guessed camera identity may suggest fuzzy catalog facts for enrichment,
+/// but only fields independently printed in the frame may drive the first
+/// personalized recommendation. Printed style remains sufficient.
+enum ScanRecommendationSettlementPolicy {
+    struct Recommendation: Equatable {
+        let verdict: Verdict
+        let explanation: String
+        let score: Double
+        let keepResolvedFacts: Bool
+    }
+
+    struct TrustedFacts: Equatable {
+        let brewery: String?
+        let style: BeerStyle?
+        let abv: Double?
+    }
+
+    /// A provisional identity cannot lend its catalog fields to the first
+    /// recommendation. Keep only style/ABV independently printed in the frame;
+    /// typed and high-confidence identities may use the complete resolved row.
+    static func trustedFacts(
+        from resolved: ResolvedBeer,
+        recognizedText: String,
+        nameIsGuess: Bool,
+        isTypedInput: Bool
+    ) -> TrustedFacts {
+        guard nameIsGuess, !isTypedInput else {
+            return TrustedFacts(
+                brewery: resolved.brewery,
+                style: resolved.style,
+                abv: resolved.abv
+            )
+        }
+
+        guard case .labelText = resolved.source else {
+            return TrustedFacts(brewery: nil, style: nil, abv: nil)
+        }
+        return TrustedFacts(
+            brewery: nil,
+            style: resolved.style,
+            abv: MenuParser.extractABV(from: recognizedText)
+        )
+    }
+
+    static func hasReliableStyle(
+        nameIsGuess: Bool,
+        resolvedStyle: BeerStyle?,
+        source: ResolvedBeer.Source
+    ) -> Bool {
+        guard resolvedStyle != nil else { return false }
+        guard nameIsGuess else { return true }
+
+        // For a provisional identity, only style read directly in the frame is
+        // independent of that identity. A fuzzy catalog style can belong to a
+        // different beer and must not create a TRY/SKIP recommendation.
+        if case .labelText = source { return true }
+        return false
+    }
+
+    static func settleInitial(
+        proposedVerdict: Verdict,
+        proposedExplanation: String,
+        proposedScore: Double,
+        nameIsGuess: Bool,
+        resolvedStyle: BeerStyle?,
+        source: ResolvedBeer.Source,
+        isTypedInput: Bool,
+        isMenu: Bool
+    ) -> Recommendation {
+        let reliableStyle = hasReliableStyle(
+            nameIsGuess: nameIsGuess,
+            resolvedStyle: resolvedStyle,
+            source: source
+        )
+        guard !isMenu, !isTypedInput, nameIsGuess, !reliableStyle else {
+            return Recommendation(
+                verdict: proposedVerdict,
+                explanation: proposedExplanation,
+                score: proposedScore,
+                keepResolvedFacts: true
+            )
+        }
+
+        return Recommendation(
+            verdict: .yourCall,
+            explanation: "We weren't confident enough to call this one - trust your gut.",
+            score: 0,
+            keepResolvedFacts: false
+        )
+    }
+
+    /// A provisional camera identity may refine its metadata, but not the
+    /// recommendation already shown. Non-provisional inputs can still gain a
+    /// verdict once their missing facts resolve.
+    static func settleRefinement(
+        visibleVerdict: Verdict,
+        visibleExplanation: String,
+        proposedVerdict: Verdict,
+        proposedExplanation: String,
+        proposedScore: Double,
+        freezeVisibleRecommendation: Bool
+    ) -> Recommendation {
+        guard freezeVisibleRecommendation else {
+            return Recommendation(
+                verdict: proposedVerdict,
+                explanation: proposedExplanation,
+                score: proposedScore,
+                keepResolvedFacts: true
+            )
+        }
+        return Recommendation(
+            verdict: visibleVerdict,
+            explanation: visibleExplanation,
+            score: 0,
+            keepResolvedFacts: true
+        )
+    }
+}
+
 struct CheckTabView: View {
     @EnvironmentObject var scanStore: ScanStore
     @EnvironmentObject var drinkStore: DrinkStore
@@ -9,10 +129,10 @@ struct CheckTabView: View {
     ///
     /// Legal transitions: idle → recognizing → verdict(refining: true|false),
     /// and verdict(refining: true) → verdict(refining: false). The network can
-    /// never move the machine backwards — a refinement failure just flips
-    /// `refining` off and the on-device verdict stands. New facts are re-scored
-    /// locally, so the model never supplies the personalized verdict. `.failed`
-    /// is reachable only from `.recognizing`, never from refinement.
+    /// never move the machine backwards: a refinement failure just flips
+    /// `refining` off and the settled on-device recommendation stands. New
+    /// facts may correct metadata, but cannot change a recommendation the user
+    /// has already seen. `.failed` is reachable only from `.recognizing`.
     private enum ScanPhase: Equatable {
         case idle
         case recognizing
@@ -29,9 +149,8 @@ struct CheckTabView: View {
         /// True when the shown name is a best-guess that network refinement
         /// is allowed to replace.
         let nameIsGuess: Bool
-        /// True when the scan had no style signal on-device — refinement must
-        /// then keep facts and copy moving together (no "IPA · 6.5%" above
-        /// "couldn't tell the style").
+        /// True when no reliable style was used for the settled recommendation.
+        /// This includes identity-derived facts discarded from a fuzzy match.
         let startedStyleless: Bool
         /// Menu scans are on-device-final: enriching the winner against the
         /// whole menu blob would only re-extract the wrong beer.
@@ -536,10 +655,10 @@ struct CheckTabView: View {
     // MARK: - Verdict-First Scan Flow (SPEED_PLAN §2)
     //
     // Stage 1 (on-device, typically a few seconds): OCR → menu detection → resolver (printed
-    // style/ABV + bundled catalog) → TasteScorer → verdict on screen. All the
-    // pure compute (catalog decode, scoring) runs OFF the main actor.
-    // Stage 2 (network, optional): a single bounded enrichment call that only
-    // fills blanks and upgrades copy — never the verdict, never the phase.
+    // style/ABV + bundled catalog) → TasteScorer → settled verdict on screen.
+    // All pure compute (catalog decode, scoring) runs OFF the main actor.
+    // Stage 2 (network, optional): one bounded enrichment call that may correct
+    // metadata, never the visible recommendation or phase.
 
     private func runScan(image: UIImage) {
         guard startScan() else { return }
@@ -694,32 +813,48 @@ struct CheckTabView: View {
     ) -> ScanOutcome {
         let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
         let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
+        let trustedFacts = ScanRecommendationSettlementPolicy.trustedFacts(
+            from: resolved,
+            recognizedText: text,
+            nameIsGuess: nameIsGuess,
+            isTypedInput: path == "text"
+        )
         let assessment = TasteScorer.assessWithExactHistory(
             name: name,
-            style: resolved.style,
-            abv: resolved.abv,
+            style: trustedFacts.style,
+            abv: trustedFacts.abv,
             drinks: drinks,
             profile: profile,
             preferences: prefs,
             allowExactMatch: path == "text" || !nameIsGuess
         )
+        let settled = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: assessment.verdict,
+            proposedExplanation: sentenceCase(assessment.shortReason),
+            proposedScore: assessment.score,
+            nameIsGuess: nameIsGuess,
+            resolvedStyle: trustedFacts.style,
+            source: resolved.source,
+            isTypedInput: path == "text",
+            isMenu: false
+        )
 
         let scan = Scan(
             beerName: name,
-            brand: resolved.brewery,
-            style: resolved.style?.rawValue,
-            abv: resolved.abv,
-            verdict: assessment.verdict,
-            explanation: sentenceCase(assessment.shortReason),
+            brand: settled.keepResolvedFacts ? trustedFacts.brewery : nil,
+            style: settled.keepResolvedFacts ? trustedFacts.style?.rawValue : nil,
+            abv: settled.keepResolvedFacts ? trustedFacts.abv : nil,
+            verdict: settled.verdict,
+            explanation: settled.explanation,
             wantToTry: false,
             origin: nil
         )
         return ScanOutcome(
             scan: scan,
             source: resolved.source.rawValue,
-            score: assessment.score,
+            score: settled.score,
             nameIsGuess: nameIsGuess,
-            startedStyleless: resolved.style == nil,
+            startedStyleless: scan.style == nil,
             isMenu: false,
             menuRunnerUp: nil
         )
@@ -797,7 +932,8 @@ struct CheckTabView: View {
     }
 
     /// Stage 2: bounded background enrichment. The provider supplies facts only;
-    /// those facts are re-scored locally before the visible scan is updated.
+    /// corrected metadata may update in place, but the visible recommendation
+    /// is an immutable snapshot of the settled local answer.
     private func startRefinement(for scan: Scan, text: String, outcome: ScanOutcome, image: UIImage?) {
         let nameIsGuess = outcome.nameIsGuess
         let startedStyleless = outcome.startedStyleless
@@ -851,8 +987,16 @@ struct CheckTabView: View {
                         profile: TasteProfile.build(from: drinkStore.drinks),
                         preferences: TastePreferences.current
                     )
-                    current.verdict = assessment.verdict
-                    current.explanation = Self.sentenceCase(assessment.shortReason)
+                    let stableRecommendation = ScanRecommendationSettlementPolicy.settleRefinement(
+                        visibleVerdict: current.verdict,
+                        visibleExplanation: current.explanation,
+                        proposedVerdict: assessment.verdict,
+                        proposedExplanation: Self.sentenceCase(assessment.shortReason),
+                        proposedScore: assessment.score,
+                        freezeVisibleRecommendation: outcome.nameIsGuess
+                    )
+                    current.verdict = stableRecommendation.verdict
+                    current.explanation = stableRecommendation.explanation
                     scanStore.updateScan(current)
                     if nameChanged, current.wantToTry {
                         // Same identifier → replaces the pending follow-up, so the

@@ -173,14 +173,28 @@ final class SipCheckUITests: XCTestCase {
 
         let goToModelo = app.buttons["onboardingGoToBeerTile.modelo"]
         XCTAssertTrue(goToModelo.waitForExistence(timeout: 3),
-                      "Two story pages should lead directly to the beer-first picker")
+                      "Two story pages should lead directly to the beer grid")
         XCTAssertEqual(goToModelo.value as? String, "Not selected")
+
+        let goToSearch = app.textFields["onboardingGoToSearch"]
+        XCTAssertTrue(goToSearch.waitForExistence(timeout: 3))
+        goToSearch.tap()
+        goToSearch.typeText("Modelo")
+        XCTAssertTrue(goToModelo.exists)
+        XCTAssertFalse(app.buttons["onboardingGoToBeerTile.guinness"].exists,
+                       "Beer search should filter non-matching brand tiles")
         goToModelo.tap()
         XCTAssertEqual(goToModelo.value as? String, "Selected")
+
+        let goToMode = app.segmentedControls["onboardingGoToMode"]
+        XCTAssertTrue(goToMode.waitForExistence(timeout: 3))
+        goToMode.buttons["Styles"].tap()
         let goToIPA = app.buttons["onboardingGoToStyle.ipa"]
-        XCTAssertTrue(goToIPA.waitForExistence(timeout: 3))
+        XCTAssertTrue(goToIPA.waitForExistence(timeout: 3),
+                      "Styles must not inherit an active beer search")
+        snap("01-go-to-search-switch")
         goToIPA.tap()
-        snap("01-go-to-visual-picker")
+        snap("02-go-to-style-grid")
         app.buttons["onboardingPickerNext"].tap()
 
         let avoidModelo = app.buttons["onboardingStayAwayBeerTile.modelo"]
@@ -189,10 +203,15 @@ final class SipCheckUITests: XCTestCase {
                       "A go-to pick must not gray or lock the same option on the next page")
         XCTAssertEqual(avoidModelo.value as? String, "Not selected",
                        "Every pole question should open as a blank slate")
-        snap("02-stay-away-blank-slate")
+        XCTAssertTrue(app.textFields["onboardingStayAwaySearch"].exists,
+                      "Stay-away screen should expose the same searchable picker")
+        snap("03-stay-away-blank-slate")
         avoidModelo.tap()
         XCTAssertEqual(avoidModelo.value as? String, "Selected",
                        "The same beer must remain independently selectable")
+        let stayAwayMode = app.segmentedControls["onboardingStayAwayMode"]
+        XCTAssertTrue(stayAwayMode.waitForExistence(timeout: 3))
+        stayAwayMode.buttons["Styles"].tap()
         let avoidIPA = app.buttons["onboardingStayAwayStyle.ipa"]
         XCTAssertTrue(avoidIPA.waitForExistence(timeout: 3))
         avoidIPA.tap()
@@ -213,7 +232,7 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertTrue(resetToggle.waitForExistence(timeout: 3))
         XCTAssertEqual(resetToggle.value as? String, "1",
                        "Replay should restore the reminder trigger's default-on state")
-        snap("03-reminders-reset")
+        snap("04-reminders-reset")
     }
 
     private func openSettings() {

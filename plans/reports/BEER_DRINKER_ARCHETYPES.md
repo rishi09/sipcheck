@@ -101,6 +101,15 @@ The 2026-07-15 stress-test pass added deterministic coverage for:
 
 The LLM resolves beer facts only. The local deterministic scorer owns the personalized verdict.
 
+### Executable archetype eval
+
+[`SipCheckTests/RecommendationArchetypeEvalTests.swift`](../../SipCheckTests/RecommendationArchetypeEvalTests.swift)
+turns the currently representable archetypes into named, table-driven `TasteScorer` oracles. Each
+candidate independently asserts its expected verdict and evidence-bearing reason; the suite has no
+aggregate TRY/SKIP distribution target that could hide a wrong persona-level answer. It includes
+positive fits, negative or honest-call counterexamples, sparse-history restraint, and a dedicated
+check that an explicit stay-away choice beats even an exact prior like.
+
 ## Known model gaps
 
 - `BeerStyle` is coarse: hazy and West Coast are both IPA; dry and imperial are both Stout.

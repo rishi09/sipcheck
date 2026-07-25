@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "two_hearted_ale.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

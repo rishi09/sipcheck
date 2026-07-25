@@ -207,6 +207,9 @@ struct SettingsTabView: View {
                     }
                     Link("Privacy Policy", destination: URL(string: "https://rishi09.github.io/sipcheck/privacy")!)
                     Link("Terms of Use", destination: URL(string: "https://rishi09.github.io/sipcheck/terms")!)
+                    NavigationLink("Beer artwork credits") {
+                        BeerArtworkCreditsView()
+                    }
                 } header: {
                     Text("About")
                 }
@@ -258,6 +261,162 @@ struct SettingsTabView: View {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.csv")
         try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
         exportItem = ExportItem(url: tempURL)
+    }
+}
+
+private struct BeerArtworkCredit: Identifiable {
+    let beer: String
+    let attribution: String
+    let source: String
+    let licenseName: String?
+    let license: String?
+
+    var id: String { beer }
+}
+
+private struct BeerArtworkCreditsView: View {
+    private let credits: [BeerArtworkCredit] = [
+        BeerArtworkCredit(
+            beer: "Modelo",
+            attribution: "Cerveceria Modelo - public domain text logo",
+            source: "https://commons.wikimedia.org/wiki/File:Modelo_especial.jpg",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Corona",
+            attribution: "Public domain simple logo",
+            source: "https://commons.wikimedia.org/wiki/File:Corona_Extra_text_logo.svg",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Heineken",
+            attribution: "Public domain simple logo",
+            source: "https://commons.wikimedia.org/wiki/File:Heineken_Logo.svg",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Blue Moon",
+            attribution: "Aneil Lutchman, 'Blue Moon Beer' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Blue_Moon_Beer.jpg",
+            licenseName: "CC BY-SA 2.0",
+            license: "https://creativecommons.org/licenses/by-sa/2.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Sam Adams",
+            attribution: "Public domain simple logo",
+            source: "https://commons.wikimedia.org/wiki/File:Samuel_Adams_logo.svg",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Guinness",
+            attribution: "Evanodunaigh, 'Guinness-Logo-1' - unmodified",
+            source: "https://commons.wikimedia.org/wiki/File:Guinness-Logo-1.png",
+            licenseName: "CC BY-SA 4.0",
+            license: "https://creativecommons.org/licenses/by-sa/4.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Sierra Nevada",
+            attribution: "SteveR, 'Sierra Nevada Pale Ale' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Sierra_Nevada_Pale_Ale.jpg",
+            licenseName: "CC BY 2.0",
+            license: "https://creativecommons.org/licenses/by/2.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Lagunitas",
+            attribution: "Public domain simple logo",
+            source: "https://commons.wikimedia.org/wiki/File:Lagunitas-logo-2017.png",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Two Hearted Ale",
+            attribution: "edwin, 'Bell's Two Hearted Ale' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Bell%27s_Two_Hearted_Ale.jpg",
+            licenseName: "CC BY 2.0",
+            license: "https://creativecommons.org/licenses/by/2.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Coors Light",
+            attribution: "Public domain simple logo",
+            source: "https://commons.wikimedia.org/wiki/File:Coors_Light_logo.svg",
+            licenseName: nil,
+            license: nil
+        ),
+        BeerArtworkCredit(
+            beer: "Bud Light",
+            attribution: "Sarah Stierch, 'Bud Light - June 2024' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Bud_Light_-_June_2024_-_Sarah_Stierch.jpg",
+            licenseName: "CC BY 4.0",
+            license: "https://creativecommons.org/licenses/by/4.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Stella Artois",
+            attribution: "Stella Artois UK / AB InBev, 'Stella Artois current logo 2015' - unmodified",
+            source: "https://commons.wikimedia.org/wiki/File:Stella_Artois_current_logo_2015.png",
+            licenseName: "CC BY 3.0",
+            license: "https://creativecommons.org/licenses/by/3.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Allagash White",
+            attribution: "Allagash Brewing, 'Allagash White' - resized",
+            source: "https://www.flickr.com/photos/89562459@N03/36639521043",
+            licenseName: "CC BY 2.0",
+            license: "https://creativecommons.org/licenses/by/2.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Dogfish Head",
+            attribution: "Terry Lucas, 'Happy Saturday (cropped)' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Happy_Saturday_(238576229)_(cropped).jpeg",
+            licenseName: "CC BY 3.0",
+            license: "https://creativecommons.org/licenses/by/3.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Stone IPA",
+            attribution: "@joefoodie, 'Stone IPA' - resized",
+            source: "https://www.flickr.com/photos/98178986@N00/2537689794",
+            licenseName: "CC BY 2.0",
+            license: "https://creativecommons.org/licenses/by/2.0/"
+        ),
+        BeerArtworkCredit(
+            beer: "Goose Island",
+            attribution: "Ruth Hartnup, 'Goose Island Beer Co. logo' - resized",
+            source: "https://commons.wikimedia.org/wiki/File:Goose_Island_Beer_Co._logo_(31478241163).jpg",
+            licenseName: "CC BY 2.0",
+            license: "https://creativecommons.org/licenses/by/2.0/"
+        )
+    ]
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(credits) { credit in
+                    VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                        Text(credit.beer)
+                            .font(SipTypography.headline)
+                        Text(credit.attribution)
+                            .font(SipTypography.caption)
+                            .foregroundColor(SipColors.textSecondary)
+                        HStack(spacing: SipSpacing.m) {
+                            Link("Source", destination: URL(string: credit.source)!)
+                            if let licenseName = credit.licenseName,
+                               let license = credit.license {
+                                Link(licenseName, destination: URL(string: license)!)
+                            }
+                        }
+                        .font(SipTypography.subhead)
+                    }
+                    .padding(.vertical, SipSpacing.xs)
+                }
+            } footer: {
+                Text("CC-licensed photos were resized and recompressed for SipCheck. Adapted files remain under the listed licenses. All trademarks belong to their owners.")
+            }
+        }
+        .navigationTitle("Artwork Credits")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

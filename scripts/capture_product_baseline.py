@@ -254,11 +254,13 @@ def capture(session: CaptureSession) -> None:
         "Blank-slate purchase recall",
     )
     session.tap_id("onboardingGoToBeerTile.modelo")
+    session.tap_label("Styles")
+    session.wait_id("onboardingGoToStyle.ipa")
     session.tap_id("onboardingGoToStyle.ipa")
     session.snap(
         "primary/onboarding/06-go-to-selected.png",
         "Go-to selections",
-        "Modelo and IPA selected",
+        "Styles mode with IPA selected after a Modelo pick",
     )
     session.tap_id("onboardingPickerNext")
 

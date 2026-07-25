@@ -220,6 +220,140 @@ final class PipelineIntegrationTests: XCTestCase {
         ))
     }
 
+    func testRecommendationSettlementNeutralizesOnlyUnreliableCameraEvidence() {
+        let fuzzyCatalogGuess = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Matches your love of IPA.",
+            proposedScore: 2.5,
+            nameIsGuess: true,
+            resolvedStyle: .ipa,
+            source: .catalog,
+            isTypedInput: false,
+            isMenu: false
+        )
+        XCTAssertEqual(fuzzyCatalogGuess.verdict, .yourCall)
+        XCTAssertEqual(fuzzyCatalogGuess.score, 0)
+        XCTAssertFalse(fuzzyCatalogGuess.keepResolvedFacts)
+        XCTAssertTrue(fuzzyCatalogGuess.explanation.contains("weren't confident enough"))
+
+        let printedStyle = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Matches your love of IPA.",
+            proposedScore: 2.5,
+            nameIsGuess: true,
+            resolvedStyle: .ipa,
+            source: .labelText,
+            isTypedInput: false,
+            isMenu: false
+        )
+        XCTAssertEqual(printedStyle.verdict, .tryIt, "Printed style is sufficient even when the name is provisional")
+        XCTAssertTrue(printedStyle.keepResolvedFacts)
+
+        let trustedCatalog = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: .skipIt,
+            proposedExplanation: "You usually avoid stout.",
+            proposedScore: -5,
+            nameIsGuess: false,
+            resolvedStyle: .stout,
+            source: .catalog,
+            isTypedInput: false,
+            isMenu: false
+        )
+        XCTAssertEqual(trustedCatalog.verdict, .skipIt)
+        XCTAssertTrue(trustedCatalog.keepResolvedFacts)
+
+        let typedInput = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Matches your love of IPA.",
+            proposedScore: 2.5,
+            nameIsGuess: true,
+            resolvedStyle: .ipa,
+            source: .catalog,
+            isTypedInput: true,
+            isMenu: false
+        )
+        XCTAssertEqual(typedInput.verdict, .tryIt, "User-entered input keeps its existing behavior")
+        XCTAssertTrue(typedInput.keepResolvedFacts)
+
+        let menuWinner = ScanRecommendationSettlementPolicy.settleInitial(
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Order this.",
+            proposedScore: 3,
+            nameIsGuess: true,
+            resolvedStyle: nil,
+            source: .unresolved,
+            isTypedInput: false,
+            isMenu: true
+        )
+        XCTAssertEqual(menuWinner.verdict, .tryIt, "Menu ranking is already a settled local decision")
+    }
+
+    func testPrintedStyleDoesNotBorrowFactsFromFuzzyCatalogIdentity() {
+        let catalog = BundledCatalog(seed: [
+            (name: "Watt Strike Stout", brewery: "Wrong Turn Brewing", style: "Imperial Stout", coarse: "stout", abv: 12.0)
+        ])
+        let ocr = """
+        WATT STRIKE
+        IPA
+        """
+        let resolved = BeerResolver.resolve(recognizedText: ocr, using: catalog)
+
+        XCTAssertEqual(resolved.source, .labelText)
+        XCTAssertEqual(resolved.style, .ipa, "Printed style must beat catalog style")
+        XCTAssertEqual(resolved.abv, 12.0, "Fixture must exercise a catalog-filled ABV")
+        XCTAssertNotNil(resolved.confidence)
+        XCTAssertLessThan(resolved.confidence ?? 1, 0.9, "Fixture identity must remain provisional")
+
+        let trusted = ScanRecommendationSettlementPolicy.trustedFacts(
+            from: resolved,
+            recognizedText: ocr,
+            nameIsGuess: true,
+            isTypedInput: false
+        )
+        XCTAssertEqual(trusted.style, .ipa)
+        XCTAssertNil(trusted.abv, "Unprinted ABV from a fuzzy identity must not affect the verdict")
+        XCTAssertNil(trusted.brewery, "Fuzzy identity must not supply displayed brewery metadata")
+
+        let assessment = TasteScorer.assess(
+            name: resolved.name,
+            style: trusted.style,
+            abv: trusted.abv,
+            profile: TasteProfile(),
+            preferences: TastePreferences(
+                vibe: "",
+                adventure: "Mix It Up",
+                dislikes: [],
+                goToStyles: [BeerStyle.ipa.rawValue]
+            )
+        )
+        XCTAssertEqual(assessment.verdict, .tryIt, "Printed IPA should score without the wrong 12% ABV penalty")
+    }
+
+    func testVisibleRecommendationNeverFlipsDuringMetadataRefinement() {
+        let visible = ScanRecommendationSettlementPolicy.settleRefinement(
+            visibleVerdict: .yourCall,
+            visibleExplanation: "We weren't confident enough to call this one - trust your gut.",
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Matches your love of lager.",
+            proposedScore: 2.5,
+            freezeVisibleRecommendation: true
+        )
+
+        XCTAssertEqual(visible.verdict, .yourCall)
+        XCTAssertEqual(visible.explanation, "We weren't confident enough to call this one - trust your gut.")
+
+        let typedRefinement = ScanRecommendationSettlementPolicy.settleRefinement(
+            visibleVerdict: .yourCall,
+            visibleExplanation: "We couldn't tell the style.",
+            proposedVerdict: .tryIt,
+            proposedExplanation: "Matches your love of lager.",
+            proposedScore: 2.5,
+            freezeVisibleRecommendation: false
+        )
+        XCTAssertEqual(typedRefinement.verdict, .tryIt, "Resolved typed input keeps its existing refinement behavior")
+        XCTAssertEqual(typedRefinement.explanation, "Matches your love of lager.")
+    }
+
     func testVisualIdentityRequiresANameBeforeAcceptingFacts() {
         let styleOnly = OpenAIService.BeerExtractionResult(
             name: nil,
@@ -252,6 +386,7 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertFalse(LiveScanText.isUsable("BEER MENU"))
         XCTAssertFalse(LiveScanText.isUsable("STOUT"))
         XCTAssertFalse(LiveScanText.isUsable("12"))
+        XCTAssertEqual(LiveScanText.settlementNanoseconds, 1_200_000_000)
     }
 
     func testLiveScannerRegionStaysInsideCompactPhoneChrome() {

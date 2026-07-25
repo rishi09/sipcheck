@@ -58,7 +58,7 @@ enum OnboardingPage {
 let onboardingBeerOptions = [
     "Modelo", "Corona", "Heineken", "Blue Moon",
     "Sam Adams", "Guinness", "Sierra Nevada", "Lagunitas",
-    "Hazy Little Thing", "Coors Light", "Bud Light", "Stella Artois",
+    "Two Hearted Ale", "Coors Light", "Bud Light", "Stella Artois",
     "Allagash White", "Dogfish Head", "Stone IPA", "Goose Island"
 ]
 
@@ -357,54 +357,27 @@ private func onboardingGridColumns(
     )
 }
 
-// MARK: - Visual Beer Picker
+// MARK: - Searchable Preference Picker
 
-/// Compact, code-native product cues for onboarding. The palette and wordmark
-/// are deliberately brand-specific so a familiar can is recognizable before
-/// the user has to read a dense list of names.
-private struct OnboardingBeerBrand {
-    let top: Color
-    let bottom: Color
-    let label: Color
-    let ink: Color
-    let accent: Color
-    let mark: String
-}
-
-private func onboardingBeerBrand(for beer: String) -> OnboardingBeerBrand {
+private func onboardingBeerAssetName(for beer: String) -> String? {
     switch beer {
-    case "Modelo":
-        return OnboardingBeerBrand(top: Color(hex: "#E7D5A6"), bottom: Color(hex: "#B9903C"), label: Color(hex: "#F5E9C8"), ink: Color(hex: "#18233A"), accent: Color(hex: "#C62828"), mark: "MODELO")
-    case "Corona":
-        return OnboardingBeerBrand(top: Color(hex: "#F6E6A7"), bottom: Color(hex: "#D4A72C"), label: Color(hex: "#F8F1D7"), ink: Color(hex: "#163B69"), accent: Color(hex: "#D4A72C"), mark: "CORONA")
-    case "Heineken":
-        return OnboardingBeerBrand(top: Color(hex: "#168544"), bottom: Color(hex: "#075A2C"), label: Color(hex: "#F2F0DF"), ink: Color(hex: "#075A2C"), accent: Color(hex: "#D9272E"), mark: "HEINEKEN")
-    case "Blue Moon":
-        return OnboardingBeerBrand(top: Color(hex: "#214B83"), bottom: Color(hex: "#102B52"), label: Color(hex: "#E7EDF4"), ink: Color(hex: "#14335F"), accent: Color(hex: "#F18A2A"), mark: "BLUE\nMOON")
-    case "Sam Adams":
-        return OnboardingBeerBrand(top: Color(hex: "#133C67"), bottom: Color(hex: "#09223E"), label: Color(hex: "#F4E9D3"), ink: Color(hex: "#12355B"), accent: Color(hex: "#B4292E"), mark: "SAM\nADAMS")
-    case "Guinness":
-        return OnboardingBeerBrand(top: Color(hex: "#26221D"), bottom: Color(hex: "#090909"), label: Color(hex: "#E8D6A3"), ink: Color(hex: "#15100B"), accent: Color(hex: "#C9A24B"), mark: "GUINNESS")
-    case "Sierra Nevada":
-        return OnboardingBeerBrand(top: Color(hex: "#30653A"), bottom: Color(hex: "#173B23"), label: Color(hex: "#E8D8A4"), ink: Color(hex: "#23462A"), accent: Color(hex: "#C56D2E"), mark: "SIERRA\nNEVADA")
-    case "Lagunitas":
-        return OnboardingBeerBrand(top: Color(hex: "#F0E8D6"), bottom: Color(hex: "#C8B998"), label: Color(hex: "#F6F1E6"), ink: Color(hex: "#17304C"), accent: Color(hex: "#B5202A"), mark: "LAGUNITAS")
-    case "Hazy Little Thing":
-        return OnboardingBeerBrand(top: Color(hex: "#58B9A7"), bottom: Color(hex: "#277C75"), label: Color(hex: "#F0B52E"), ink: Color(hex: "#173F3A"), accent: Color(hex: "#F6D66A"), mark: "HAZY\nLITTLE")
-    case "Coors Light":
-        return OnboardingBeerBrand(top: Color(hex: "#E8EAEC"), bottom: Color(hex: "#AEB5BC"), label: Color(hex: "#F6F6F3"), ink: Color(hex: "#A4232C"), accent: Color(hex: "#4E7EA7"), mark: "COORS")
-    case "Bud Light":
-        return OnboardingBeerBrand(top: Color(hex: "#1A69B7"), bottom: Color(hex: "#084B8D"), label: Color(hex: "#E9F2F8"), ink: Color(hex: "#145B9F"), accent: Color(hex: "#F5F3F0"), mark: "BUD\nLIGHT")
-    case "Stella Artois":
-        return OnboardingBeerBrand(top: Color(hex: "#F0E6CF"), bottom: Color(hex: "#CDBE9E"), label: Color(hex: "#F5EFE2"), ink: Color(hex: "#9C1F27"), accent: Color(hex: "#C79C32"), mark: "STELLA")
-    case "Allagash White":
-        return OnboardingBeerBrand(top: Color(hex: "#3E7EB5"), bottom: Color(hex: "#22527D"), label: Color(hex: "#F0E0A8"), ink: Color(hex: "#204E78"), accent: Color(hex: "#E6AD31"), mark: "ALLAGASH")
-    case "Dogfish Head":
-        return OnboardingBeerBrand(top: Color(hex: "#476B3E"), bottom: Color(hex: "#223B27"), label: Color(hex: "#1C1C1C"), ink: Color(hex: "#F29A38"), accent: Color(hex: "#F29A38"), mark: "DOGFISH")
-    case "Stone IPA":
-        return OnboardingBeerBrand(top: Color(hex: "#252525"), bottom: Color(hex: "#090909"), label: Color(hex: "#147A5A"), ink: Color(hex: "#F3F1E8"), accent: Color(hex: "#58B98E"), mark: "STONE")
-    default: // Goose Island
-        return OnboardingBeerBrand(top: Color(hex: "#23735B"), bottom: Color(hex: "#104B3B"), label: Color(hex: "#F3E9C9"), ink: Color(hex: "#175A47"), accent: Color(hex: "#E2B52D"), mark: "GOOSE")
+    case "Modelo": return "BeerBrandModelo"
+    case "Corona": return "BeerBrandCorona"
+    case "Heineken": return "BeerBrandHeineken"
+    case "Blue Moon": return "BeerBrandBlueMoon"
+    case "Sam Adams": return "BeerBrandSamAdams"
+    case "Guinness": return "BeerBrandGuinness"
+    case "Sierra Nevada": return "BeerBrandSierraNevada"
+    case "Lagunitas": return "BeerBrandLagunitas"
+    case "Two Hearted Ale": return "BeerBrandTwoHearted"
+    case "Coors Light": return "BeerBrandCoorsLight"
+    case "Bud Light": return "BeerBrandBudLight"
+    case "Stella Artois": return "BeerBrandStellaArtois"
+    case "Allagash White": return "BeerBrandAllagashWhite"
+    case "Dogfish Head": return "BeerBrandDogfishHead"
+    case "Stone IPA": return "BeerBrandStoneIPA"
+    case "Goose Island": return "BeerBrandGooseIsland"
+    default: return nil
     }
 }
 
@@ -412,59 +385,6 @@ private func onboardingAccessibilitySlug(_ value: String) -> String {
     value.lowercased()
         .replacingOccurrences(of: "&", with: "and")
         .replacingOccurrences(of: " ", with: "-")
-}
-
-private struct OnboardingBeerCan: View {
-    let beer: String
-
-    private var brand: OnboardingBeerBrand { onboardingBeerBrand(for: beer) }
-
-    var body: some View {
-        let can = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        ZStack {
-            can.fill(
-                LinearGradient(
-                    colors: [brand.top, brand.bottom],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-
-            VStack(spacing: 0) {
-                Capsule()
-                    .fill(SipColors.textPrimary.opacity(0.4))
-                    .frame(width: 34, height: 3)
-                    .padding(.top, 4)
-                Spacer()
-                Capsule()
-                    .fill(SipColors.background.opacity(0.28))
-                    .frame(width: 34, height: 3)
-                    .padding(.bottom, 4)
-            }
-
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(brand.label)
-                .frame(width: 44, height: 35)
-                .overlay {
-                    Text(brand.mark)
-                        .font(SipTypography.caption.weight(.black))
-                        .foregroundColor(brand.ink)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(brand.mark.contains("\n") ? 2 : 1)
-                        .minimumScaleFactor(0.5)
-                        .padding(.horizontal, 2)
-                }
-
-            Circle()
-                .fill(brand.accent)
-                .frame(width: 9, height: 9)
-                .offset(x: 18, y: -27)
-        }
-        .frame(width: 54, height: 78)
-        .clipShape(can)
-        .overlay(can.strokeBorder(SipColors.textPrimary.opacity(0.18), lineWidth: 1))
-        .accessibilityHidden(true)
-    }
 }
 
 private struct OnboardingBeerTile: View {
@@ -477,21 +397,36 @@ private struct OnboardingBeerTile: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: SipSpacing.s) {
-                OnboardingBeerCan(beer: beer)
+            HStack(spacing: SipSpacing.s) {
+                Group {
+                    if let assetName = onboardingBeerAssetName(for: beer) {
+                        Image(assetName)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: "mug.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .padding(SipSpacing.s)
+                            .foregroundColor(SipColors.accent)
+                    }
+                }
+                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 76 : 56,
+                           height: dynamicTypeSize.isAccessibilitySize ? 76 : 60)
+                    .accessibilityHidden(true)
 
                 Text(beer)
                     .font(SipTypography.caption.weight(.semibold))
-                    .foregroundColor(isSelected ? SipColors.textPrimary : SipColors.textSecondary)
-                    .multilineTextAlignment(.center)
+                    .foregroundColor(SipColors.textPrimary)
+                    .multilineTextAlignment(.leading)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 2)
-                    .minimumScaleFactor(0.75)
-                    .frame(maxWidth: .infinity, minHeight: dynamicTypeSize.isAccessibilitySize ? 48 : 34)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, SipSpacing.s)
-            .padding(.vertical, SipSpacing.s)
-            .frame(width: dynamicTypeSize.isAccessibilitySize ? 118 : 102,
-                   height: dynamicTypeSize.isAccessibilitySize ? 158 : 132)
+            .padding(SipSpacing.s)
+            .frame(maxWidth: .infinity,
+                   minHeight: dynamicTypeSize.isAccessibilitySize ? 104 : 88,
+                   alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected ? SipColors.accentSubtle : SipColors.surface)
@@ -521,61 +456,199 @@ private struct OnboardingBeerTile: View {
     }
 }
 
-private struct OnboardingBeerCarousel: View {
-    let selectedBeers: Set<String>
+private struct OnboardingStyleTile: View {
+    let style: BeerStyle
+    let isSelected: Bool
     let accessibilityPrefix: String
-    let onToggle: (String) -> Void
+    let action: () -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: SipSpacing.s) {
-                ForEach(onboardingBeerOptions, id: \.self) { beer in
-                    OnboardingBeerTile(
-                        beer: beer,
-                        isSelected: selectedBeers.contains(beer),
-                        accessibilityPrefix: accessibilityPrefix
-                    ) {
-                        onToggle(beer)
-                    }
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(styleChipLabel(style))
+                    .font(SipTypography.subhead.weight(.semibold))
+                    .foregroundColor(SipColors.textPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                if let anchor = styleChipAnchor(style) {
+                    Text(anchor)
+                        .font(SipTypography.caption)
+                        .foregroundColor(SipColors.textSecondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
             }
-            .padding(.vertical, 2)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+            .padding(.horizontal, SipSpacing.m)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? SipColors.accentSubtle : SipColors.surface)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(isSelected ? SipColors.accent : SipColors.textSecondary.opacity(0.2),
+                                  lineWidth: isSelected ? 2 : 1)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(SipTypography.subhead)
+                        .foregroundStyle(SipColors.background, SipColors.accent)
+                        .padding(6)
+                }
+            }
         }
+        .buttonStyle(PlainButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("\(styleChipLabel(style)), \(styleChipAnchor(style) ?? "beer style")")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityHint("Double tap to \(isSelected ? "remove" : "select")")
+        .accessibilityIdentifier("\(accessibilityPrefix).\(onboardingAccessibilitySlug(style.rawValue))")
     }
 }
 
-private struct OnboardingStyleStrip: View {
+private enum OnboardingPreferenceMode: String, CaseIterable, Identifiable {
+    case beers = "Beers"
+    case styles = "Styles"
+
+    var id: String { rawValue }
+}
+
+private struct OnboardingPreferencePicker: View {
+    let selectedBeers: Set<String>
     let selectedStyles: Set<BeerStyle>
-    let accessibilityPrefix: String
-    let onToggle: (BeerStyle) -> Void
+    let beerAccessibilityPrefix: String
+    let styleAccessibilityPrefix: String
+    let modeAccessibilityID: String
+    let searchAccessibilityID: String
+    let onToggleBeer: (String) -> Void
+    let onToggleStyle: (BeerStyle) -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @FocusState private var searchIsFocused: Bool
+    @State private var mode: OnboardingPreferenceMode = .beers
+    @State private var beerSearchText = ""
+    @State private var styleSearchText = ""
 
-    private var rows: [GridItem] {
-        let rowCount = dynamicTypeSize.isAccessibilitySize ? 1 : 2
-        return Array(repeating: GridItem(.fixed(dynamicTypeSize.isAccessibilitySize ? 68 : 48), spacing: SipSpacing.s),
-                     count: rowCount)
+    private var searchText: Binding<String> {
+        Binding(
+            get: { mode == .beers ? beerSearchText : styleSearchText },
+            set: { newValue in
+                if mode == .beers {
+                    beerSearchText = newValue
+                } else {
+                    styleSearchText = newValue
+                }
+            }
+        )
+    }
+
+    private var query: String {
+        searchText.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var filteredBeers: [String] {
+        guard !query.isEmpty else { return onboardingBeerOptions }
+        return onboardingBeerOptions.filter { $0.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var filteredStyles: [BeerStyle] {
+        guard !query.isEmpty else { return onboardingStyleChips }
+        return onboardingStyleChips.filter { style in
+            style.rawValue.localizedCaseInsensitiveContains(query)
+                || styleChipLabel(style).localizedCaseInsensitiveContains(query)
+                || (styleChipAnchor(style)?.localizedCaseInsensitiveContains(query) ?? false)
+        }
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHGrid(rows: rows, spacing: SipSpacing.s) {
-                ForEach(onboardingStyleChips, id: \.self) { style in
-                    ChipButton(
-                        label: styleChipLabel(style),
-                        isSelected: selectedStyles.contains(style),
-                        anchorCaption: styleChipAnchor(style),
-                        fillsAvailableWidth: true
-                    ) {
-                        onToggle(style)
-                    }
-                    .frame(width: dynamicTypeSize.isAccessibilitySize ? 176 : 152)
-                    .accessibilityIdentifier("\(accessibilityPrefix).\(onboardingAccessibilitySlug(style.rawValue))")
+        VStack(alignment: .leading, spacing: SipSpacing.m) {
+            Picker("Browse", selection: $mode) {
+                ForEach(OnboardingPreferenceMode.allCases) { option in
+                    Text(option.rawValue).tag(option)
                 }
             }
-            .padding(.vertical, 2)
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier(modeAccessibilityID)
+            .onChange(of: mode) { _, _ in
+                searchIsFocused = false
+            }
+
+            HStack(spacing: SipSpacing.s) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(SipColors.textSecondary)
+                    .accessibilityHidden(true)
+                TextField(mode == .beers ? "Search beers" : "Search styles", text: searchText)
+                    .font(SipTypography.body)
+                    .foregroundColor(SipColors.textPrimary)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($searchIsFocused)
+                    .accessibilityIdentifier(searchAccessibilityID)
+                if !searchText.wrappedValue.isEmpty {
+                    Button {
+                        searchText.wrappedValue = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(SipColors.textSecondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, SipSpacing.m)
+            .frame(minHeight: 48)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(SipColors.surfaceElevated)
+            )
+
+            if mode == .beers {
+                if filteredBeers.isEmpty {
+                    emptyResults("No matching beers")
+                } else {
+                    LazyVGrid(
+                        columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
+                        spacing: SipSpacing.s
+                    ) {
+                        ForEach(filteredBeers, id: \.self) { beer in
+                            OnboardingBeerTile(
+                                beer: beer,
+                                isSelected: selectedBeers.contains(beer),
+                                accessibilityPrefix: beerAccessibilityPrefix
+                            ) {
+                                onToggleBeer(beer)
+                            }
+                        }
+                    }
+                }
+            } else if filteredStyles.isEmpty {
+                emptyResults("No matching styles")
+            } else {
+                LazyVGrid(
+                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
+                    spacing: SipSpacing.s
+                ) {
+                    ForEach(filteredStyles, id: \.self) { style in
+                        OnboardingStyleTile(
+                            style: style,
+                            isSelected: selectedStyles.contains(style),
+                            accessibilityPrefix: styleAccessibilityPrefix
+                        ) {
+                            onToggleStyle(style)
+                        }
+                    }
+                }
+            }
         }
-        .frame(height: dynamicTypeSize.isAccessibilitySize ? 72 : 106)
+    }
+
+    private func emptyResults(_ message: String) -> some View {
+        Text(message)
+            .font(SipTypography.subhead)
+            .foregroundColor(SipColors.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: 88)
     }
 }
 
@@ -801,27 +874,16 @@ private struct GoToPickerPage: View {
             // Skip never writes — real picks were already written through.
             quietAction: onAdvance
         ) {
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Beers")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                OnboardingBeerCarousel(
-                    selectedBeers: selectedBeers,
-                    accessibilityPrefix: "onboardingGoToBeerTile",
-                    onToggle: toggleBeer
-                )
-            }
-
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Styles")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                OnboardingStyleStrip(
-                    selectedStyles: selectedGoToStyles,
-                    accessibilityPrefix: "onboardingGoToStyle",
-                    onToggle: toggleStyle
-                )
-            }
+            OnboardingPreferencePicker(
+                selectedBeers: selectedBeers,
+                selectedStyles: selectedGoToStyles,
+                beerAccessibilityPrefix: "onboardingGoToBeerTile",
+                styleAccessibilityPrefix: "onboardingGoToStyle",
+                modeAccessibilityID: "onboardingGoToMode",
+                searchAccessibilityID: "onboardingGoToSearch",
+                onToggleBeer: toggleBeer,
+                onToggleStyle: toggleStyle
+            )
         }
     }
 
@@ -946,27 +1008,16 @@ private struct StayAwayPickerPage: View {
             quietAccessibilityID: "onboardingStayAwaySkip",
             quietAction: clearAvoidsAndAdvance
         ) {
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Beers")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                OnboardingBeerCarousel(
-                    selectedBeers: selectedAvoidBeers,
-                    accessibilityPrefix: "onboardingStayAwayBeerTile",
-                    onToggle: toggleBeer
-                )
-            }
-
-            VStack(alignment: .leading, spacing: SipSpacing.m) {
-                Text("Styles")
-                    .font(SipTypography.headline)
-                    .foregroundColor(SipColors.textPrimary)
-                OnboardingStyleStrip(
-                    selectedStyles: selectedAvoidStyles,
-                    accessibilityPrefix: "onboardingStayAwayStyle",
-                    onToggle: toggleStyle
-                )
-            }
+            OnboardingPreferencePicker(
+                selectedBeers: selectedAvoidBeers,
+                selectedStyles: selectedAvoidStyles,
+                beerAccessibilityPrefix: "onboardingStayAwayBeerTile",
+                styleAccessibilityPrefix: "onboardingStayAwayStyle",
+                modeAccessibilityID: "onboardingStayAwayMode",
+                searchAccessibilityID: "onboardingStayAwaySearch",
+                onToggleBeer: toggleBeer,
+                onToggleStyle: toggleStyle
+            )
 
             // Inline echo of the style generalization the picks resolve to
             // ("Guinness" → stouts) — confirms the avoid registered at the

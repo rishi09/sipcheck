@@ -84,7 +84,7 @@ struct TastePreferences {
         case "sam adams": return .amber
         case "guinness": return .stout
         case "sierra nevada": return .paleAle
-        case "lagunitas", "hazy little thing", "dogfish head", "stone ipa", "goose island": return .ipa
+        case "lagunitas", "hazy little thing", "two hearted ale", "dogfish head", "stone ipa", "goose island": return .ipa
         default: return nil
         }
     }

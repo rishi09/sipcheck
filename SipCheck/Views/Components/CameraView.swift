@@ -9,8 +9,8 @@ struct LiveScanCapture {
 }
 
 /// Full-screen, shutterless label/menu scanner. VisionKit continuously tracks
-/// visible text; once the transcript has held steady briefly we capture the
-/// current frame and hand both signals to the normal resolver.
+/// visible text; once the transcript has remained unchanged for 1.2 seconds we
+/// capture the current frame and hand both signals to the normal resolver.
 struct LiveScannerView: View {
     @Environment(\.dismiss) private var dismiss
     let onCapture: (LiveScanCapture) -> Void
@@ -102,6 +102,10 @@ struct LiveScannerView: View {
 /// Pure transcript cleanup kept separate from VisionKit's delegate so ordering
 /// and acceptance rules can be regression-tested without a camera.
 enum LiveScanText {
+    /// Local-only settlement window. Any transcript change cancels the pending
+    /// capture and starts this bounded dwell again with the new candidate.
+    static let settlementNanoseconds: UInt64 = 1_200_000_000
+
     static func transcript(from lines: [(text: String, bounds: CGRect)]) -> String {
         let cleaned = lines.compactMap { line -> (String, CGRect)? in
             let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -266,7 +270,7 @@ private struct LiveScannerController: UIViewControllerRepresentable {
             cancelPendingCapture()
             parent.status = "Hold steady..."
             pendingCapture = Task { [weak self, weak scanner] in
-                try? await Task.sleep(nanoseconds: 700_000_000)
+                try? await Task.sleep(nanoseconds: LiveScanText.settlementNanoseconds)
                 guard let self, let scanner, !Task.isCancelled,
                       !self.delivered, self.candidateText == text else { return }
                 self.delivered = true

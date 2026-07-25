@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "stone_ipa.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
