@@ -14,9 +14,9 @@
 </head>
 <body>
   <h1>SipCheck Privacy Policy</h1>
-  <p class="updated">Last updated: July 29, 2026</p>
+  <p class="updated">Last updated: July 30, 2026</p>
 
-  <p>SipCheck ("the app", "we") is a beer-tracking app. This policy explains what data the app handles and how. SipCheck has no user accounts and we do not operate servers that store your personal data — your data lives on your device and in your own iCloud account.</p>
+  <p>SipCheck ("the app", "we") is a beer-tracking app. This policy explains what data the app handles and how. SipCheck has no user accounts. Your journal and taste data lives on your device and in your own iCloud account; connected search queries are processed as described below.</p>
 
   <h2>What the app stores</h2>
   <p>When you use SipCheck, the app stores the information you create: beers you add, ratings, tasting notes, scan history, journal entries, and any photos you attach. This data is saved locally on your device and, if you are signed in to iCloud, synced to your <strong>private iCloud database</strong> via Apple CloudKit so it is available on your other devices.</p>
@@ -27,8 +27,9 @@
 
   <h2>AI and connected beer search</h2>
   <p>When you scan a beer, the app may send the label image and/or extracted text to third-party AI services — OpenAI, and optionally Google (Gemini) — solely to identify the beer and improve the result.</p>
-  <p>When you use connected beer search, the app sends the exact search text you enter — which may be a beer name, brewery, or description — to <a href="https://catalog.beer">Catalog.beer</a>. If that catalog does not provide a sufficiently strong or complete result, the same text may be sent to OpenAI to find current beer facts and source links. The app does not automatically attach your taste profile, ratings, history, notes, photos, name, account, or contact information to those search requests.</p>
-  <p>Use of those services is subject to their own privacy policies (<a href="https://openai.com/policies/privacy-policy">OpenAI</a>, <a href="https://policies.google.com/privacy">Google</a>).</p>
+  <p>When you use connected beer search, the app sends the exact search text you enter — which may be a beer name, brewery, or description — to the SipCheck backend. The backend sends that text to Tavily to find relevant public web sources and to Google Gemini to extract normalized beer facts from the returned evidence. Your taste profile, ratings, history, notes, photos, and location are not attached to these search requests.</p>
+  <p>If you select a search result or otherwise act on it in the app, SipCheck may save the normalized beer facts and source link with your local or private-iCloud app data. SipCheck does not add the returned web page or raw search evidence to your taste profile.</p>
+  <p>Use of those services is subject to their own privacy policies (<a href="https://openai.com/policies/privacy-policy">OpenAI</a>, <a href="https://www.tavily.com/privacy">Tavily</a>, <a href="https://policies.google.com/privacy">Google</a>).</p>
 
   <h2>What we do not do</h2>
   <p>SipCheck does not show ads, does not include third-party advertising or tracking SDKs, and does not sell your data. We do not collect analytics that identify you.</p>

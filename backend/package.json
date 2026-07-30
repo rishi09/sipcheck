@@ -1,0 +1,12 @@
+{
+  "name": "sipcheck-search-proxy",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:watch": "node --experimental-strip-types --test --watch tests/*.test.ts"
+  }
+}

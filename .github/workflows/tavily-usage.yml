@@ -1,0 +1,86 @@
+name: Tavily Usage Guard
+
+on:
+  schedule:
+    - cron: "17 16 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-usage:
+    name: Check account credits
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check Tavily usage
+        env:
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${TAVILY_API_KEY:-}" ]]; then
+            echo "::error::TAVILY_API_KEY is not configured."
+            exit 1
+          fi
+
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+
+          status="$({
+            curl --silent --show-error \
+              --output "$response" \
+              --write-out '%{http_code}' \
+              --connect-timeout 10 \
+              --max-time 30 \
+              --retry 2 \
+              --retry-all-errors \
+              --retry-delay 2 \
+              --header "Authorization: Bearer ${TAVILY_API_KEY}" \
+              --header "Accept: application/json" \
+              https://api.tavily.com/usage
+          })"
+
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Tavily usage endpoint returned HTTP ${status}."
+            exit 1
+          fi
+
+          if ! used="$(jq -er '.account.plan_usage | numbers' "$response")" ||
+             ! limit="$(jq -er '.account.plan_limit | numbers' "$response")" ||
+             ! plan="$(jq -er '.account.current_plan | strings' "$response")"; then
+            echo "::error::Tavily usage response did not contain the expected account plan fields."
+            exit 1
+          fi
+
+          if ! [[ "$used" =~ ^[0-9]+$ ]] ||
+             ! [[ "$limit" =~ ^[0-9]+$ ]] ||
+             (( limit <= 0 )); then
+            echo "::error::Tavily returned a non-finite account plan limit."
+            exit 1
+          fi
+
+          remaining=$((limit > used ? limit - used : 0))
+          percent=$((used * 100 / limit))
+
+          echo "Tavily plan: ${plan}"
+          echo "Credits used: ${used}/${limit} (${percent}%)"
+          echo "Credits remaining: ${remaining}"
+
+          {
+            echo "## Tavily usage"
+            echo
+            echo "- Plan: \`${plan}\`"
+            echo "- Used: **${used}/${limit} credits (${percent}%)**"
+            echo "- Remaining: **${remaining} credits**"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if (( used * 100 >= limit * 80 )); then
+            echo "::error::Tavily account usage is at or above 80% (${percent}%; ${remaining} credits remaining)."
+            exit 1
+          fi
+
+          echo "Tavily usage is below 80%."

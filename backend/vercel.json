@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/beer-search.ts": {
+      "maxDuration": 25
+    },
+    "api/health.ts": {
+      "maxDuration": 5
+    }
+  }
+}

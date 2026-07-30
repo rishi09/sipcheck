@@ -8,6 +8,8 @@ import Foundation
 /// }
 /// ```
 enum Config {
+    static let beerSearchEndpoint = "https://sipcheck-beer-search.vercel.app/api/beer-search"
+
     static var openAIAPIKey: String {
         return sanitized(Secrets.openAIAPIKey)
     }
