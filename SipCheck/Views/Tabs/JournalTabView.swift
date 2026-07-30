@@ -81,7 +81,11 @@ struct JournalTabView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("journalTab")
         .sheet(item: $selectedEntry) { entry in
-            JournalEntryDetailView(entry: entry, linkedVerdict: linkedVerdict(for: entry))
+            JournalEntryDetailView(
+                entry: entry,
+                linkedVerdict: linkedVerdict(for: entry),
+                linkedFactSource: linkedFactSource(for: entry)
+            )
                 .environmentObject(journalStore)
         }
         // item-driven, not isPresented + if-let: the two-state write raced the
@@ -94,7 +98,8 @@ struct JournalTabView: View {
                 style: scan.style ?? BeerStyle.other.rawValue,
                 abv: scan.abv,
                 photoFileName: scan.photoFileName,
-                scanId: scan.id
+                scanId: scan.id,
+                factSource: scan.factSource
             ))
             .environmentObject(drinkStore)
             .environmentObject(journalStore)
@@ -117,6 +122,14 @@ struct JournalTabView: View {
         return scanStore.scans.first(where: {
             $0.beerName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
         })?.verdict
+    }
+
+    /// Attribution must use the explicit scan relationship. An exact-name
+    /// fallback is acceptable for the historical verdict banner, but could
+    /// attach the wrong brewery page to a different beer with the same name.
+    private func linkedFactSource(for entry: JournalEntry) -> BeerFactSource? {
+        guard let scanId = entry.linkedScanId else { return nil }
+        return scanStore.scans.first(where: { $0.id == scanId })?.factSource
     }
 
     // MARK: - Search Bar

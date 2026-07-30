@@ -24,6 +24,9 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var wantToTry: Bool
     var linkedJournalId: UUID?
     var origin: String?
+    /// Exact remote page that grounded an explicitly selected search result.
+    /// Nil for label, bundled-catalog, and on-device-only scans.
+    var factSource: BeerFactSource?
     var lastModifiedLocal: Date
     /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).
     var isDeleted: Bool = false
@@ -40,7 +43,8 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         timestamp: Date = Date(),
         wantToTry: Bool = false,
         linkedJournalId: UUID? = nil,
-        origin: String? = nil
+        origin: String? = nil,
+        factSource: BeerFactSource? = nil
     ) {
         self.id = id
         self.beerName = beerName
@@ -54,6 +58,7 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         self.wantToTry = wantToTry
         self.linkedJournalId = linkedJournalId
         self.origin = origin
+        self.factSource = factSource
         self.lastModifiedLocal = Date()
         self.isDeleted = false
     }
@@ -61,7 +66,7 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, beerName, brand, style, abv, photoFileName, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, lastModifiedLocal, isDeleted
+        case id, beerName, brand, style, abv, photoFileName, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, factSource, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +83,13 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         wantToTry = try c.decodeIfPresent(Bool.self, forKey: .wantToTry) ?? false
         linkedJournalId = try c.decodeIfPresent(UUID.self, forKey: .linkedJournalId)
         origin = try c.decodeIfPresent(String.self, forKey: .origin)
+        do {
+            factSource = try c.decodeIfPresent(BeerFactSource.self, forKey: .factSource)
+        } catch {
+            // A malformed optional citation must not make the entire scan
+            // history unreadable; discard only that untrusted link.
+            factSource = nil
+        }
         lastModifiedLocal = try c.decodeIfPresent(Date.self, forKey: .lastModifiedLocal) ?? timestamp
         isDeleted = try c.decodeIfPresent(Bool.self, forKey: .isDeleted) ?? false
     }

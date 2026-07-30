@@ -17,6 +17,82 @@ enum VerdictProvenance {
     }
 }
 
+/// Compact attribution for a connected identity match. It deliberately sits
+/// apart from recommendation copy: the linked page grounded the beer match,
+/// while SipCheck's local scorer produced the verdict.
+struct BeerFactSourceLink: View {
+    let source: BeerFactSource
+    var linkAccessibilityIdentifier: String = "beerFactSourceLink"
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            horizontalAttribution
+            stackedAttribution
+        }
+        .font(SipTypography.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var horizontalAttribution: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            sourceLine
+            if let licenseURL = source.licenseURL {
+                Text("\u{00B7}")
+                    .foregroundColor(SipColors.textSecondary)
+                licenseLink(licenseURL)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stackedAttribution: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(sourcePrefix)
+                .foregroundColor(SipColors.textSecondary)
+            sourceLink
+            if let licenseURL = source.licenseURL {
+                licenseLink(licenseURL)
+            }
+        }
+    }
+
+    private var sourceLine: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(sourcePrefix)
+                .foregroundColor(SipColors.textSecondary)
+                .fixedSize(horizontal: true, vertical: false)
+            sourceLink
+        }
+    }
+
+    private var sourcePrefix: String {
+        source.kind == .catalogBeer ? "Beer match adapted from" : "Beer match source"
+    }
+
+    private var sourceLink: some View {
+        Link(destination: source.url) {
+            HStack(spacing: 3) {
+                Text(source.kind == .catalogBeer ? "Catalog.beer" : source.displayHost)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Image(systemName: "arrow.up.right")
+                    .accessibilityHidden(true)
+            }
+            .foregroundColor(SipColors.accent)
+        }
+        .accessibilityLabel("Open beer match source, \(source.displayHost)")
+        .accessibilityIdentifier(linkAccessibilityIdentifier)
+    }
+
+    private func licenseLink(_ url: URL) -> some View {
+        Link("CC BY 4.0", destination: url)
+            .foregroundColor(SipColors.accent)
+            .accessibilityLabel("Creative Commons Attribution 4.0 license")
+            .accessibilityIdentifier("\(linkAccessibilityIdentifier)License")
+    }
+}
+
 struct VerdictCardView: View {
     let scan: Scan
     /// Set when this beer matches one already in the user's history, so the
@@ -68,6 +144,15 @@ struct VerdictCardView: View {
                 verdictHero
                 identityBlock
                     .padding(.horizontal, SipSpacing.l)
+
+                if let factSource = scan.factSource {
+                    BeerFactSourceLink(
+                        source: factSource,
+                        linkAccessibilityIdentifier: "verdictBeerFactSource"
+                    )
+                    .padding(.horizontal, SipSpacing.xl)
+                    .padding(.top, SipSpacing.m)
+                }
 
                 // MARK: - History Capsule (highest-trust line — elevated chip, SF thumb, no raw emoji)
                 if let previous = previousDrink {
@@ -271,7 +356,8 @@ struct VerdictCardView: View {
                 abv: scan.abv,
                 capturedImage: capturedImage,
                 photoFileName: scan.photoFileName,
-                scanId: scan.id
+                scanId: scan.id,
+                factSource: scan.factSource
             ))
         }
         .accessibilityIdentifier("verdictCard")

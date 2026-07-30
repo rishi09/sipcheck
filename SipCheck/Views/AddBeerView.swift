@@ -15,6 +15,33 @@ struct AddBeerPrefill: Identifiable {
     var photoFileName: String? = nil
     /// When this log originated from a scan, the scan's id so the two can be linked.
     var scanId: UUID? = nil
+    /// Remote match source, shown read-only while the prefilled identity remains intact.
+    var factSource: BeerFactSource? = nil
+}
+
+enum BeerFactSourceRetentionPolicy {
+    static func matches(
+        prefill: AddBeerPrefill,
+        name: String,
+        brand: String,
+        style: String,
+        abv: Double?
+    ) -> Bool {
+        guard prefill.factSource != nil,
+              BeerDiscoveryText.normalize(prefill.name) == BeerDiscoveryText.normalize(name),
+              BeerDiscoveryText.normalize(prefill.brand) == BeerDiscoveryText.normalize(brand),
+              BeerDiscoveryText.normalize(prefill.style) == BeerDiscoveryText.normalize(style) else {
+            return false
+        }
+        switch (prefill.abv, abv) {
+        case (nil, nil):
+            return true
+        case let (expected?, actual?):
+            return abs(expected - actual) <= 0.051
+        default:
+            return false
+        }
+    }
 }
 
 struct AddBeerView: View {
@@ -70,6 +97,27 @@ struct AddBeerView: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    private var activeFactSource: BeerFactSource? {
+        guard let prefill,
+              BeerFactSourceRetentionPolicy.matches(
+                prefill: prefill,
+                name: name,
+                brand: brand,
+                style: style,
+                abv: Double(abvText)
+              ) else { return nil }
+        return prefill.factSource
+    }
+
+    private var activeLinkedScanID: UUID? {
+        guard let prefill else { return nil }
+        // Non-remote scans retain the historical link. For a sourced search
+        // result, editing any cited identity/fact makes it a new manual entry.
+        return prefill.factSource == nil || activeFactSource != nil
+            ? prefill.scanId
+            : nil
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -122,6 +170,18 @@ struct AddBeerView: View {
                     Text("Details")
                 }
                 .listRowBackground(SipColors.surface)
+
+                if let factSource = activeFactSource {
+                    Section {
+                        BeerFactSourceLink(
+                            source: factSource,
+                            linkAccessibilityIdentifier: "addBeerFactSource"
+                        )
+                    } header: {
+                        Text("Source")
+                    }
+                    .listRowBackground(SipColors.surface)
+                }
 
                 // Rating section
                 Section {
@@ -368,8 +428,18 @@ struct AddBeerView: View {
         isSaving = true
 
         let drinkId = UUID()
-        let abv = Double(abvText)
+        // Snapshot the form and source-link decision as one unit before photo
+        // work suspends. Edits during that await must not pair new facts with
+        // the old cited scan.
+        let savedName = name.trimmingCharacters(in: .whitespaces)
+        let savedBrand = brand.trimmingCharacters(in: .whitespaces)
+        let savedStyle = style
+        let savedRating = rating
+        let savedType = drinkType
+        let savedNotes = notes.isEmpty ? nil : notes
+        let savedABV = Double(abvText)
         let imageCopy = capturedImage
+        let linkedScanID = activeLinkedScanID
 
         Task {
             var photoFileName: String?
@@ -379,32 +449,32 @@ struct AddBeerView: View {
 
             let drink = Drink(
                 id: drinkId,
-                name: name.trimmingCharacters(in: .whitespaces),
-                brand: brand.trimmingCharacters(in: .whitespaces),
-                style: style,
-                rating: rating,
-                type: drinkType,
-                notes: notes.isEmpty ? nil : notes,
+                name: savedName,
+                brand: savedBrand,
+                style: savedStyle,
+                rating: savedRating,
+                type: savedType,
+                notes: savedNotes,
                 photoFileName: photoFileName,
-                abv: abv
+                abv: savedABV
             )
 
             // Mirror into the journal so it appears in the Journal tab's "Tried" list
             let journalRating: Int
-            switch rating {
+            switch savedRating {
             case .like:    journalRating = 5
             case .neutral: journalRating = 3
             case .dislike: journalRating = 1
             }
             let entry = JournalEntry(
-                beerName: name.trimmingCharacters(in: .whitespaces),
-                brand: brand.trimmingCharacters(in: .whitespaces),
-                style: style,
-                abv: abv,
+                beerName: savedName,
+                brand: savedBrand,
+                style: savedStyle,
+                abv: savedABV,
                 rating: journalRating,
-                notes: notes.isEmpty ? nil : notes,
+                notes: savedNotes,
                 photoFileName: photoFileName,
-                linkedScanId: prefill?.scanId
+                linkedScanId: linkedScanID
             )
 
             await MainActor.run {
@@ -413,7 +483,7 @@ struct AddBeerView: View {
                 scanStore.markTried(
                     beerName: drink.name,
                     linkedJournalId: entry.id,
-                    sourceScanId: prefill?.scanId
+                    sourceScanId: linkedScanID
                 )
                 dismiss()
             }

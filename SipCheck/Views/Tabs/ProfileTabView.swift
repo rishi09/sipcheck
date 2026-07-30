@@ -502,6 +502,13 @@ private struct RecentScanDetailView: View {
                 )
             }
 
+            if let factSource = scan.factSource {
+                BeerFactSourceLink(
+                    source: factSource,
+                    linkAccessibilityIdentifier: "recentScanBeerFactSource"
+                )
+            }
+
             detailRow(
                 label: "Scanned",
                 value: formattedScanDate,

@@ -173,6 +173,10 @@ struct CheckTabView: View {
     @State private var pendingLiveScanText: String?
     @State private var showingTextEntry = false
     @State private var textEntryInput = ""
+    @State private var discoverySuggestions: [BeerDiscoveryCandidate] = []
+    @State private var isDiscoveringBeers = false
+    @State private var beerDiscoveryGeneration = 0
+    @State private var beerDiscoveryTask: Task<Void, Never>?
 
     // Scan flow state
     @State private var phase: ScanPhase = .idle
@@ -491,6 +495,7 @@ struct CheckTabView: View {
 
     private var textEntrySheet: some View {
         let searchState = textEntrySearchState
+        let remoteSuggestions = visibleDiscoverySuggestions(excluding: searchState.suggestions)
         return NavigationStack {
             ScrollView {
                 VStack(spacing: SipSpacing.xl) {
@@ -507,10 +512,12 @@ struct CheckTabView: View {
                     }
                     .padding(.horizontal)
 
-                    // The exact typed action stays first and visible. Catalog
-                    // suggestions follow as optional accelerators; the whole
-                    // result area scrolls on compact phones above the keyboard.
-                    if !searchState.suggestions.isEmpty || searchState.customQuery != nil {
+                    // Exact input remains the immediate action. Local and
+                    // connected matches are optional, brewery-qualified choices.
+                    if !searchState.suggestions.isEmpty
+                        || !remoteSuggestions.isEmpty
+                        || searchState.customQuery != nil
+                        || isDiscoveringBeers {
                         VStack(alignment: .leading, spacing: 0) {
                             if let customQuery = searchState.customQuery {
                                 Button {
@@ -534,7 +541,9 @@ struct CheckTabView: View {
                                 .accessibilityLabel("Check exact beer name \(customQuery)")
                                 .accessibilityIdentifier("customBeerResult")
 
-                                if !searchState.suggestions.isEmpty {
+                                if !searchState.suggestions.isEmpty
+                                    || !remoteSuggestions.isEmpty
+                                    || isDiscoveringBeers {
                                     Divider()
                                         .background(SipColors.textSecondary.opacity(0.2))
                                         .padding(.leading, SipSpacing.m)
@@ -570,11 +579,63 @@ struct CheckTabView: View {
                                 .buttonStyle(.plain)
                                 .accessibilityIdentifier("suggestionRow_\(index)")
 
-                                if index < searchState.suggestions.count - 1 {
+                                if index < searchState.suggestions.count - 1
+                                    || !remoteSuggestions.isEmpty
+                                    || isDiscoveringBeers {
                                     Divider()
                                         .background(SipColors.textSecondary.opacity(0.2))
                                         .padding(.leading, SipSpacing.m)
                                 }
+                            }
+
+                            if isDiscoveringBeers {
+                                HStack(spacing: SipSpacing.m) {
+                                    ProgressView()
+                                        .tint(SipColors.accent)
+                                    Text("Searching more beers\u{2026}")
+                                        .font(SipTypography.caption)
+                                        .foregroundColor(SipColors.textSecondary)
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.vertical, SipSpacing.s)
+                                .padding(.horizontal, SipSpacing.m)
+                                .accessibilityElement(children: .combine)
+                                .accessibilityIdentifier("beerDiscoveryProgress")
+
+                                if !remoteSuggestions.isEmpty {
+                                    Divider()
+                                        .background(SipColors.textSecondary.opacity(0.2))
+                                        .padding(.leading, SipSpacing.m)
+                                }
+                            }
+
+                            ForEach(Array(remoteSuggestions.enumerated()), id: \.element.id) { index, suggestion in
+                                discoverySuggestionRow(suggestion, index: index)
+
+                                if index < remoteSuggestions.count - 1 {
+                                    Divider()
+                                        .background(SipColors.textSecondary.opacity(0.2))
+                                        .padding(.leading, SipSpacing.m)
+                                }
+                            }
+
+                            if remoteSuggestions.contains(where: { $0.source == .catalogBeer }) {
+                                Divider()
+                                    .background(SipColors.textSecondary.opacity(0.2))
+                                HStack(spacing: 4) {
+                                    Text("Data:")
+                                    Link("Catalog.beer", destination: URL(string: "https://catalog.beer")!)
+                                    Text("\u{00B7}")
+                                    Link(
+                                        "CC BY 4.0",
+                                        destination: URL(string: "https://creativecommons.org/licenses/by/4.0/")!
+                                    )
+                                    Spacer(minLength: 0)
+                                }
+                                .font(SipTypography.caption)
+                                .foregroundColor(SipColors.textSecondary)
+                                .padding(.vertical, SipSpacing.s)
+                                .padding(.horizontal, SipSpacing.m)
                             }
                         }
                         .background(
@@ -582,7 +643,10 @@ struct CheckTabView: View {
                                 .fill(SipColors.surfaceElevated)
                         )
                         .padding(.horizontal)
-                        .animation(.snappy(duration: 0.25), value: searchState.suggestions.map(\.name))
+                        .animation(
+                            .snappy(duration: 0.25),
+                            value: searchState.suggestions.map(\.name) + remoteSuggestions.map(\.id)
+                        )
                     }
                 }
                 .padding(.top, SipSpacing.xl)
@@ -608,17 +672,167 @@ struct CheckTabView: View {
             // never raw #1A1A1E (round-2 crit #8) and never system/pure-#000.
             // The input well + suggestion card use surfaceElevated on top.
             .background(SipColors.surface.ignoresSafeArea())
+            .onChange(of: textEntryInput) { _, newValue in
+                scheduleBeerDiscovery(for: newValue)
+            }
+            .onDisappear {
+                cancelBeerDiscovery()
+                // A swipe-to-dismiss must not leave a stale query that cannot
+                // trigger onChange when the sheet is opened again.
+                textEntryInput = ""
+            }
             .navigationTitle("Enter Beer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        cancelBeerDiscovery()
                         textEntryInput = ""
                         showingTextEntry = false
                     }
                 }
             }
         }
+    }
+
+    private func visibleDiscoverySuggestions(
+        excluding localSuggestions: [ResolvedBeer]
+    ) -> [BeerDiscoveryCandidate] {
+        let localKeys = Set(localSuggestions.map {
+            discoveryIdentityKey(name: $0.name, brewery: $0.brewery)
+        })
+        var seen = localKeys
+        return discoverySuggestions.filter { candidate in
+            seen.insert(discoveryIdentityKey(name: candidate.name, brewery: candidate.brewery)).inserted
+        }
+    }
+
+    private func discoveryIdentityKey(name: String, brewery: String?) -> String {
+        "\(BeerDiscoveryText.normalize(name))|\(BeerDiscoveryText.normalize(brewery ?? ""))"
+    }
+
+    private func discoverySuggestionRow(
+        _ suggestion: BeerDiscoveryCandidate,
+        index: Int
+    ) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                submitDiscoverySuggestion(suggestion)
+            } label: {
+                HStack(spacing: SipSpacing.m) {
+                    Image(systemName: "globe.americas")
+                        .font(SipTypography.caption)
+                        .foregroundColor(SipColors.textSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(suggestion.name)
+                            .font(SipTypography.subhead)
+                            .foregroundColor(SipColors.textPrimary)
+                            .lineLimit(1)
+                        if let detail = discoverySuggestionDetail(suggestion) {
+                            Text(detail)
+                                .font(SipTypography.caption)
+                                .foregroundColor(SipColors.textSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, SipSpacing.s)
+                .padding(.leading, SipSpacing.m)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Check \(suggestion.name) by \(suggestion.brewery ?? "unknown brewery")")
+            .accessibilityValue("Source: \(suggestion.attributionLabel)")
+            .accessibilityIdentifier("remoteSuggestionRow_\(index)")
+
+            Link(destination: suggestion.sourceURL) {
+                HStack(spacing: 3) {
+                    Text(suggestion.attributionLabel)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Image(systemName: "arrow.up.right")
+                }
+                .font(SipTypography.caption)
+                .foregroundColor(SipColors.accent)
+                .frame(maxWidth: 108)
+                .padding(.horizontal, SipSpacing.m)
+                .frame(minHeight: 44)
+            }
+            .accessibilityLabel("Open source \(suggestion.attributionLabel)")
+            .accessibilityIdentifier("remoteSuggestionSource_\(index)")
+        }
+    }
+
+    private func discoverySuggestionDetail(_ beer: BeerDiscoveryCandidate) -> String? {
+        var parts: [String] = []
+        if let brewery = beer.brewery, !brewery.isEmpty { parts.append(brewery) }
+        if let style = beer.styleName, !style.isEmpty {
+            parts.append(style)
+        } else if let style = beer.beerStyle {
+            parts.append(style.rawValue)
+        }
+        if let abv = beer.abv {
+            let format = abv.rounded() == abv ? "%.0f%% ABV" : "%.1f%% ABV"
+            parts.append(String(format: format, abv))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
+    }
+
+    private func scheduleBeerDiscovery(for rawQuery: String) {
+        beerDiscoveryGeneration += 1
+        let generation = beerDiscoveryGeneration
+        beerDiscoveryTask?.cancel()
+        beerDiscoveryTask = nil
+        discoverySuggestions = []
+        isDiscoveringBeers = false
+
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = BeerDiscoveryText.normalize(query)
+        guard normalized.count >= 3 else { return }
+
+        beerDiscoveryTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled,
+                      generation == beerDiscoveryGeneration,
+                      showingTextEntry,
+                      BeerDiscoveryText.normalize(textEntryInput) == normalized else { return }
+                isDiscoveringBeers = true
+
+                let results = try await BeerDiscoveryService.shared.search(
+                    query: query,
+                    limit: 6
+                ) { catalogResults in
+                    await MainActor.run {
+                        guard !Task.isCancelled,
+                              generation == beerDiscoveryGeneration,
+                              showingTextEntry,
+                              BeerDiscoveryText.normalize(textEntryInput) == normalized else { return }
+                        discoverySuggestions = catalogResults
+                    }
+                }
+                guard !Task.isCancelled,
+                      generation == beerDiscoveryGeneration,
+                      showingTextEntry,
+                      BeerDiscoveryText.normalize(textEntryInput) == normalized else { return }
+                discoverySuggestions = results
+            } catch {
+                // Exact input and local matches remain usable on every failure.
+            }
+
+            guard generation == beerDiscoveryGeneration else { return }
+            isDiscoveringBeers = false
+            beerDiscoveryTask = nil
+        }
+    }
+
+    private func cancelBeerDiscovery() {
+        beerDiscoveryGeneration += 1
+        beerDiscoveryTask?.cancel()
+        beerDiscoveryTask = nil
+        discoverySuggestions = []
+        isDiscoveringBeers = false
     }
 
     /// Compute discovery suggestions once per sheet render. The user's exact
@@ -646,15 +860,24 @@ struct CheckTabView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " \u{00B7} ")
     }
 
-    /// Tapped suggestion: same exit path as submit, but with the canonical
-    /// catalog name (which then exact-hits the catalog in the resolver).
+    /// A suggestion is an explicit identity choice; its known facts enter the
+    /// same local scorer as every other typed beer.
     private func submitSuggestion(_ suggestion: ResolvedBeer) {
+        cancelBeerDiscovery()
         showingTextEntry = false
         textEntryInput = ""
         runScan(text: suggestion.name, selectedCatalogBeer: suggestion)
     }
 
+    private func submitDiscoverySuggestion(_ suggestion: BeerDiscoveryCandidate) {
+        cancelBeerDiscovery()
+        showingTextEntry = false
+        textEntryInput = ""
+        runScan(text: suggestion.name, selectedCatalogBeer: suggestion.resolvedBeer)
+    }
+
     private func submitCustomBeer(_ name: String) {
+        cancelBeerDiscovery()
         showingTextEntry = false
         textEntryInput = ""
         runScan(text: name)
@@ -663,6 +886,7 @@ struct CheckTabView: View {
     private func submitTextEntry() {
         let input = textEntryInput.trimmingCharacters(in: .whitespaces)
         guard !input.isEmpty else { return }
+        cancelBeerDiscovery()
         showingTextEntry = false
         textEntryInput = ""
         runScan(text: input)
@@ -924,7 +1148,8 @@ struct CheckTabView: View {
             verdict: settled.verdict,
             explanation: settled.explanation,
             wantToTry: false,
-            origin: nil
+            origin: nil,
+            factSource: resolved.factSource
         )
         return ScanOutcome(
             scan: scan,

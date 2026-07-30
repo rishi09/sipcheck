@@ -1,8 +1,9 @@
-# Founder Design Taste Profile — FINAL v2
+# Founder Design Taste Profile — FINAL v3
 Source: founder video feedback on onboarding, 2026-07-03 (timestamped transcript), refined against
 external evidence (see plans/reports/DESIGN_INSPIRATION.md + fresh negative-preference/cold-start/copy
 research, 2026-07-03). Screens referenced = SipCheck/Views/OnboardingView.swift pages 1–5.
-This is revealed taste, not a ticket list. Run every user-facing surface through the litmus questions.
+Additional product-tradeoff feedback was incorporated on 2026-07-29. This is revealed taste, not a
+ticket list. Run every user-facing surface through the litmus questions.
 §4 bounds what this doc may be cited for.
 
 ## 1. Principles (ranked by confidence)
@@ -22,6 +23,17 @@ entire pipeline would force the screen to change, the screen is selling plumbing
 only — fast/free/offline stay locked engineering constraints, just never narrated. "Free"/"no account"
 are outcome-adjacent (safe); "on-device" is mechanism (store page at most, never in-app).
 - When in doubt: describe the moment ("know in the aisle"), never the machinery ("on-device AI").
+
+P1b corollary: constraints protect the outcome; they do not replace it — HIGH. Reliability and offline
+behavior are guardrails, not reasons to leave the core job broken. When a connected path materially
+improves the primary outcome, make that path work well and let offline mode degrade gracefully.
+- Evidence: direct search tradeoff feedback, 2026-07-29: "don't overrotate on limited network… it's a
+  constraint but not enough of a tradeoff for search to be broken."
+- Rejects: catalog-only search that misses the long-tail target customer; treating an exact raw-name
+  escape hatch as complete discovery; allowing a weak-network edge case to cap the connected product.
+- Litmus: on a normal connection, does the feature actually solve the primary job? On failure, does it
+  remain honest and usable without defining the ceiling for everyone else?
+- When in doubt: make the connected experience complete, then give it an immediate, honest fallback.
 
 ### P2. Concrete behavioral recall over taxonomy — HIGH
 Elicitation triggers memories of actual purchases, never self-classification against beer vocabulary.
@@ -108,11 +120,13 @@ The one mechanism-adjacent idea he voices — it survives P1 because it's the ou
 4. He reasons from the shopper's moment (aisle, fridge, waiter), never from app structure.
 
 ## 3. Decision shortcut (all principles, one line)
-State the outcome (P1), show it happening (P3), ask about real purchases at the poles (P2/P4/P5),
+State the outcome and let constraints protect rather than replace it (P1/P1b), show it happening
+(P3), ask about real purchases at the poles (P2/P4/P5),
 answer with a thumbs (P7), warrant it with the user's own taste (P8), in as few words as possible (P6),
 touching only flagged surfaces (P9).
 
 ## 4. What this profile does NOT license
 No signal on: color/palette, typography, motion/haptics, dark mode, journal/detail screens,
-gamification, monetization, navigation, engineering architecture. Use DESIGN_INSPIRATION.md /
-DESIGN_BASELINE_CRIT.md / DESIGN_CRIT_ROUND2.md for those. Mine future founder reviews into v3.
+gamification, monetization, navigation, or engineering architecture beyond P1b's explicit
+product-vs-reliability tradeoff. Use DESIGN_INSPIRATION.md /
+DESIGN_BASELINE_CRIT.md / DESIGN_CRIT_ROUND2.md for those. Mine future founder reviews into v4.

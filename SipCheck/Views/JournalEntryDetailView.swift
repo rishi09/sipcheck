@@ -10,14 +10,21 @@ struct JournalEntryDetailView: View {
     /// Verdict from the scan this entry was logged from, when known —
     /// display-only, used for the "We said TRY IT" loop-closer line.
     let linkedVerdict: Verdict?
+    /// Exact remote page from the explicitly linked scan only.
+    let linkedFactSource: BeerFactSource?
     @State private var rating: Int
     @State private var notes: String
     @State private var showingDeleteConfirm = false
     @ScaledMetric(relativeTo: .title) private var starSize: CGFloat = 28
 
-    init(entry: JournalEntry, linkedVerdict: Verdict? = nil) {
+    init(
+        entry: JournalEntry,
+        linkedVerdict: Verdict? = nil,
+        linkedFactSource: BeerFactSource? = nil
+    ) {
         self.entry = entry
         self.linkedVerdict = linkedVerdict
+        self.linkedFactSource = linkedFactSource
         _rating = State(initialValue: entry.rating)
         _notes = State(initialValue: entry.notes ?? "")
     }
@@ -83,6 +90,13 @@ struct JournalEntryDetailView: View {
                                 .foregroundColor(SipColors.textSecondary)
                         }
                         .padding(.top, SipSpacing.s)
+
+                        if let linkedFactSource {
+                            BeerFactSourceLink(
+                                source: linkedFactSource,
+                                linkAccessibilityIdentifier: "journalBeerFactSource"
+                            )
+                        }
 
                         // Loop-closer: what we predicted vs. how they rated it
                         if let verdict = linkedVerdict {

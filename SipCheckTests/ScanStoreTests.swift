@@ -83,13 +83,18 @@ final class ScanStoreTests: XCTestCase {
     // MARK: - Persistence
 
     func testPersistenceAcrossInstances() {
+        let source = BeerFactSource(
+            kind: .webSearch,
+            url: URL(string: "https://persistent-brewing.example/beers/persistent-ipa")!
+        )!
         let scan = Scan(
             beerName: "Persistent IPA",
             brand: "Persistent Brewing",
             style: "IPA",
             photoFileName: "scan-photo.jpg",
             verdict: .tryIt,
-            explanation: "Great"
+            explanation: "Great",
+            factSource: source
         )
         store.addScan(scan)
         store.flushPersistence()
@@ -101,6 +106,25 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(store2.scans.first?.brand, "Persistent Brewing")
         XCTAssertEqual(store2.scans.first?.photoFileName, "scan-photo.jpg")
         XCTAssertEqual(store2.scans.first?.verdict, .tryIt)
+        XCTAssertEqual(store2.scans.first?.factSource, source)
+    }
+
+    func testLegacyAndMalformedFactSourcesDoNotDiscardScan() throws {
+        let legacy = try JSONDecoder().decode(
+            Scan.self,
+            from: Data(#"{"beerName":"Legacy Beer"}"#.utf8)
+        )
+        XCTAssertEqual(legacy.beerName, "Legacy Beer")
+        XCTAssertNil(legacy.factSource)
+
+        let malformed = try JSONDecoder().decode(
+            Scan.self,
+            from: Data(
+                #"{"beerName":"Still Readable","factSource":{"kind":"webSearch","url":"http://unsafe.example/beer"}}"#.utf8
+            )
+        )
+        XCTAssertEqual(malformed.beerName, "Still Readable")
+        XCTAssertNil(malformed.factSource)
     }
 
     @MainActor
@@ -123,6 +147,23 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(store.scans.first?.brand, "Local Brewery")
         XCTAssertEqual(store.scans.first?.photoFileName, "local-photo.jpg")
         XCTAssertEqual(store.scans.first?.explanation, "Newer remote copy")
+    }
+
+    @MainActor
+    func testRemoteMergeCarriesFactSource() {
+        let local = Scan(beerName: "Synced Beer", explanation: "Local")
+        store.addScan(local)
+        let source = BeerFactSource(
+            kind: .catalogBeer,
+            url: URL(string: "https://catalog.beer/beer/synced-beer")!
+        )!
+
+        var remote = local
+        remote.factSource = source
+        remote.lastModifiedLocal = Date().addingTimeInterval(60)
+        store.applyRemoteScans([remote])
+
+        XCTAssertEqual(store.scans.first?.factSource, source)
     }
 
     func testMarkTriedClearsExactWantToTryDuplicatesAndLinksSource() {

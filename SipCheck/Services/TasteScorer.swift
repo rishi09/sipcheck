@@ -366,7 +366,7 @@ enum TasteScorer {
         (.porter,    ["porter", "schwarzbier", "black lager"]),
         (.wheat,     ["hefeweizen", "witbier", "white ale", "blanche", "wheat", "hefe"]),
         (.sour,      ["berliner", "lambic", "wild ale", "sour", "gose", "kriek", "funk"]),
-        (.amber,     ["irish red", "red ale", "amber", "marzen", "oktoberfest", "extra special", "esb"]),
+        (.amber,     ["american amber ale", "irish red", "red ale", "amber", "marzen", "oktoberfest", "extra special", "esb"]),
         (.brownAle,  ["nut brown", "brown ale", "brown"]),
         (.belgian,   ["belgian", "tripel", "dubbel", "saison", "quad", "barleywine", "barley wine"]),
     ]

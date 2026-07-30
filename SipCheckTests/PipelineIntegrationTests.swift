@@ -259,6 +259,87 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(suggestion.style, .pilsner)
     }
 
+    func testSelectedRemoteBeerPreservesItsFactSourceThroughTypedResolution() throws {
+        let source = try XCTUnwrap(BeerFactSource(
+            kind: .webSearch,
+            url: try XCTUnwrap(URL(string: "https://local-brewery.example/beers/seasonal-ipa"))
+        ))
+        let selected = ResolvedBeer(
+            name: "Seasonal IPA",
+            brewery: "Local Brewery",
+            style: .ipa,
+            abv: 6.7,
+            source: .online,
+            factSource: source
+        )
+
+        let resolved = BeerResolver.resolveTyped(
+            recognizedText: selected.name,
+            selectedCatalogBeer: selected
+        )
+
+        XCTAssertEqual(resolved.factSource, source)
+    }
+
+    func testBeerFactSourceRequiresHTTPSAndCatalogHostMatchesKind() throws {
+        XCTAssertNil(BeerFactSource(
+            kind: .webSearch,
+            url: try XCTUnwrap(URL(string: "http://local-brewery.example/beer"))
+        ))
+        XCTAssertNil(BeerFactSource(
+            kind: .catalogBeer,
+            url: try XCTUnwrap(URL(string: "https://not-catalog.example/beer/123"))
+        ))
+        XCTAssertNotNil(BeerFactSource(
+            kind: .catalogBeer,
+            url: try XCTUnwrap(URL(string: "https://catalog.beer/beer/123"))
+        ))
+    }
+
+    func testEditingSourcedPrefillClearsOnlyTheRemoteScanLink() throws {
+        let source = try XCTUnwrap(BeerFactSource(
+            kind: .webSearch,
+            url: try XCTUnwrap(URL(string: "https://local-brewery.example/beers/seasonal-ipa"))
+        ))
+        let prefill = AddBeerPrefill(
+            name: "Seasonal IPA",
+            brand: "Local Brewery",
+            style: BeerStyle.ipa.rawValue,
+            abv: 6.7,
+            scanId: UUID(),
+            factSource: source
+        )
+
+        XCTAssertTrue(BeerFactSourceRetentionPolicy.matches(
+            prefill: prefill,
+            name: "  seasonal ipa ",
+            brand: "LOCAL BREWERY",
+            style: BeerStyle.ipa.rawValue,
+            abv: 6.7
+        ))
+        XCTAssertFalse(BeerFactSourceRetentionPolicy.matches(
+            prefill: prefill,
+            name: "Different IPA",
+            brand: prefill.brand,
+            style: prefill.style,
+            abv: prefill.abv
+        ))
+        XCTAssertFalse(BeerFactSourceRetentionPolicy.matches(
+            prefill: prefill,
+            name: prefill.name,
+            brand: prefill.brand,
+            style: BeerStyle.pilsner.rawValue,
+            abv: prefill.abv
+        ))
+        XCTAssertFalse(BeerFactSourceRetentionPolicy.matches(
+            prefill: prefill,
+            name: prefill.name,
+            brand: prefill.brand,
+            style: prefill.style,
+            abv: 7.2
+        ))
+    }
+
     func testEnrichmentPolicySpendsOnlyOnUncertainScans() {
         XCTAssertFalse(EnrichmentPolicy.shouldStart(
             nameIsGuess: false,

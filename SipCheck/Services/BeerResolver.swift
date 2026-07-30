@@ -1,6 +1,66 @@
 import Foundation
 import os
 
+/// The exact remote page that supplied a selected beer identity. This is kept
+/// separate from `ResolvedBeer.Source`: that enum explains the resolver path,
+/// while this value exists so source-derived facts always retain a clickable
+/// citation and any applicable license notice.
+struct BeerFactSource: Codable, Equatable, Sendable {
+    enum Kind: String, Codable, Sendable {
+        case catalogBeer
+        case webSearch
+    }
+
+    let kind: Kind
+    let url: URL
+
+    init?(kind: Kind, url: URL) {
+        guard url.scheme?.lowercased() == "https",
+              url.user == nil,
+              url.password == nil,
+              let host = url.host?.lowercased(),
+              !host.isEmpty,
+              host != "localhost",
+              !host.hasSuffix(".local") else {
+            return nil
+        }
+        if kind == .catalogBeer, host != "catalog.beer" {
+            return nil
+        }
+        self.kind = kind
+        self.url = url
+    }
+
+    var displayHost: String {
+        guard let host = url.host?.lowercased() else { return "Source" }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    var licenseURL: URL? {
+        kind == .catalogBeer
+            ? URL(string: "https://creativecommons.org/licenses/by/4.0/")
+            : nil
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, url
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        let url = try container.decode(URL.self, forKey: .url)
+        guard let validated = BeerFactSource(kind: kind, url: url) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .url,
+                in: container,
+                debugDescription: "Beer match sources require a valid HTTPS URL"
+            )
+        }
+        self = validated
+    }
+}
+
 /// A beer resolved to just the fields the verdict needs: style (+ optional ABV).
 struct ResolvedBeer: Equatable {
     let name: String
@@ -11,6 +71,9 @@ struct ResolvedBeer: Equatable {
     /// Catalog match confidence (0–1) when `source == .catalog`; nil otherwise.
     /// Lets the UI say "Best match: Two Hearted (72%)" instead of faking certainty.
     var confidence: Double? = nil
+    /// Exact remote page for an explicitly selected connected-search result.
+    /// Bundled catalog, label, and on-device knowledge leave this nil.
+    var factSource: BeerFactSource? = nil
 
     /// Where the style/ABV came from — useful for telemetry and for deciding
     /// whether an async top-up is worth firing.
@@ -86,7 +149,8 @@ enum BeerResolver {
             style: style,
             abv: abv,
             source: source,
-            confidence: hit?.confidence
+            confidence: hit?.confidence,
+            factSource: hit?.factSource
         )
     }
 
@@ -110,7 +174,8 @@ enum BeerResolver {
             style: style,
             abv: printed.abv ?? selectedCatalogBeer.abv,
             source: source,
-            confidence: selectedCatalogBeer.confidence
+            confidence: selectedCatalogBeer.confidence,
+            factSource: selectedCatalogBeer.factSource
         )
     }
 

@@ -17,12 +17,21 @@ final class SipCheckUITests: XCTestCase {
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
-        app.launchArguments = [
-            "--mock-ai",
-            "--seed-data",
-            "--isolated-storage",
-            "--follow-up-reminders-off"
-        ]
+        if ProcessInfo.processInfo.environment["SIPCHECK_SCHEMA_SEED"] == "1" {
+            app.launchArguments = [
+                "--mock-ai",
+                "--mock-beer-search",
+                "--cloudkit-schema-seed"
+            ]
+        } else {
+            app.launchArguments = [
+                "--mock-ai",
+                "--mock-beer-search",
+                "--seed-data",
+                "--isolated-storage",
+                "--follow-up-reminders-off"
+            ]
+        }
         app.launch()
     }
 
@@ -73,6 +82,73 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertTrue(verdict.waitForExistence(timeout: 10),
                       "A verdict should render after checking a typed name")
         snap("02-verdict")
+    }
+
+    func testLongTailSearchShowsSourcedCandidateBelowExactAction() {
+        let field = openBeerEntryField()
+        field.tap()
+        field.typeText("Neighborhood Fermentary")
+
+        let exact = app.buttons["customBeerResult"]
+        XCTAssertTrue(exact.waitForExistence(timeout: 1),
+                      "Exact typed input must remain immediately actionable")
+
+        let remote = app.buttons["remoteSuggestionRow_0"]
+        XCTAssertTrue(remote.waitForExistence(timeout: 5),
+                      "A connected long-tail match should appear after the debounce")
+        XCTAssertTrue(remote.label.contains("Harbor Fog IPA"))
+        XCTAssertTrue(remote.label.contains("Neighborhood Fermentary"))
+        XCTAssertLessThan(exact.frame.minY, remote.frame.minY,
+                          "Discovery must never replace or outrank exact input")
+
+        let source = app.descendants(matching: .any)["remoteSuggestionSource_0"]
+        XCTAssertTrue(source.exists, "A web-derived result must expose a clickable source")
+        snap("01-long-tail-result")
+
+        remote.tap()
+        XCTAssertTrue(app.staticTexts["Harbor Fog IPA"].waitForExistence(timeout: 10))
+        let verdict = app.staticTexts.matching(
+            NSPredicate(format: "label IN %@", ["TRY IT", "YOUR CALL", "SKIP IT"])
+        ).firstMatch
+        XCTAssertTrue(verdict.waitForExistence(timeout: 10))
+        let selectedSource = app.descendants(matching: .any)["verdictBeerFactSource"]
+        XCTAssertTrue(selectedSource.waitForExistence(timeout: 3),
+                      "The selected remote beer must retain a clickable source on its verdict")
+        XCTAssertTrue(selectedSource.isHittable)
+        XCTAssertTrue(selectedSource.label.contains("neighborhood-fermentary.example"))
+        snap("02-long-tail-verdict")
+    }
+
+    func testDevelopmentCloudKitSchemaSeed() throws {
+        guard ProcessInfo.processInfo.environment["SIPCHECK_SCHEMA_SEED"] == "1" else {
+            throw XCTSkip("Runs only when intentionally seeding the Development CloudKit schema")
+        }
+
+        let complete = app.staticTexts["cloudKitSchemaSeedComplete"]
+        let failed = app.staticTexts["cloudKitSchemaSeedFailed"]
+        let finished = NSPredicate { _, _ in complete.exists || failed.exists }
+        let expectation = XCTNSPredicateExpectation(predicate: finished, object: app)
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 30), .completed)
+        XCTAssertFalse(failed.exists, "The direct CloudKit schema seed reported a failure")
+        XCTAssertTrue(complete.exists)
+    }
+
+    private func openBeerEntryField() -> XCUIElement {
+        let enterName = app.buttons["Enter beer name"]
+        XCTAssertTrue(enterName.waitForExistence(timeout: 5))
+
+        for attempt in 0..<2 {
+            if attempt == 0 {
+                enterName.tap()
+            } else {
+                enterName.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            }
+            let field = app.textFields.firstMatch
+            if field.waitForExistence(timeout: 5) { return field }
+        }
+
+        XCTFail("Beer entry sheet should expose its text field")
+        return app.textFields.firstMatch
     }
 
     // MARK: - Flow 3: Journal shows seed data; rows open the detail sheet

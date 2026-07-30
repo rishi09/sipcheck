@@ -35,7 +35,16 @@ struct FollowUpView: View {
                 Text(meta)
                     .font(SipTypography.subhead)
                     .foregroundColor(SipColors.textSecondary)
-                    .padding(.bottom, SipSpacing.xl)
+                    .padding(.bottom, scan.factSource == nil ? SipSpacing.xl : SipSpacing.s)
+            }
+
+            if let factSource = scan.factSource {
+                BeerFactSourceLink(
+                    source: factSource,
+                    linkAccessibilityIdentifier: "followUpBeerFactSource"
+                )
+                .padding(.horizontal, SipSpacing.xl)
+                .padding(.bottom, SipSpacing.xl)
             }
 
             Divider()
@@ -59,7 +68,8 @@ struct FollowUpView: View {
                         style: scan.style ?? BeerStyle.other.rawValue,
                         abv: scan.abv,
                         photoFileName: scan.photoFileName,
-                        scanId: scan.id
+                        scanId: scan.id,
+                        factSource: scan.factSource
                     )
                     onTried?(prefill)
                 }

@@ -69,6 +69,8 @@
 		A1000032 /* MenuParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032; };
 		A1000033 /* BeerResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000033; };
 		A1000040 /* catalog.json in Resources */ = {isa = PBXBuildFile; fileRef = A2000040; };
+		L1000001 /* BeerDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000001; };
+		L1000002 /* BeerDiscoveryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -155,6 +157,8 @@
 		A2000032 /* MenuParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuParser.swift; sourceTree = "<group>"; };
 		A2000033 /* BeerResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerResolver.swift; sourceTree = "<group>"; };
 		A2000040 /* catalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = catalog.json; sourceTree = "<group>"; };
+		L2000001 /* BeerDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerDiscoveryService.swift; sourceTree = "<group>"; };
+		L2000002 /* BeerDiscoveryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerDiscoveryServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -287,6 +291,7 @@
 				A2000031 /* TasteScorer.swift */,
 				A2000032 /* MenuParser.swift */,
 				A2000033 /* BeerResolver.swift */,
+				L2000001 /* BeerDiscoveryService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -331,6 +336,7 @@
 				B2000008 /* JournalStoreTests.swift */,
 				D2000008 /* TasteScorerSeedTests.swift */,
 				K2000001 /* RecommendationArchetypeEvalTests.swift */,
+				L2000002 /* BeerDiscoveryServiceTests.swift */,
 			);
 			path = SipCheckTests;
 			sourceTree = "<group>";
@@ -506,6 +512,7 @@
 				A1000031 /* TasteScorer.swift in Sources */,
 				A1000032 /* MenuParser.swift in Sources */,
 				A1000033 /* BeerResolver.swift in Sources */,
+				L1000001 /* BeerDiscoveryService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -522,6 +529,7 @@
 				B1000008 /* JournalStoreTests.swift in Sources */,
 				D1000008 /* TasteScorerSeedTests.swift in Sources */,
 				K1000001 /* RecommendationArchetypeEvalTests.swift in Sources */,
+				L1000002 /* BeerDiscoveryServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
