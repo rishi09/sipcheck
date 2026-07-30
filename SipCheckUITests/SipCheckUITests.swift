@@ -364,4 +364,64 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertTrue(star4.waitForExistence(timeout: 3))
         snap("01-persisted-detail")
     }
+
+    // MARK: - Flow 8: Journal is authoritative for exact-history evidence
+
+    func testJournalEditAndDeleteImmediatelyUpdateVerdictHistory() {
+        app.buttons["Journal"].tap()
+        let sierraNevada = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Sierra Nevada Pale Ale")
+        ).firstMatch
+        XCTAssertTrue(sierraNevada.waitForExistence(timeout: 3))
+        sierraNevada.tap()
+
+        XCTAssertTrue(app.buttons["detailStar_1"].waitForExistence(timeout: 3))
+        app.buttons["detailStar_1"].tap()
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["My Beers"].waitForExistence(timeout: 3))
+
+        app.buttons["Check"].tap()
+        let field = openBeerEntryField()
+        field.tap()
+        field.typeText("Sierra Nevada Pale Ale")
+        let catalogResult = app.buttons["suggestionRow_0"]
+        XCTAssertTrue(catalogResult.waitForExistence(timeout: 3))
+        catalogResult.tap()
+
+        let editedBanner = app.descendants(matching: .any)["alreadyTriedBanner"]
+        XCTAssertTrue(editedBanner.waitForExistence(timeout: 10))
+        XCTAssertTrue(editedBanner.label.localizedCaseInsensitiveContains("1 out of 5"),
+                      "The edited Journal rating must override the stale mirrored Drink")
+        snap("01-journal-rating-wins")
+
+        app.buttons["Journal"].tap()
+        let sameBeer = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Sierra Nevada Pale Ale")
+        ).firstMatch
+        XCTAssertTrue(sameBeer.waitForExistence(timeout: 3))
+        sameBeer.tap()
+        XCTAssertTrue(app.buttons["detailDelete"].waitForExistence(timeout: 3))
+        app.buttons["detailDelete"].tap()
+        XCTAssertTrue(app.buttons["Delete"].waitForExistence(timeout: 3))
+        app.buttons["Delete"].tap()
+        XCTAssertTrue(app.staticTexts["My Beers"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Sierra Nevada Pale Ale")
+        ).firstMatch.exists)
+
+        app.buttons["Check"].tap()
+        XCTAssertTrue(app.staticTexts["Sierra Nevada Pale Ale"].waitForExistence(timeout: 3),
+                      "The existing verdict must still be visible before the fresh check")
+        app.buttons["Scan Another"].tap()
+        let freshField = openBeerEntryField()
+        freshField.tap()
+        freshField.typeText("Sierra Nevada Pale Ale")
+        let freshCatalogResult = app.buttons["suggestionRow_0"]
+        XCTAssertTrue(freshCatalogResult.waitForExistence(timeout: 3))
+        freshCatalogResult.tap()
+        XCTAssertTrue(app.staticTexts["Sierra Nevada Pale Ale"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["alreadyTriedBanner"].waitForExistence(timeout: 2),
+                       "A Journal tombstone must suppress the surviving legacy Drink")
+        snap("02-deleted-history-stays-deleted")
+    }
 }

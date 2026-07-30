@@ -226,14 +226,14 @@ enum TasteScorer {
         case .dislike:
             return Assessment(
                 verdict: .skipIt,
-                shortReason: "you passed on this exact beer before",
+                shortReason: "this exact beer wasn't for you last time",
                 score: min(-0.5, assessment.score),
                 isHardAvoid: false
             )
         case .neutral:
             return Assessment(
                 verdict: .yourCall,
-                shortReason: "you were neutral on this exact beer before",
+                shortReason: "this exact beer was a maybe last time",
                 score: min(tryThreshold - 0.5, max(yourCallThreshold, assessment.score)),
                 isHardAvoid: false
             )
@@ -295,6 +295,32 @@ enum TasteScorer {
         )
         let exactRating = allowExactMatch
             ? BeerMatcher.exactMatch(for: name, brewery: brewery, in: drinks)?.rating
+            : nil
+        return applyingExactRating(exactRating, to: base)
+    }
+
+    /// Canonical-history variant. All production recommendation paths use this
+    /// overload so a Journal edit/delete immediately changes both aggregate
+    /// taste and exact-beer evidence without waiting for the legacy Drink copy.
+    static func assessWithExactHistory(
+        name: String,
+        brewery: String? = nil,
+        style: BeerStyle?,
+        abv: Double?,
+        library: BeerLibrarySnapshot,
+        profile: TasteProfile,
+        preferences: TastePreferences,
+        allowExactMatch: Bool = true
+    ) -> Assessment {
+        let base = assess(
+            name: name,
+            style: style,
+            abv: abv,
+            profile: profile,
+            preferences: preferences
+        )
+        let exactRating = allowExactMatch
+            ? library.latestRating(name: name, brewery: brewery)
             : nil
         return applyingExactRating(exactRating, to: base)
     }

@@ -15,15 +15,28 @@ struct JournalTabView: View {
     @State private var selectedFilter: JournalFilter = .all
     @State private var selectedWantToTryScan: Scan?
     @State private var selectedEntry: JournalEntry?
+    @State private var selectedLegacyDrink: Drink?
 
-    private var filteredEntries: [JournalEntry] {
-        var result = journalStore.entries
+    private var librarySnapshot: BeerLibrarySnapshot {
+        BeerLibrarySnapshot(
+            journalRecords: journalStore.syncRecords,
+            legacyDrinks: drinkStore.drinks,
+            scans: scanStore.scans
+        )
+    }
+
+    private var projectedSavedScans: [Scan] {
+        librarySnapshot.savedItems.compactMap { $0.savedScans.first }
+    }
+
+    private var filteredRecords: [BeerTasteRecord] {
+        var result = librarySnapshot.tasteRecords
 
         // Apply search filter
         if !searchText.isEmpty {
             result = result.filter {
-                $0.beerName.localizedCaseInsensitiveContains(searchText) ||
-                $0.brand.localizedCaseInsensitiveContains(searchText) ||
+                $0.name.localizedCaseInsensitiveContains(searchText) ||
+                $0.brewery.localizedCaseInsensitiveContains(searchText) ||
                 $0.style.localizedCaseInsensitiveContains(searchText)
             }
         }
@@ -33,11 +46,11 @@ struct JournalTabView: View {
         case .all:
             break
         case .loved:
-            result = result.filter { $0.rating >= 4 }
+            result = result.filter { $0.rating == .like }
         case .ok:
-            result = result.filter { $0.rating == 3 }
+            result = result.filter { $0.rating == .neutral }
         case .notForMe:
-            result = result.filter { $0.rating <= 2 }
+            result = result.filter { $0.rating == .dislike }
         }
 
         return result
@@ -64,7 +77,7 @@ struct JournalTabView: View {
                     filterChips
 
                     // Want to Try section
-                    if !scanStore.wantToTryScans.isEmpty {
+                    if !projectedSavedScans.isEmpty {
                         wantToTrySection
                     }
 
@@ -87,6 +100,21 @@ struct JournalTabView: View {
                 linkedFactSource: linkedFactSource(for: entry)
             )
                 .environmentObject(journalStore)
+                .environmentObject(drinkStore)
+        }
+        .sheet(item: $selectedLegacyDrink) { drink in
+            JournalEntryDetailView(
+                entry: displayEntry(for: BeerTasteRecord(legacyDrink: drink)),
+                deleteButtonTitle: "Delete from history",
+                onSave: { rating, notes in
+                    migrateLegacyDrink(drink, rating: rating, notes: notes)
+                },
+                onDelete: {
+                    drinkStore.deleteDrink(drink)
+                }
+            )
+            .environmentObject(journalStore)
+            .environmentObject(drinkStore)
         }
         // item-driven, not isPresented + if-let: the two-state write raced the
         // sheet's first render and presented a completely BLANK sheet (founder
@@ -110,26 +138,34 @@ struct JournalTabView: View {
     // MARK: - Scan linkage (display-only lookup for the detail sheet's loop-closer line)
 
     private func linkedVerdict(for entry: JournalEntry) -> Verdict? {
-        if let scanId = entry.linkedScanId,
-           let verdict = scanStore.scans.first(where: { $0.id == scanId })?.verdict {
-            return verdict
-        }
-        // Manual logs carry no linkedScanId — fall back to an exact-name hit
-        // in scan history. Same trust bar as the verdict card's "you've had
-        // this one" banner: exact match only, never fuzzy.
-        let name = entry.beerName.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return nil }
-        return scanStore.scans.first(where: {
-            $0.beerName.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        })?.verdict
+        // "We said…" is a past-tense personal claim, so only an explicit scan
+        // relationship is sufficient. Same-name fallbacks can borrow a verdict
+        // from another brewery and are intentionally omitted.
+        linkedScan(for: entry)?.verdict
     }
 
-    /// Attribution must use the explicit scan relationship. An exact-name
-    /// fallback is acceptable for the historical verdict banner, but could
-    /// attach the wrong brewery page to a different beer with the same name.
+    /// Attribution must use the explicit scan relationship; a name-only match
+    /// could attach the wrong brewery page to a different beer.
     private func linkedFactSource(for entry: JournalEntry) -> BeerFactSource? {
-        guard let scanId = entry.linkedScanId else { return nil }
-        return scanStore.scans.first(where: { $0.id == scanId })?.factSource
+        linkedScan(for: entry)?.factSource
+    }
+
+    private func linkedScan(for entry: JournalEntry) -> Scan? {
+        let candidate: Scan?
+        if let scanId = entry.linkedScanId {
+            candidate = scanStore.scans.first(where: { $0.id == scanId })
+        } else {
+            // Older records may have persisted only the reverse relationship.
+            candidate = scanStore.scans.first(where: { $0.linkedJournalId == entry.id })
+        }
+        guard let candidate,
+              BeerLibraryIdentity.explicitLinkMatches(
+                scanName: candidate.beerName,
+                scanBrewery: candidate.brand,
+                journalName: entry.beerName,
+                journalBrewery: entry.brand
+              ) else { return nil }
+        return candidate
     }
 
     // MARK: - Search Bar
@@ -195,7 +231,7 @@ struct JournalTabView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: SipSpacing.m) {
-                    ForEach(scanStore.wantToTryScans) { scan in
+                    ForEach(projectedSavedScans) { scan in
                         WantToTryCard(scan: scan) {
                             selectedWantToTryScan = scan
                         }
@@ -210,20 +246,25 @@ struct JournalTabView: View {
 
     private var triedSection: some View {
         VStack(alignment: .leading, spacing: SipSpacing.s) {
-            Text("Tried \u{00B7} \(filteredEntries.count) \(filteredEntries.count == 1 ? "beer" : "beers")")
+            Text("Tried \u{00B7} \(filteredRecords.count) \(filteredRecords.count == 1 ? "log" : "logs")")
                 .font(SipTypography.caption)
                 .foregroundColor(SipColors.textSecondary)
                 .padding(.horizontal, SipSpacing.l)
 
-            if filteredEntries.isEmpty {
+            if filteredRecords.isEmpty {
                 emptyState
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(filteredEntries) { entry in
+                    ForEach(filteredRecords) { record in
                         Button {
-                            selectedEntry = entry
+                            switch record.source {
+                            case .journal:
+                                selectedEntry = journalStore.entries.first { $0.id == record.id }
+                            case .legacyDrink:
+                                selectedLegacyDrink = drinkStore.drinks.first { $0.id == record.id }
+                            }
                         } label: {
-                            JournalEntryRow(entry: entry)
+                            JournalEntryRow(entry: displayEntry(for: record))
                         }
                         .buttonStyle(.plain)
                     }
@@ -236,7 +277,7 @@ struct JournalTabView: View {
 
     private var emptyState: some View {
         Group {
-            if journalStore.entries.isEmpty {
+            if librarySnapshot.tasteRecords.isEmpty {
                 // Truly no data yet
                 ContentUnavailableView(
                     "Nothing logged yet — scan a beer to start",
@@ -253,6 +294,55 @@ struct JournalTabView: View {
         .foregroundColor(SipColors.textSecondary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, SipSpacing.xl)
+    }
+
+    /// Journal rows use the richer star scale. Legacy thumbs map to the locked
+    /// 1/3/5 migration so old history is visible and editable without lying
+    /// about precision the old schema never stored.
+    private func displayEntry(for record: BeerTasteRecord) -> JournalEntry {
+        JournalEntry(
+            id: record.id,
+            beerName: record.name,
+            brand: record.brewery,
+            style: record.style,
+            abv: record.abv,
+            rating: record.stars ?? stars(for: record.rating),
+            notes: record.notes,
+            photoFileName: record.photoFileName,
+            dateLogged: record.date,
+            dateTried: record.date
+        )
+    }
+
+    private func stars(for rating: Rating) -> Int {
+        switch rating {
+        case .like: return 5
+        case .neutral: return 3
+        case .dislike: return 1
+        }
+    }
+
+    /// First edit of a Drink-only legacy row writes a separate Journal record
+    /// at the original encounter time. The projection then pairs them one-to-
+    /// one, with Journal as authority, while CloudKit record IDs stay distinct.
+    private func migrateLegacyDrink(_ drink: Drink, rating: Int, notes: String?) {
+        let entry = JournalEntry(
+            beerName: drink.name,
+            brand: drink.brand,
+            style: drink.style,
+            abv: drink.abv,
+            rating: rating,
+            notes: notes,
+            photoFileName: drink.photoFileName,
+            dateLogged: drink.dateAdded,
+            dateTried: drink.dateAdded
+        )
+        journalStore.addEntry(entry)
+        scanStore.markTried(
+            beerName: drink.name,
+            brewery: drink.brand,
+            linkedJournalId: entry.id
+        )
     }
 }
 

@@ -124,6 +124,7 @@ enum ScanRecommendationSettlementPolicy {
 struct CheckTabView: View {
     @EnvironmentObject var scanStore: ScanStore
     @EnvironmentObject var drinkStore: DrinkStore
+    @EnvironmentObject var journalStore: JournalStore
 
     /// The scan flow's single source of truth (SPEED_PLAN §2).
     ///
@@ -186,6 +187,10 @@ struct CheckTabView: View {
     @State private var scanTask: Task<Void, Never>?
     @State private var refineTask: Task<Void, Never>?
     @State private var menuRunnerUp: Scan?
+    /// The entire verdict card is a snapshot of what SipCheck knew when the
+    /// check ran. Freezing its exact-history evidence prevents a later Journal
+    /// edit from being mixed with the persisted verdict/explanation.
+    @State private var verdictHistorySnapshot: BeerTasteRecord?
 
 
     // Scanning animation state
@@ -215,13 +220,7 @@ struct CheckTabView: View {
             case .verdict(let scan, let refining):
                 VerdictCardView(
                     scan: scan,
-                    // Exact-name match only: a fuzzy hit here would put a false
-                    // "you've had this one" banner on a beer the user never tried.
-                    previousDrink: BeerMatcher.exactMatch(
-                        for: scan.beerName,
-                        brewery: scan.brand,
-                        in: drinkStore.drinks
-                    ),
+                    previousTaste: verdictHistorySnapshot,
                     refining: refining,
                     savedForLater: savedForLater,
                     capturedImage: capturedImage,
@@ -945,7 +944,7 @@ struct CheckTabView: View {
     private func runScan(image: UIImage) {
         guard startScan() else { return }
         let generation = scanGeneration
-        let drinks = drinkStore.drinks
+        let library = makeLibrarySnapshot()
 
         scanTask = Task(priority: .userInitiated) {
             let start = CFAbsoluteTimeGetCurrent()
@@ -962,7 +961,9 @@ struct CheckTabView: View {
                 return
             }
 
-            let outcome = Self.computeOutcome(fromText: text, path: "image", drinks: drinks)
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Self.computeOutcome(fromText: text, path: "image", library: library)
+            }.value
             let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
 
             await MainActor.run {
@@ -978,11 +979,13 @@ struct CheckTabView: View {
         let text = recognizedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, startScan() else { return }
         let generation = scanGeneration
-        let drinks = drinkStore.drinks
+        let library = makeLibrarySnapshot()
 
         scanTask = Task(priority: .userInitiated) {
             let start = CFAbsoluteTimeGetCurrent()
-            let outcome = Self.computeOutcome(fromText: text, path: "live", drinks: drinks)
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Self.computeOutcome(fromText: text, path: "live", library: library)
+            }.value
             let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
 
             await MainActor.run {
@@ -997,16 +1000,18 @@ struct CheckTabView: View {
         guard !trimmed.isEmpty else { return }
         guard startScan() else { return }
         let generation = scanGeneration
-        let drinks = drinkStore.drinks
+        let library = makeLibrarySnapshot()
 
         scanTask = Task(priority: .userInitiated) {
             let start = CFAbsoluteTimeGetCurrent()
-            let outcome = Self.computeOutcome(
-                fromText: trimmed,
-                path: "text",
-                drinks: drinks,
-                selectedCatalogBeer: selectedCatalogBeer
-            )
+            let outcome = await Task.detached(priority: .userInitiated) {
+                Self.computeOutcome(
+                    fromText: trimmed,
+                    path: "text",
+                    library: library,
+                    selectedCatalogBeer: selectedCatalogBeer
+                )
+            }.value
             let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
 
             await MainActor.run {
@@ -1026,20 +1031,32 @@ struct CheckTabView: View {
         scanGeneration += 1
         savedForLater = false
         menuRunnerUp = nil
+        verdictHistorySnapshot = nil
         spinnerDegrees = 0
         scanningPhraseIndex = 0
         withAnimation { phase = .recognizing }
         return true
     }
 
+    /// Snapshot all three stores on the main actor before scan work moves off
+    /// thread. Journal sync records include tombstones, which are required to
+    /// keep a deleted beer from reappearing through its legacy Drink mirror.
+    private func makeLibrarySnapshot() -> BeerLibrarySnapshot {
+        BeerLibrarySnapshot(
+            journalRecords: journalStore.syncRecords,
+            legacyDrinks: drinkStore.drinks,
+            scans: scanStore.scans
+        )
+    }
+
     /// Stage 1 compute — pure and static so it can run off the main actor.
-    private static func computeOutcome(
+    nonisolated private static func computeOutcome(
         fromText text: String,
         path: String,
-        drinks: [Drink],
+        library: BeerLibrarySnapshot,
         selectedCatalogBeer: ResolvedBeer? = nil
     ) -> ScanOutcome {
-        let profile = TasteProfile.build(from: drinks)
+        let profile = TasteProfile.build(from: library.tasteRecords)
         let prefs = TastePreferences.current
 
         // Menu detection first (locked constraint: menu → ONE clear winner).
@@ -1053,7 +1070,7 @@ struct CheckTabView: View {
                 return computeSingleBeerOutcome(
                     fromText: text,
                     path: path,
-                    drinks: drinks,
+                    library: library,
                     profile: profile,
                     preferences: prefs,
                     selectedCatalogBeer: selectedCatalogBeer
@@ -1090,7 +1107,7 @@ struct CheckTabView: View {
         return computeSingleBeerOutcome(
             fromText: text,
             path: path,
-            drinks: drinks,
+            library: library,
             profile: profile,
             preferences: prefs,
             selectedCatalogBeer: selectedCatalogBeer
@@ -1098,10 +1115,10 @@ struct CheckTabView: View {
     }
 
     /// Single-beer path: fuse printed style/ABV with a bundled-catalog match.
-    private static func computeSingleBeerOutcome(
+    nonisolated private static func computeSingleBeerOutcome(
         fromText text: String,
         path: String,
-        drinks: [Drink],
+        library: BeerLibrarySnapshot,
         profile: TasteProfile,
         preferences prefs: TastePreferences,
         selectedCatalogBeer: ResolvedBeer?
@@ -1124,7 +1141,7 @@ struct CheckTabView: View {
             brewery: trustedFacts.brewery,
             style: trustedFacts.style,
             abv: trustedFacts.abv,
-            drinks: drinks,
+            library: library,
             profile: profile,
             preferences: prefs,
             allowExactMatch: path == "text" || !nameIsGuess
@@ -1162,7 +1179,7 @@ struct CheckTabView: View {
         )
     }
 
-    private static func menuExplanation(winner: TasteScorer.AssessedCandidate, totalCandidates: Int) -> String {
+    nonisolated private static func menuExplanation(winner: TasteScorer.AssessedCandidate, totalCandidates: Int) -> String {
         let reason = sentenceCase(winner.assessment.shortReason)
         switch winner.assessment.verdict {
         case .tryIt:
@@ -1198,6 +1215,11 @@ struct CheckTabView: View {
 
         savedForLater = false
         menuRunnerUp = outcome.menuRunnerUp
+        verdictHistorySnapshot = outcome.nameIsGuess
+            ? nil
+            : makeLibrarySnapshot()
+                .exactItem(name: outcome.scan.beerName, brewery: outcome.scan.brand)?
+                .latestEncounter
         let willRefine = EnrichmentPolicy.shouldStart(
             nameIsGuess: outcome.nameIsGuess,
             startedStyleless: outcome.startedStyleless,
@@ -1281,13 +1303,14 @@ struct CheckTabView: View {
                             $0.rawValue.caseInsensitiveCompare(rawValue) == .orderedSame
                         }
                     }
+                    let library = makeLibrarySnapshot()
                     let assessment = TasteScorer.assessWithExactHistory(
                         name: current.beerName,
                         brewery: current.brand,
                         style: resolvedStyle,
                         abv: current.abv,
-                        drinks: drinkStore.drinks,
-                        profile: TasteProfile.build(from: drinkStore.drinks),
+                        library: library,
+                        profile: TasteProfile.build(from: library.tasteRecords),
                         preferences: TastePreferences.current
                     )
                     let stableRecommendation = ScanRecommendationSettlementPolicy.settleRefinement(
@@ -1300,6 +1323,15 @@ struct CheckTabView: View {
                     )
                     current.verdict = stableRecommendation.verdict
                     current.explanation = stableRecommendation.explanation
+                    // A guessed identity keeps the already-shown recommendation
+                    // frozen by policy. Do not attach newly discovered personal
+                    // history to that old explanation; the next explicit check
+                    // will use the corrected identity end-to-end.
+                    verdictHistorySnapshot = outcome.nameIsGuess
+                        ? nil
+                        : library
+                            .exactItem(name: current.beerName, brewery: current.brand)?
+                            .latestEncounter
                     scanStore.updateScan(current)
                     if nameChanged, current.wantToTry {
                         // Same identifier → replaces the pending follow-up, so the
@@ -1320,9 +1352,9 @@ struct CheckTabView: View {
     /// confidence — a 0.6 fuzzy hit must not permanently rename the scan.
     /// Trailing list punctuation on a derived name ("HAZY IPA,") reads as a
     /// bug everywhere the name renders — shed it from every non-catalog name.
-    private static let nameEdgeNoise = CharacterSet(charactersIn: " \t.,;:-—|•·")
+    nonisolated private static let nameEdgeNoise = CharacterSet(charactersIn: " \t.,;:-—|•·")
 
-    private static func displayName(fromText text: String, resolved: ResolvedBeer, path: String) -> (name: String, isGuess: Bool) {
+    nonisolated private static func displayName(fromText text: String, resolved: ResolvedBeer, path: String) -> (name: String, isGuess: Bool) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let confidence = resolved.confidence {
@@ -1357,7 +1389,7 @@ struct CheckTabView: View {
     }
 
     /// "matches your love of IPA" → "Matches your love of IPA."
-    private static func sentenceCase(_ fragment: String) -> String {
+    nonisolated private static func sentenceCase(_ fragment: String) -> String {
         let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let first = trimmed.first else { return trimmed }
         let capitalized = first.uppercased() + trimmed.dropFirst()
@@ -1392,6 +1424,7 @@ struct CheckTabView: View {
         scanGeneration += 1
         savedForLater = false
         menuRunnerUp = nil
+        verdictHistorySnapshot = nil
         pendingLiveScanText = nil
         capturedImage = nil
         spinnerDegrees = 0
@@ -1447,6 +1480,7 @@ struct CheckTabView_Previews: PreviewProvider {
                     )
                 )
                 .environmentObject(DrinkStore())
+                .environmentObject(JournalStore())
                 .previewDisplayName("With Scan Result")
 
             // Empty state
@@ -1458,6 +1492,7 @@ struct CheckTabView_Previews: PreviewProvider {
                     )
                 )
                 .environmentObject(DrinkStore())
+                .environmentObject(JournalStore())
                 .previewDisplayName("Empty State")
         }
     }

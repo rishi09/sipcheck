@@ -5,9 +5,9 @@ enum BeerMatcher {
     /// Find a matching drink in the user's history
     /// Uses fuzzy matching to handle variations in naming
     static func findMatch(for query: String, in drinks: [Drink]) -> Drink? {
-        let normalizedQuery = normalize(query)
+        let normalizedQuery = normalizedIdentityComponent(query)
         guard !normalizedQuery.isEmpty else { return nil }
-        let candidates = drinks.map { (drink: $0, name: normalize($0.name)) }
+        let candidates = drinks.map { (drink: $0, name: normalizedIdentityComponent($0.name)) }
 
         // First, try exact match
         if let exact = candidates.first(where: { $0.name == normalizedQuery }) {
@@ -45,29 +45,31 @@ enum BeerMatcher {
     /// equality only. The loose substring/fuzzy `findMatch` produces false
     /// banners ("Voodoo" ≠ "Voodoo Ranger Juice Force").
     static func exactMatch(for query: String, brewery: String? = nil, in drinks: [Drink]) -> Drink? {
-        let normalizedQuery = normalize(query)
+        let normalizedQuery = normalizedIdentityComponent(query)
         guard !normalizedQuery.isEmpty else { return nil }
-        let nameMatches = drinks.filter { normalize($0.name) == normalizedQuery }
+        let nameMatches = drinks.filter { normalizedIdentityComponent($0.name) == normalizedQuery }
         guard !nameMatches.isEmpty else { return nil }
 
-        let normalizedBrewery = normalize(brewery ?? "")
+        let normalizedBrewery = normalizedIdentityComponent(brewery ?? "")
         if !normalizedBrewery.isEmpty {
-            return nameMatches.first { normalize($0.brand) == normalizedBrewery }
+            return nameMatches.first { normalizedIdentityComponent($0.brand) == normalizedBrewery }
         }
 
         // Raw typed/local identity deliberately has no brewery. It may reuse an
         // equally brewery-less history row, but must not borrow a branded row
         // merely because that is the only same-named beer logged so far.
-        return nameMatches.first { normalize($0.brand).isEmpty }
+        return nameMatches.first { normalizedIdentityComponent($0.brand).isEmpty }
     }
 
     static func exactNamesMatch(_ lhs: String, _ rhs: String) -> Bool {
-        let left = normalize(lhs)
-        return !left.isEmpty && left == normalize(rhs)
+        let left = normalizedIdentityComponent(lhs)
+        return !left.isEmpty && left == normalizedIdentityComponent(rhs)
     }
 
     /// Normalize a string for comparison
-    private static func normalize(_ string: String) -> String {
+    /// Shared strict-identity normalization. Internal so the beer-library
+    /// projection and scan dedup use exactly the same comparison semantics.
+    static func normalizedIdentityComponent(_ string: String) -> String {
         let folded = string.folding(
             options: [.caseInsensitive, .diacriticInsensitive],
             locale: Locale(identifier: "en_US")

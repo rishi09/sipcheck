@@ -161,14 +161,77 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(decoded.factSource, source)
     }
 
+    func testCloudKitMetadataCodecRoundTripsBrandWithoutSchemaChange() throws {
+        let source = try XCTUnwrap(BeerFactSource(
+            kind: .catalogBeer,
+            url: URL(string: "https://catalog.beer/beer/sierra-nevada-pale-ale")!
+        ))
+
+        let encoded = try XCTUnwrap(CloudKitScanMetadataCodec.encode(
+            origin: "California",
+            factSource: source,
+            brand: "Sierra Nevada Brewing Company"
+        ))
+        let decoded = CloudKitScanMetadataCodec.decode(encoded)
+
+        XCTAssertTrue(encoded.hasPrefix("SipCheck metadata v2: "))
+        XCTAssertEqual(decoded.origin, "California")
+        XCTAssertEqual(decoded.factSource, source)
+        XCTAssertEqual(decoded.brand, "Sierra Nevada Brewing Company")
+    }
+
     func testCloudKitMetadataCodecPreservesLegacyAndMalformedOrigins() {
         let legacy = "A legacy brewery origin story."
         XCTAssertEqual(CloudKitScanMetadataCodec.decode(legacy).origin, legacy)
         XCTAssertNil(CloudKitScanMetadataCodec.decode(legacy).factSource)
+        XCTAssertNil(CloudKitScanMetadataCodec.decode(legacy).brand)
 
         let malformed = "SipCheck source v1 - Catalog.beer: http://unsafe.example/beer"
         XCTAssertEqual(CloudKitScanMetadataCodec.decode(malformed).origin, malformed)
         XCTAssertNil(CloudKitScanMetadataCodec.decode(malformed).factSource)
+    }
+
+    func testCloudKitBrandBackfillPreservesNewerRemoteState() {
+        let id = UUID()
+        var local = Scan(
+            id: id,
+            beerName: "Shared Beer",
+            brand: "Local Brewery",
+            verdict: .tryIt,
+            explanation: "Older local explanation"
+        )
+        local.lastModifiedLocal = Date(timeIntervalSince1970: 100)
+        var remote = Scan(
+            id: id,
+            beerName: "Shared Beer",
+            verdict: .skipIt,
+            explanation: "Newer remote explanation",
+            wantToTry: true
+        )
+        remote.lastModifiedLocal = Date(timeIntervalSince1970: 200)
+
+        let backfill = CloudKitSyncService.scansNeedingBrandBackfill(
+            local: [local],
+            remote: [remote]
+        )
+
+        XCTAssertEqual(backfill.count, 1)
+        XCTAssertEqual(backfill.first?.brand, "Local Brewery")
+        XCTAssertEqual(backfill.first?.verdict, .skipIt)
+        XCTAssertEqual(backfill.first?.explanation, "Newer remote explanation")
+        XCTAssertEqual(backfill.first?.wantToTry, true)
+        XCTAssertEqual(backfill.first?.lastModifiedLocal, remote.lastModifiedLocal)
+    }
+
+    func testCloudKitBrandBackfillRejectsChangedRemoteIdentity() {
+        let id = UUID()
+        let local = Scan(id: id, beerName: "Original Beer", brand: "Old Brewery")
+        let remote = Scan(id: id, beerName: "Corrected Beer", brand: nil)
+
+        XCTAssertTrue(CloudKitSyncService.scansNeedingBrandBackfill(
+            local: [local],
+            remote: [remote]
+        ).isEmpty)
     }
 
     @MainActor
@@ -261,6 +324,33 @@ final class ScanStoreTests: XCTestCase {
             sourceScanId: source.id
         )
         XCTAssertEqual(store.scans.first(where: { $0.id == source.id })?.lastModifiedLocal, modified)
+    }
+
+    func testMarkTriedDoesNotClearSameNameFromAnotherBrewery() {
+        let north = Scan(
+            beerName: "Shared Name",
+            brand: "North Brewing",
+            wantToTry: true
+        )
+        let south = Scan(
+            beerName: "Shared Name",
+            brand: "South Brewing",
+            wantToTry: true
+        )
+        store.addScan(north)
+        store.addScan(south)
+        let journalID = UUID()
+
+        store.markTried(
+            beerName: "Shared Name",
+            brewery: "North Brewing",
+            linkedJournalId: journalID
+        )
+
+        XCTAssertFalse(store.scans.first(where: { $0.id == north.id })!.wantToTry)
+        XCTAssertEqual(store.scans.first(where: { $0.id == north.id })?.linkedJournalId, journalID)
+        XCTAssertTrue(store.scans.first(where: { $0.id == south.id })!.wantToTry)
+        XCTAssertNil(store.scans.first(where: { $0.id == south.id })?.linkedJournalId)
     }
 
     func testDeletePersists() {

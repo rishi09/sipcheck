@@ -482,6 +482,7 @@ struct AddBeerView: View {
                 journalStore.addEntry(entry)
                 scanStore.markTried(
                     beerName: drink.name,
+                    brewery: drink.brand,
                     linkedJournalId: entry.id,
                     sourceScanId: linkedScanID
                 )

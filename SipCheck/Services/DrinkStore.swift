@@ -284,7 +284,7 @@ class DrinkStore: ObservableObject {
         Drink(
             id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
             name: "Sierra Nevada Pale Ale",
-            brand: "Sierra Nevada",
+            brand: "Sierra Nevada Brewing Company",
             style: "Pale Ale",
             rating: .like,
             notes: "Classic hop flavor"

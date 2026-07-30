@@ -18,8 +18,14 @@ struct TasteProfile {
 
     /// Build a taste profile from drink history
     static func build(from drinks: [Drink]) -> TasteProfile {
+        build(from: drinks.map(BeerTasteRecord.init(legacyDrink:)))
+    }
+
+    /// Build from the canonical beer-library projection. Journal edits and
+    /// tombstones have already won over stale mirrored Drink records here.
+    static func build(from records: [BeerTasteRecord]) -> TasteProfile {
         var profile = TasteProfile()
-        profile.totalDrinks = drinks.count
+        profile.totalDrinks = records.count
 
         var likedStyleCounts: [String: Int] = [:]
         var dislikedStyleCounts: [String: Int] = [:]
@@ -28,23 +34,23 @@ struct TasteProfile {
         var likedABVSum: Double = 0
         var likedABVCount: Int = 0
 
-        for drink in drinks {
-            switch drink.rating {
+        for record in records {
+            switch record.rating {
             case .like:
                 profile.likedCount += 1
-                likedStyleCounts[drink.style, default: 0] += 1
-                if let abv = drink.abv {
+                likedStyleCounts[record.style, default: 0] += 1
+                if let abv = record.abv {
                     likedABVSum += abv
                     likedABVCount += 1
                 }
             case .dislike:
                 profile.dislikedCount += 1
-                dislikedStyleCounts[drink.style, default: 0] += 1
+                dislikedStyleCounts[record.style, default: 0] += 1
             case .neutral:
                 break
             }
 
-            if let abv = drink.abv {
+            if let abv = record.abv {
                 abvSum += abv
                 abvCount += 1
             }

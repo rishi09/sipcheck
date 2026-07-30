@@ -29,10 +29,40 @@ struct SettingsTabView: View {
         let url: URL
         var id: String { url.absoluteString }
     }
+
+    /// Versioned export of the effective history rather than the legacy Drink
+    /// file. This keeps Journal edits/deletes authoritative in user exports.
+    private struct BeerHistoryExport: Codable {
+        let schemaVersion: Int
+        let exportedAt: Date
+        let records: [BeerHistoryExportRecord]
+    }
+
+    private struct BeerHistoryExportRecord: Codable {
+        let id: UUID
+        let name: String
+        let brewery: String
+        let style: String
+        let reaction: String
+        let stars: Int?
+        let abv: Double?
+        let serving: String?
+        let notes: String?
+        let date: Date
+        let source: String
+    }
     @State private var exportItem: ExportItem?
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    private var librarySnapshot: BeerLibrarySnapshot {
+        BeerLibrarySnapshot(
+            journalRecords: journalStore.syncRecords,
+            legacyDrinks: drinkStore.drinks,
+            scans: scanStore.scans
+        )
     }
 
     var body: some View {
@@ -240,7 +270,12 @@ struct SettingsTabView: View {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(drinkStore.drinks) else { return }
+        let export = BeerHistoryExport(
+            schemaVersion: 2,
+            exportedAt: Date(),
+            records: librarySnapshot.tasteRecords.map(exportRecord)
+        )
+        guard let data = try? encoder.encode(export) else { return }
 
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.json")
         try? data.write(to: tempURL)
@@ -248,19 +283,49 @@ struct SettingsTabView: View {
     }
 
     private func exportAsCSV() {
-        var csv = "Name,Brand,Style,Rating,ABV,Type,Notes,Date\n"
-        for drink in drinkStore.drinks {
-            let name = drink.name.replacingOccurrences(of: ",", with: ";")
-            let brand = drink.brand.replacingOccurrences(of: ",", with: ";")
-            let notes = (drink.notes ?? "").replacingOccurrences(of: ",", with: ";")
-            let abv = drink.abv.map { String(format: "%.1f", $0) } ?? ""
-            let date = drink.dateAdded.formatted(.iso8601)
-            csv += "\(name),\(brand),\(drink.style),\(drink.rating.displayName),\(abv),\(drink.drinkType.displayName),\(notes),\(date)\n"
+        var csv = "Name,Brewery,Style,Reaction,Stars,ABV,Serving,Notes,Date,Source\n"
+        for record in librarySnapshot.tasteRecords {
+            let fields = [
+                record.name,
+                record.brewery,
+                record.style,
+                record.rating.displayName,
+                record.stars.map(String.init) ?? "",
+                record.abv.map { String(format: "%.1f", $0) } ?? "",
+                record.drinkType?.displayName ?? "",
+                record.notes ?? "",
+                ISO8601DateFormatter().string(from: record.date),
+                record.source.rawValue
+            ]
+            csv += fields.map(csvField).joined(separator: ",") + "\n"
         }
 
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("sipcheck-export.csv")
         try? csv.write(to: tempURL, atomically: true, encoding: .utf8)
         exportItem = ExportItem(url: tempURL)
+    }
+
+    private func exportRecord(_ record: BeerTasteRecord) -> BeerHistoryExportRecord {
+        BeerHistoryExportRecord(
+            id: record.id,
+            name: record.name,
+            brewery: record.brewery,
+            style: record.style,
+            reaction: record.rating.rawValue,
+            stars: record.stars,
+            abv: record.abv,
+            serving: record.drinkType?.rawValue,
+            notes: record.notes,
+            date: record.date,
+            source: record.source.rawValue
+        )
+    }
+
+    private func csvField(_ value: String) -> String {
+        guard value.contains(",") || value.contains("\"") || value.contains("\n") else {
+            return value
+        }
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 }
 

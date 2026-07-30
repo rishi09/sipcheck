@@ -8,6 +8,14 @@ struct ProfileTabView: View {
     @State private var showingSettings = false
     @State private var selectedScan: RecentScanSelection?
 
+    private var librarySnapshot: BeerLibrarySnapshot {
+        BeerLibrarySnapshot(
+            journalRecords: journalStore.syncRecords,
+            legacyDrinks: drinkStore.drinks,
+            scans: scanStore.scans
+        )
+    }
+
     private var personaLabel: String {
         // Read via TastePreferences (KVS-first) so the badge matches what the
         // verdict engine actually uses — raw UserDefaults could disagree.
@@ -139,13 +147,13 @@ struct ProfileTabView: View {
     private var statsRow: some View {
         HStack(spacing: SipSpacing.l) {
             statBox(
-                value: journalStore.entries.count,
+                value: librarySnapshot.tasteRecords.count,
                 label: "Beers Logged",
                 accessibilityId: "beersLoggedCount"
             )
 
             statBox(
-                value: journalStore.lovedEntries.count,
+                value: librarySnapshot.tasteRecords.filter { $0.rating == .like }.count,
                 label: "Loved",
                 accessibilityId: "lovedCount"
             )
@@ -207,17 +215,17 @@ struct ProfileTabView: View {
     }
 
     private var styleDistribution: [(style: String, percentage: Double)] {
-        let entries = journalStore.entries
-        guard !entries.isEmpty else { return [] }
+        let records = librarySnapshot.tasteRecords
+        guard !records.isEmpty else { return [] }
 
         // Group by style
         var styleCounts: [String: Int] = [:]
-        for entry in entries {
-            let style = entry.style.isEmpty ? "Unknown" : entry.style
+        for record in records {
+            let style = record.style.isEmpty ? "Unknown" : record.style
             styleCounts[style, default: 0] += 1
         }
 
-        let total = Double(entries.count)
+        let total = Double(records.count)
 
         // Sort by count descending
         let sorted = styleCounts.sorted { $0.value > $1.value }
@@ -352,11 +360,21 @@ private struct RecentScanDetailView: View {
     }
 
     private var linkedJournalEntry: JournalEntry? {
+        let candidate: JournalEntry?
         if let linkedJournalId = scan.linkedJournalId,
            let linked = journalStore.entries.first(where: { $0.id == linkedJournalId }) {
-            return linked
+            candidate = linked
+        } else {
+            candidate = journalStore.entries.first(where: { $0.linkedScanId == scan.id })
         }
-        return journalStore.entries.first(where: { $0.linkedScanId == scan.id })
+        guard let candidate,
+              BeerLibraryIdentity.explicitLinkMatches(
+                scanName: scan.beerName,
+                scanBrewery: scan.brand,
+                journalName: candidate.beerName,
+                journalBrewery: candidate.brand
+              ) else { return nil }
+        return candidate
     }
 
     private var explanation: String {

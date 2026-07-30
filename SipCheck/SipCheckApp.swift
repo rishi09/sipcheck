@@ -199,6 +199,7 @@ private struct RootView: View {
                 if let linkedJournalId = scan.linkedJournalId {
                     scanStore.markTried(
                         beerName: scan.beerName,
+                        brewery: scan.brand,
                         linkedJournalId: linkedJournalId,
                         sourceScanId: scan.id
                     )
@@ -229,6 +230,7 @@ private struct RootView: View {
                 journalStore.addEntry(journalEntry)
                 scanStore.markTried(
                     beerName: scan.beerName,
+                    brewery: scan.brand,
                     linkedJournalId: journalEntry.id,
                     sourceScanId: scan.id
                 )

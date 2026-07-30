@@ -68,6 +68,7 @@ review/analyze overrides automatic delivery.
 | Founder video feedback follow-up (completed 2026-07-24) | `codex/video-feedback-fixes` | Released after 118 unit/integration tests, 8 UI flows, screenshot review, signed Release run `30138986488`, and E2E run 50 (`30138986486`). No files remain reserved. |
 | Open-ended local beer search (completed 2026-07-29) | `codex/open-beer-search` | Released after generic catalog discovery, exact raw-name fallback, preference/history identity fixes, 130 passing tests, signed branch build 103, and published E2E run 51. No files remain reserved. |
 | Live long-tail beer discovery (completed 2026-07-30) | `codex/long-tail-search` | Released after generic Catalog.beer plus grounded web discovery, Production-compatible source sync, 166 unit/integration tests, 9 UI tests, live-search and signed Release run `30522296141`, and published E2E run 56 (`30522274144`). No files remain reserved. |
+| Canonical beer-library projection (active) | `codex/beer-library-projection` | `AGENTS.md`, `SipCheck.xcodeproj/project.pbxproj`, beer-library/taste models, Check/Verdict/Journal/Profile/AddBeer/Settings/notification-log integration files, legacy-history detail bridge, scan identity/CloudKit metadata cleanup, deterministic seed fixtures, and focused unit/UI tests. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.

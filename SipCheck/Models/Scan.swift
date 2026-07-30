@@ -11,9 +11,9 @@ enum Verdict: String, Codable, CaseIterable {
 struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     let id: UUID
     var beerName: String
-    /// Local scan metadata. Brand and photo are intentionally not written to
-    /// the production CloudKit Scan schema yet; once the beer is logged, both
-    /// flow into Drink/JournalEntry, whose schemas already support them.
+    /// Brand is encoded into the compatible CloudKit origin metadata field so
+    /// strict saved/tried identity survives cross-device sync without a schema
+    /// migration. Photos remain local until the beer is logged.
     var brand: String?
     var style: String?
     var abv: Double?

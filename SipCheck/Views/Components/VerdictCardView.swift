@@ -95,9 +95,10 @@ struct BeerFactSourceLink: View {
 
 struct VerdictCardView: View {
     let scan: Scan
-    /// Set when this beer matches one already in the user's history, so the
-    /// card can say "you've had this" instead of treating it as new.
-    var previousDrink: Drink? = nil
+    /// Set only by the canonical beer-library projection when this strict beer
+    /// identity has a surviving encounter. The source-aware record keeps copy
+    /// honest: star ratings are not described as thumb gestures.
+    var previousTaste: BeerTasteRecord? = nil
     /// True while background network enrichment is still filling in details.
     /// The verdict itself is final the moment the card renders — this only
     /// signals that copy/style/ABV may still improve in place.
@@ -155,13 +156,13 @@ struct VerdictCardView: View {
                 }
 
                 // MARK: - History Capsule (highest-trust line — elevated chip, SF thumb, no raw emoji)
-                if let previous = previousDrink {
+                if let previousTaste {
                     HStack(spacing: SipSpacing.s) {
-                        Image(systemName: ratingSymbol(for: previous.rating))
+                        Image(systemName: ratingSymbol(for: previousTaste.rating))
                             .font(SipTypography.caption)
-                            .foregroundColor(ratingColor(for: previous.rating))
+                            .foregroundColor(ratingColor(for: previousTaste.rating))
                             .accessibilityHidden(true)
-                        Text(historyLine(for: previous.rating))
+                        Text(historyLine(for: previousTaste))
                             .font(SipTypography.caption)
                             .foregroundColor(SipColors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -170,6 +171,8 @@ struct VerdictCardView: View {
                     .padding(.vertical, SipSpacing.m)
                     .background(Capsule().fill(SipColors.surfaceElevated))
                     .padding(.top, SipSpacing.m)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(historyLine(for: previousTaste))
                     .accessibilityIdentifier("alreadyTriedBanner")
                 }
 
@@ -471,11 +474,14 @@ struct VerdictCardView: View {
 
     /// Full sentence per rating — round-2 crit #7: interpolating the raw
     /// rating name produced the truncated-sounding "you rated it like".
-    private func historyLine(for rating: Rating) -> String {
-        switch rating {
-        case .like:    return "You've had this one — you gave it a thumbs up."
-        case .dislike: return "You've had this one — you gave it a thumbs down."
-        case .neutral: return "You've had this one — you were on the fence."
+    private func historyLine(for record: BeerTasteRecord) -> String {
+        if let stars = record.stars {
+            return "You've had this one — last time: \(stars) out of 5."
+        }
+        switch record.rating {
+        case .like:    return "You've had this one — you liked it last time."
+        case .dislike: return "You've had this one — it wasn't for you last time."
+        case .neutral: return "You've had this one — it was a maybe last time."
         }
     }
 

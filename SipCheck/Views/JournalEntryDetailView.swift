@@ -12,6 +12,11 @@ struct JournalEntryDetailView: View {
     let linkedVerdict: Verdict?
     /// Exact remote page from the explicitly linked scan only.
     let linkedFactSource: BeerFactSource?
+    /// Legacy Drink-only rows use these callbacks to bridge into the Journal
+    /// schema on first edit while keeping distinct CloudKit record IDs.
+    let onSave: ((Int, String?) -> Void)?
+    let onDelete: (() -> Void)?
+    let deleteButtonTitle: String
     @State private var rating: Int
     @State private var notes: String
     @State private var showingDeleteConfirm = false
@@ -20,11 +25,17 @@ struct JournalEntryDetailView: View {
     init(
         entry: JournalEntry,
         linkedVerdict: Verdict? = nil,
-        linkedFactSource: BeerFactSource? = nil
+        linkedFactSource: BeerFactSource? = nil,
+        deleteButtonTitle: String = "Delete from Journal",
+        onSave: ((Int, String?) -> Void)? = nil,
+        onDelete: (() -> Void)? = nil
     ) {
         self.entry = entry
         self.linkedVerdict = linkedVerdict
         self.linkedFactSource = linkedFactSource
+        self.onSave = onSave
+        self.onDelete = onDelete
+        self.deleteButtonTitle = deleteButtonTitle
         _rating = State(initialValue: entry.rating)
         _notes = State(initialValue: entry.notes ?? "")
     }
@@ -141,7 +152,7 @@ struct JournalEntryDetailView: View {
                         Button(role: .destructive) {
                             showingDeleteConfirm = true
                         } label: {
-                            Text("Delete from Journal")
+                            Text(deleteButtonTitle)
                                 .font(SipTypography.subhead)
                                 .foregroundColor(SipColors.destructive)
                                 .frame(maxWidth: .infinity, minHeight: 44)
@@ -160,10 +171,15 @@ struct JournalEntryDetailView: View {
                 // hairline, from SipPrimaryButtonStyle) — round-2 crit #4: a
                 // surface-on-surface disabled Save read as placeholder text.
                 Button("Save") {
-                    var updated = entry
-                    updated.rating = rating
-                    updated.notes = notes.isEmpty ? nil : notes
-                    journalStore.updateEntry(updated)
+                    let savedNotes = notes.isEmpty ? nil : notes
+                    if let onSave {
+                        onSave(rating, savedNotes)
+                    } else {
+                        var updated = entry
+                        updated.rating = rating
+                        updated.notes = savedNotes
+                        journalStore.updateEntry(updated)
+                    }
                     dismiss()
                 }
                 .buttonStyle(SipPrimaryButtonStyle())
@@ -192,7 +208,11 @@ struct JournalEntryDetailView: View {
                 titleVisibility: .visible
             ) {
                 Button("Delete", role: .destructive) {
-                    journalStore.deleteEntry(entry)
+                    if let onDelete {
+                        onDelete()
+                    } else {
+                        journalStore.deleteEntry(entry)
+                    }
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}

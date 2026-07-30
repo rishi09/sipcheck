@@ -4,13 +4,29 @@ import CloudKit
 struct CloudKitScanMetadata: Equatable {
     let origin: String?
     let factSource: BeerFactSource?
+    let brand: String?
 }
 
 enum CloudKitScanMetadataCodec {
+    private struct V2Payload: Codable {
+        let origin: String?
+        let factSource: BeerFactSource?
+        let brand: String?
+    }
+
+    private static let v2Prefix = "SipCheck metadata v2: "
     private static let catalogPrefix = "SipCheck source v1 - Catalog.beer: "
     private static let webPrefix = "SipCheck source v1 - Brewery website: "
 
-    static func encode(origin: String?, factSource: BeerFactSource?) -> String? {
+    static func encode(origin: String?, factSource: BeerFactSource?, brand: String? = nil) -> String? {
+        let cleanBrand = brand?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let cleanBrand, !cleanBrand.isEmpty {
+            let payload = V2Payload(origin: origin, factSource: factSource, brand: cleanBrand)
+            if let data = try? JSONEncoder().encode(payload) {
+                return v2Prefix + data.base64EncodedString()
+            }
+        }
+
         guard let factSource else { return origin }
         let prefix = factSource.kind == .catalogBeer ? catalogPrefix : webPrefix
         let sourceLine = prefix + factSource.url.absoluteString
@@ -21,7 +37,25 @@ enum CloudKitScanMetadataCodec {
     }
 
     static func decode(_ value: String?) -> CloudKitScanMetadata {
-        guard let value else { return CloudKitScanMetadata(origin: nil, factSource: nil) }
+        guard let value else {
+            return CloudKitScanMetadata(origin: nil, factSource: nil, brand: nil)
+        }
+
+        if value.hasPrefix(v2Prefix) {
+            let encoded = String(value.dropFirst(v2Prefix.count))
+            if let data = Data(base64Encoded: encoded),
+               let payload = try? JSONDecoder().decode(V2Payload.self, from: data) {
+                return CloudKitScanMetadata(
+                    origin: payload.origin,
+                    factSource: payload.factSource,
+                    brand: payload.brand
+                )
+            }
+            // A malformed compatible payload is still user data. Preserve it
+            // as legacy origin text instead of dropping the entire scan.
+            return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil)
+        }
+
         let candidates: [(String, BeerFactSource.Kind)] = [
             (catalogPrefix, .catalogBeer),
             (webPrefix, .webSearch)
@@ -39,10 +73,11 @@ enum CloudKitScanMetadataCodec {
                 : ""
             return CloudKitScanMetadata(
                 origin: origin.isEmpty ? nil : origin,
-                factSource: factSource
+                factSource: factSource,
+                brand: nil
             )
         }
-        return CloudKitScanMetadata(origin: value, factSource: nil)
+        return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil)
     }
 }
 
@@ -223,6 +258,13 @@ final class CloudKitSyncService {
             for scan in localScans where !remoteScanIDs.contains(scan.id) {
                 save(scan)
             }
+            // Older production Scan records predate brewery metadata. Backfill
+            // from a device that still has the local brand, while retaining
+            // whichever complete record wins LWW so no newer remote state is
+            // overwritten. Once v2 metadata lands this set is naturally empty.
+            for scan in Self.scansNeedingBrandBackfill(local: localScans, remote: remoteScans) {
+                save(scan)
+            }
         }
         if let remoteJournals {
             let remoteJournalIDs = Set(remoteJournals.map { $0.id })
@@ -232,6 +274,24 @@ final class CloudKitSyncService {
         }
 
         return (mergedDrinks, mergedScans, mergedJournals)
+    }
+
+    static func scansNeedingBrandBackfill(local: [Scan], remote: [Scan]) -> [Scan] {
+        let localByID = Dictionary(uniqueKeysWithValues: local.map { ($0.id, $0) })
+        return remote.compactMap { remoteScan in
+            guard !remoteScan.isDeleted,
+                  remoteScan.brand?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true,
+                  let localScan = localByID[remoteScan.id],
+                  let localBrand = localScan.brand?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !localBrand.isEmpty,
+                  BeerMatcher.exactNamesMatch(localScan.beerName, remoteScan.beerName) else {
+                return nil
+            }
+
+            var winner = cloudKitWins(remoteScan, over: localScan) ? remoteScan : localScan
+            winner.brand = localBrand
+            return winner
+        }
     }
 
     // MARK: - Helpers
@@ -359,7 +419,7 @@ final class CloudKitSyncService {
         record["abv"] = scan.abv.map { $0 as CKRecordValue }
         record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
         record["origin"] = CloudKitScanMetadataCodec
-            .encode(origin: scan.origin, factSource: scan.factSource)
+            .encode(origin: scan.origin, factSource: scan.factSource, brand: scan.brand)
             .map { $0 as CKRecordValue }
     }
 
@@ -383,6 +443,7 @@ final class CloudKitSyncService {
         var scan = Scan(
             id: id,
             beerName: beerName,
+            brand: metadata.brand,
             style: record["style"] as? String,
             abv: record["abv"] as? Double,
             verdict: verdict,

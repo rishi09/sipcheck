@@ -56,14 +56,25 @@ class ScanStore: ObservableObject {
     }
 
     /// Close the Want-to-Try loop in one persisted mutation. Besides the source
-    /// scan, exact-name duplicates are cleared so a manually logged beer cannot
-    /// remain simultaneously under both Tried and Want to Try.
-    func markTried(beerName: String, linkedJournalId: UUID, sourceScanId: UUID? = nil) {
+    /// scan, strict name+brewery duplicates are cleared so a manually logged
+    /// beer cannot remain simultaneously under both Tried and Want to Try.
+    /// Brewery-less identities match only other brewery-less identities.
+    func markTried(
+        beerName: String,
+        brewery: String? = nil,
+        linkedJournalId: UUID,
+        sourceScanId: UUID? = nil
+    ) {
         var changed: [Scan] = []
         for index in scans.indices {
             let isSource = scans[index].id == sourceScanId
             let isSavedExactMatch = scans[index].wantToTry
-                && BeerMatcher.exactNamesMatch(scans[index].beerName, beerName)
+                && BeerLibraryIdentity.strictlyMatches(
+                    name: scans[index].beerName,
+                    brewery: scans[index].brand,
+                    otherName: beerName,
+                    otherBrewery: brewery
+                )
             guard isSource || isSavedExactMatch else { continue }
             guard scans[index].wantToTry || scans[index].linkedJournalId != linkedJournalId else { continue }
 

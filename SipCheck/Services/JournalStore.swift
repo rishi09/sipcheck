@@ -237,7 +237,7 @@ class JournalStore: ObservableObject {
         JournalEntry(
             id: UUID(uuidString: "BB111111-1111-1111-1111-111111111111")!,
             beerName: "Sierra Nevada Pale Ale",
-            brand: "Sierra Nevada",
+            brand: "Sierra Nevada Brewing Company",
             style: "Pale Ale",
             rating: 5,
             notes: "Classic hop flavor. My go-to."
