@@ -86,8 +86,8 @@
   {
     "id": "houston_skylab",
     "query": "SKYLAB True Anomaly Brewing",
-    "beer_aliases": ["SKYLAB", "Sky Lab"],
-    "brewery_aliases": ["True Anomaly Brewing Company", "True Anomaly Brewing", "True Anomaly"],
+    "beer_aliases": ["SKYLAB", "Sky Lab", "True Anomaly SKYLAB"],
+    "brewery_aliases": ["True Anomaly Brewing Company", "True Anomaly Brewing", "True Anomaly Brewing Co", "True Anomaly Brewing Co.", "True Anomaly"],
     "style_evidence": "American IPA",
     "coarse_category": "ipa",
     "official_hosts": ["trueanomalybrewing.com"],
