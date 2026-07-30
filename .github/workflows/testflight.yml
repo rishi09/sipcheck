@@ -271,6 +271,16 @@ jobs:
               and canonical(result.get("source_url", "")) in citations
           ]
           if not matches:
+              diagnostic_results = [
+                  {
+                      "name": result.get("name"),
+                      "brewery": result.get("brewery"),
+                      "source_url": result.get("source_url"),
+                  }
+                  for result in results
+              ]
+              print("Returned results: " + json.dumps(diagnostic_results, sort_keys=True))
+              print("URL citations: " + json.dumps(sorted(citations)))
               raise SystemExit("Connected-search probe returned no exactly cited current ISM beer")
           print("Connected-search live contract passed with an exact clickable citation.")
           PY
