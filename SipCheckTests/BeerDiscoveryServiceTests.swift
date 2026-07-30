@@ -132,7 +132,7 @@ final class BeerDiscoveryServiceTests: XCTestCase {
                 "name": "Falling Knife Catch",
                 "brewery": "ISM Brewing",
                 "style": "West Coast IPA",
-                "abv": 6.6,
+                "abv": NSNull(),
                 "source_url": "https://ism.beer/drink-menu?utm_source=search#tap-list"
             ]]))
         }
@@ -160,7 +160,7 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(result.sourceURL.absoluteString, "https://ism.beer/drink-menu")
         XCTAssertEqual(result.resolvedBeer.factSource?.kind, .webSearch)
         XCTAssertEqual(result.beerStyle, .ipa)
-        XCTAssertEqual(result.abv, 6.6)
+        XCTAssertNil(result.abv)
         XCTAssertEqual(assessment.verdict, .tryIt)
         XCTAssertTrue(assessment.shortReason.contains("history"))
     }
@@ -177,17 +177,30 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         missingField.removeValue(forKey: "brewery")
         var extraField = valid
         extraField["verdict"] = "TRY_IT"
-        var invalidABV = valid
-        invalidABV["abv"] = 31
         var overlongName = valid
         overlongName["name"] = String(repeating: "a", count: 101)
 
-        for result in [missingField, extraField, invalidABV, overlongName] {
+        for result in [missingField, extraField, overlongName] {
             XCTAssertThrowsError(try BeerSearchProxyClient.parseResponse(
                 Self.proxyResponseData(results: [result]),
                 query: "Falling Knife Catch",
                 limit: 5
             ))
+        }
+
+        var missingABV = valid
+        missingABV.removeValue(forKey: "abv")
+        var invalidABV = valid
+        invalidABV["abv"] = 31
+        var malformedABV = valid
+        malformedABV["abv"] = "unknown"
+        for result in [missingABV, invalidABV, malformedABV] {
+            let candidates = try BeerSearchProxyClient.parseResponse(
+                Self.proxyResponseData(results: [result]),
+                query: "Falling Knife Catch",
+                limit: 5
+            )
+            XCTAssertNil(try XCTUnwrap(candidates.first).abv)
         }
         let extraRoot = try JSONSerialization.data(withJSONObject: [
             "results": [valid],

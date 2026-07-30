@@ -376,8 +376,11 @@ struct BeerSearchProxyClient: @unchecked Sendable {
         "fbclid", "gclid", "mc_cid", "mc_eid", "msclkid"
     ]
     private static let responseByteLimit = 256_000
-    private static let resultKeys: Set<String> = [
+    private static let allowedResultKeys: Set<String> = [
         "name", "brewery", "style", "abv", "source_url"
+    ]
+    private static let requiredResultKeys: Set<String> = [
+        "name", "brewery", "style", "source_url"
     ]
 
     private let session: URLSession
@@ -441,11 +444,12 @@ struct BeerSearchProxyClient: @unchecked Sendable {
         var candidates: [BeerDiscoveryCandidate] = []
         candidates.reserveCapacity(results.count)
         for result in results {
-            guard Set(result.keys) == resultKeys,
+            let keys = Set(result.keys)
+            guard requiredResultKeys.isSubset(of: keys),
+                  keys.isSubset(of: allowedResultKeys),
                   let rawName = result["name"] as? String,
                   let rawBrewery = result["brewery"] as? String,
                   let rawStyle = result["style"],
-                  let rawABV = result["abv"],
                   let rawURL = result["source_url"] as? String else {
                 throw BeerDiscoveryError.invalidResponse
             }
@@ -472,14 +476,14 @@ struct BeerSearchProxyClient: @unchecked Sendable {
             }
 
             let abv: Double?
-            if rawABV is NSNull {
+            if result["abv"] == nil || result["abv"] is NSNull {
                 abv = nil
-            } else if !(rawABV is Bool),
-                      let number = rawABV as? NSNumber,
+            } else if !(result["abv"] is Bool),
+                      let number = result["abv"] as? NSNumber,
                       let validated = BeerDiscoveryText.validatedABV(number) {
                 abv = validated
             } else {
-                throw BeerDiscoveryError.invalidResponse
+                abv = nil
             }
 
             let candidate = BeerDiscoveryCandidate(

@@ -117,7 +117,7 @@ test("Gemini request has no tools and enumerates exact source URLs", () => {
 test("valid extraction is grounded and confidence is capped by evidence", () => {
   const parsed = parseGeminiResponse(geminiResponse([candidate]));
   const results = validateExtraction(parsed, [source], { query: "Falling Knife Catch", limit: 6 });
-  assert.deepEqual(results, [{ ...candidate, confidence: 0.9 }]);
+  assert.deepEqual(results, [{ ...candidate, confidence: 0.8 }]);
 });
 
 test("public results use the Swift contract's exact name field", () => {
@@ -154,6 +154,20 @@ test("unsupported optional facts are removed instead of trusted", () => {
   assert.equal(results[0].style, null);
   assert.equal(results[0].abv, null);
   assert.equal(results[0].confidence, 0.7);
+});
+
+test("missing or malformed ABV never discards a grounded result", () => {
+  const { abv: _unused, ...withoutABV } = candidate;
+  for (const result of [withoutABV, { ...candidate, abv: "not-a-number" }]) {
+    const results = validateExtraction({ results: [result] }, [source], {
+      query: "Falling Knife Catch",
+      limit: 6
+    });
+    assert.equal(results.length, 1);
+    assert.equal(results[0].style, "West Coast IPA");
+    assert.equal(results[0].abv, null);
+    assert.equal(results[0].confidence, 0.8);
+  }
 });
 
 test("search orchestration sends bounded provider requests and returns verified facts", async () => {

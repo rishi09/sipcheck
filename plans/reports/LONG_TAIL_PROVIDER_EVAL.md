@@ -43,18 +43,18 @@ These results characterize this corpus and test environment; they are not a guar
 
 Each cell is successful trials out of three. "Exact facts" includes ABV and is retained only as a secondary diagnostic; it is not the search success criterion.
 
-| Beer | Basic exact facts | Basic official source | Advanced exact facts | Advanced official source | Observation |
+| Beer | Advanced recommendation-ready | Basic exact facts | Advanced exact facts | Advanced official source | Observation |
 |---|---:|---:|---:|---:|---|
-| Drink Beer Slay Dragon | 3/3 | 3/3 | 3/3 | 3/3 | Basic and Advanced were complete. |
-| Redwood | 0/3 | 2/3 | 0/3 | 3/3 | An official homepage still reported 5.5% ABV rather than the current 5.3%; one Basic trial abstained. |
-| Snímek | 1/3 | 2/3 | 3/3 | 3/3 | Advanced closed the Basic fact gap. |
-| Jantar | 2/3 | 2/3 | 3/3 | 3/3 | Advanced was complete. |
-| Whipple Street | 3/3 | 0/3 | 3/3 | 0/3 | Facts were usable, but the evidence source was Untappd rather than official. |
-| Stratasphere | 2/3 | 0/3 | 3/3 | 0/3 | Advanced fixed the fact miss; the evidence source remained Untappd. |
-| Scout | 3/3 | 3/3 | 3/3 | 3/3 | Basic and Advanced were complete. |
-| SKYLAB | 2/3 | 3/3 | 3/3 | 3/3 | One Basic trial returned `Sky Lab`; facts and category were otherwise correct. |
-| SENATE BEER | 3/3 | 1/3 | 3/3 | 3/3 | Advanced improved source quality. |
-| BIG TOMORROW | 2/3 | 2/3 | 3/3 | 3/3 | Advanced was complete. |
+| Drink Beer Slay Dragon | **3/3** | 3/3 | 3/3 | 3/3 | Basic and Advanced were complete. |
+| Redwood | **3/3** | 0/3 | 0/3 | 3/3 | The correct identity and category were found; only the stale official ABV missed the secondary check. |
+| Snímek | **3/3** | 1/3 | 3/3 | 3/3 | Advanced closed the Basic fact gap. |
+| Jantar | **3/3** | 2/3 | 3/3 | 3/3 | Advanced was complete. |
+| Whipple Street | **3/3** | 3/3 | 3/3 | 0/3 | Facts were usable, but the evidence source was Untappd rather than official. |
+| Stratasphere | **3/3** | 2/3 | 3/3 | 0/3 | Advanced fixed the fact miss; the evidence source remained Untappd. |
+| Scout | **3/3** | 3/3 | 3/3 | 3/3 | Basic and Advanced were complete. |
+| SKYLAB | **3/3** | 2/3 | 3/3 | 3/3 | One Basic trial returned `Sky Lab`; facts and category were otherwise correct. |
+| SENATE BEER | **3/3** | 3/3 | 3/3 | 3/3 | Advanced improved source quality. |
+| BIG TOMORROW | **3/3** | 2/3 | 3/3 | 3/3 | Advanced was complete. |
 
 ### Google Comparator
 
@@ -73,7 +73,7 @@ Despite the strong retrieval result, Google Search Grounding was not selected fo
 
 ## Decision and Runtime Boundary
 
-Advanced Tavily was selected because it produced strict identity and a usable coarse category in 30/30 trials and full facts in 27/30. The roughly 5.3-second median is acceptable only because it is not the verdict's critical path:
+Advanced Tavily was selected because it produced strict identity and a usable coarse category in 30/30 trials. The roughly 5.3-second median is acceptable only because it is not the verdict's critical path:
 
 1. SipCheck checks typed text and local catalog data immediately.
 2. The local scorer produces the best available verdict from current facts, preferences, and history.

@@ -21,6 +21,14 @@ const RESULT_KEYS = [
   "confidence"
 ] as const;
 
+const REQUIRED_RESULT_KEYS = [
+  "beer",
+  "brewery",
+  "style",
+  "source_url",
+  "confidence"
+] as const;
+
 const IGNORED_QUERY_TOKENS = new Set([
   "beer",
   "brew",
@@ -269,7 +277,7 @@ export function buildGeminiRequestBody(
             },
             confidence: { type: "number", minimum: 0, maximum: 1 }
           },
-          required: RESULT_KEYS
+          required: REQUIRED_RESULT_KEYS
         }
       }
     },
@@ -422,6 +430,16 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 }
 
+function requiredKeysWithNoExtras(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  allowed: readonly string[]
+): boolean {
+  const actual = Object.keys(value);
+  return required.every((key) => Object.hasOwn(value, key))
+    && actual.every((key) => allowed.includes(key));
+}
+
 function validOutputString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -466,7 +484,7 @@ export function validateExtraction(
   const accepted: BeerSearchResult[] = [];
 
   for (const raw of extraction.results.slice(0, request.limit)) {
-    if (!isObject(raw) || !exactKeys(raw, RESULT_KEYS)) continue;
+    if (!isObject(raw) || !requiredKeysWithNoExtras(raw, REQUIRED_RESULT_KEYS, RESULT_KEYS)) continue;
     const beer = validOutputString(raw.beer, 100);
     const brewery = validOutputString(raw.brewery, 100);
     const sourceURL = typeof raw.source_url === "string" ? raw.source_url : "";
@@ -475,8 +493,7 @@ export function validateExtraction(
       ? raw.confidence
       : -1;
     const styleTypeIsValid = raw.style === null || typeof raw.style === "string";
-    const abvTypeIsValid = raw.abv === null || (typeof raw.abv === "number" && Number.isFinite(raw.abv));
-    if (!beer || !brewery || !source || !styleTypeIsValid || !abvTypeIsValid || confidence < 0 || confidence > 1) continue;
+    if (!beer || !brewery || !source || !styleTypeIsValid || confidence < 0 || confidence > 1) continue;
     if (!isRelevant(request.query, beer, brewery)) continue;
 
     const sourceText = `${source.title}\n${source.snippet}\n${source.rawText}`;
@@ -486,14 +503,15 @@ export function validateExtraction(
 
     const requestedStyle = raw.style === null ? null : validOutputString(raw.style, 80);
     const style = requestedStyle && supportsStyle(windows, requestedStyle) ? requestedStyle : null;
-    const requestedABV = raw.abv === null
-      ? null
-      : typeof raw.abv === "number" && Number.isFinite(raw.abv) && raw.abv >= 0 && raw.abv <= 25
+    const requestedABV = typeof raw.abv === "number"
+      && Number.isFinite(raw.abv)
+      && raw.abv >= 0
+      && raw.abv <= 25
         ? raw.abv
         : null;
     const abv = requestedABV !== null && supportsABV(windows, requestedABV) ? requestedABV : null;
 
-    const evidenceCap = Math.min(0.95, 0.7 + (style ? 0.1 : 0) + (abv !== null ? 0.1 : 0));
+    const evidenceCap = Math.min(0.95, 0.7 + (style ? 0.1 : 0));
     const finalConfidence = Math.round(Math.min(confidence, evidenceCap) * 100) / 100;
     if (finalConfidence < 0.5) continue;
 
