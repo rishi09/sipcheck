@@ -36,7 +36,7 @@
   {
     "id": "denver_jantar",
     "query": "Jantar Cohesion Brewing Company",
-    "beer_aliases": ["Jantar"],
+    "beer_aliases": ["Jantar", "Jantar Polotmavé Výčepní Pivo", "Jantar Polotmave Vycepni Pivo"],
     "brewery_aliases": ["Cohesion Brewing Company", "Cohesion Brewing", "Cohesion"],
     "style_evidence": "Polotmavé Výčepní Pivo (Czech Amber Lager)",
     "coarse_category": "lager",
