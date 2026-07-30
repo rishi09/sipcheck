@@ -168,12 +168,14 @@ jobs:
         run: |
           set -euo pipefail
           SCHEMA="$RUNNER_TEMP/sipcheck-production-schema-patched.ckdb"
+          # cktool's separate validation endpoint is unavailable in Production.
+          # Import directly, then prove the result with the independent
+          # re-export and exact field/type assertion below.
           for ATTEMPT in 1 2 3; do
             if xcrun cktool import-schema \
               --team-id "$TEAM_ID" \
               --container-id "$CONTAINER" \
               --environment PRODUCTION \
-              --validate \
               --file "$SCHEMA"; then
               exit 0
             fi
