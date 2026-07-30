@@ -69,7 +69,7 @@ review/analyze overrides automatic delivery.
 | Open-ended local beer search (completed 2026-07-29) | `codex/open-beer-search` | Released after generic catalog discovery, exact raw-name fallback, preference/history identity fixes, 130 passing tests, signed branch build 103, and published E2E run 51. No files remain reserved. |
 | Live long-tail beer discovery (completed 2026-07-30) | `codex/long-tail-search` | Released after generic Catalog.beer plus grounded web discovery, Production-compatible source sync, 166 unit/integration tests, 9 UI tests, live-search and signed Release run `30522296141`, and published E2E run 56 (`30522274144`). No files remain reserved. |
 | Canonical beer-library projection (completed 2026-07-30) | `codex/beer-library-projection` | Released after 185 unit/integration tests, 10 UI flows, signed branch build 115, and published E2E run 57. No files remain reserved. |
-| Tavily + Gemini long-tail release follow-up (active) | `codex/tavily-gemini-search` | Reserved: `.github/workflows/testflight.yml` while aligning the release smoke with the category-adjudicable golden cases. |
+| Tavily + Gemini long-tail upgrade (completed 2026-07-30) | `codex/tavily-gemini-search` | Released after exact-SHA Vercel verification, a 10/10 identity + 9/9 supported-category live eval, 187 unit/integration tests, 11 UI flows, signed build 135, and corrected release-smoke branch build 137. No files remain reserved. |
 | Developer scenario lab + unified CLI (completed 2026-07-30) | `codex/dev-tools` | Released after CLI routing checks, Debug/Release/test builds, 188 unit/integration tests, 11 UI flows, signed branch build 126, and published E2E run 63. No files remain reserved. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
