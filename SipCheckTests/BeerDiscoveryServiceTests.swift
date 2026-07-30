@@ -124,6 +124,11 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         let results = try await client.search(query: rawQuery, limit: 5)
 
         XCTAssertTrue(results.isEmpty)
+
+        do {
+            _ = try await client.search(query: rawQuery, limit: 9)
+            XCTFail("Expected a limit above the backend contract to fail")
+        } catch {}
     }
 
     func testProxyFactsFeedExistingLocalHistoryScorer() async throws {

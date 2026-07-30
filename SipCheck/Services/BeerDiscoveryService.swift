@@ -402,7 +402,7 @@ struct BeerSearchProxyClient: @unchecked Sendable {
         guard let endpoint, Self.isAllowedProxyEndpoint(endpoint) else {
             throw BeerDiscoveryError.unavailable
         }
-        guard (1...10).contains(limit),
+        guard (1...8).contains(limit),
               (2...160).contains(query.count),
               BeerDiscoveryText.normalize(query).count >= 2 else {
             throw BeerDiscoveryError.invalidResponse
@@ -432,7 +432,7 @@ struct BeerSearchProxyClient: @unchecked Sendable {
 
     static func parseResponse(_ data: Data, query: String, limit: Int) throws -> [BeerDiscoveryCandidate] {
         guard data.count <= responseByteLimit,
-              (1...10).contains(limit),
+              (1...8).contains(limit),
               let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               Set(root.keys) == ["results"],
               let results = root["results"] as? [[String: Any]],
@@ -727,7 +727,7 @@ actor BeerDiscoveryService {
         guard (2...160).contains(trimmed.count), normalized.count >= 2, limit > 0 else {
             return []
         }
-        let fetchLimit = min(max(limit, 8), 10)
+        let fetchLimit = 8
         if mockSearch { return Array(mockCandidates(for: normalized).prefix(limit)) }
 
         let cached = cache.lookup(query: normalized)
