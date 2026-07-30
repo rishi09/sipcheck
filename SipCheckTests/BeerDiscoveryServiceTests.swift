@@ -119,7 +119,7 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(results[0].resolvedBeer.factSource?.url, results[0].sourceURL)
     }
 
-    func testWebResponseRejectsActionSourceWithoutURLCitation() throws {
+    func testWebResponseAcceptsExactWebSearchActionSource() throws {
         let sourceURL = "https://ism.beer/drink-menu"
         let data = try webResponseData(results: [[
             "name": "Falling Knife Catch",
@@ -128,6 +128,26 @@ final class BeerDiscoveryServiceTests: XCTestCase {
             "abv": 6.6,
             "source_url": sourceURL
         ]], actionSources: [sourceURL])
+
+        let results = try OpenAIBeerWebSearchClient.parseResponse(
+            data,
+            query: "Falling Knife Catch",
+            limit: 5
+        )
+
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results[0].name, "Falling Knife Catch")
+        XCTAssertEqual(results[0].sourceURL.absoluteString, sourceURL)
+    }
+
+    func testWebResponseRejectsDifferentPathFromActionSource() throws {
+        let data = try webResponseData(results: [[
+            "name": "Falling Knife Catch",
+            "brewery": "ISM Brewing",
+            "style": "West Coast IPA",
+            "abv": 6.6,
+            "source_url": "https://ism.beer/drink-menu"
+        ]], actionSources: ["https://ism.beer/about"])
 
         XCTAssertThrowsError(try OpenAIBeerWebSearchClient.parseResponse(
             data,

@@ -429,11 +429,21 @@ struct OpenAIBeerWebSearchClient: @unchecked Sendable {
         }
 
         var structuredOutput: (text: String, citations: [URL])?
+        var actionSources: [URL] = []
+        var sawWebSearchCall = false
         for item in output {
             if item["type"] as? String == "refusal"
                 || item["refusal"] as? String != nil
                 || item["status"] as? String == "incomplete" {
                 throw BeerDiscoveryError.invalidResponse
+            }
+            if item["type"] as? String == "web_search_call" {
+                sawWebSearchCall = true
+                let sources = (item["action"] as? [String: Any])?["sources"] as? [[String: Any]] ?? []
+                actionSources += sources.compactMap { source in
+                    guard let rawURL = source["url"] as? String else { return nil }
+                    return validSourceURL(rawURL)
+                }
             }
             guard let content = item["content"] as? [[String: Any]] else { continue }
             for part in content {
@@ -453,13 +463,15 @@ struct OpenAIBeerWebSearchClient: @unchecked Sendable {
             }
         }
         guard let structuredOutput,
+              sawWebSearchCall,
               let jsonData = structuredOutput.text.data(using: .utf8),
               let payload = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
               let results = payload["results"] as? [[String: Any]] else {
             throw BeerDiscoveryError.invalidResponse
         }
         if results.isEmpty { return [] }
-        guard !structuredOutput.citations.isEmpty else {
+        let groundedSources = deduplicated(actionSources + structuredOutput.citations)
+        guard !groundedSources.isEmpty else {
             throw BeerDiscoveryError.invalidResponse
         }
 
@@ -470,7 +482,7 @@ struct OpenAIBeerWebSearchClient: @unchecked Sendable {
                   let rawBrewery = result["brewery"] as? String,
                   let rawURL = result["source_url"] as? String,
                   let requestedURL = validSourceURL(rawURL),
-                  let sourceURL = citedURL(for: requestedURL, among: structuredOutput.citations) else {
+                  let sourceURL = citedURL(for: requestedURL, among: groundedSources) else {
                 continue
             }
             hasGroundedResult = true

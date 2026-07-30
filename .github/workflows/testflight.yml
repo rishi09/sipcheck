@@ -241,8 +241,15 @@ jobs:
               raise SystemExit("Connected-search response did not complete")
 
           outputs = root.get("output", [])
-          if not any(item.get("type") == "web_search_call" for item in outputs):
+          web_calls = [item for item in outputs if item.get("type") == "web_search_call"]
+          if not web_calls:
               raise SystemExit("Connected-search response did not use web_search")
+          action_sources = {
+              canonical(source.get("url", ""))
+              for item in web_calls
+              for source in item.get("action", {}).get("sources", [])
+          }
+          action_sources.discard(None)
           text_parts = [
               part
               for item in outputs
@@ -260,6 +267,7 @@ jobs:
               if annotation.get("type") == "url_citation"
           }
           citations.discard(None)
+          grounded_sources = citations | action_sources
           matches = [
               result for result in results
               if result.get("name", "").strip()
@@ -268,7 +276,7 @@ jobs:
                   (urlsplit(result.get("source_url", "")).hostname or "").lower() == "ism.beer"
                   or (urlsplit(result.get("source_url", "")).hostname or "").lower().endswith(".ism.beer")
               )
-              and canonical(result.get("source_url", "")) in citations
+              and canonical(result.get("source_url", "")) in grounded_sources
           ]
           if not matches:
               diagnostic_results = [
@@ -281,6 +289,7 @@ jobs:
               ]
               print("Returned results: " + json.dumps(diagnostic_results, sort_keys=True))
               print("URL citations: " + json.dumps(sorted(citations)))
+              print("Web-search sources: " + json.dumps(sorted(action_sources)))
               raise SystemExit("Connected-search probe returned no exactly cited current ISM beer")
           print("Connected-search live contract passed with an exact clickable citation.")
           PY
