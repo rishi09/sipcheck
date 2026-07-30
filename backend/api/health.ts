@@ -1,4 +1,4 @@
-import { healthPayload } from "../src/health.ts";
+import { healthPayload } from "../src/health.js";
 
 interface VercelRequest {
   method?: string;

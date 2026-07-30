@@ -186,7 +186,6 @@ jobs:
               (.name | test("^Snímek"; "i"))
               and (.brewery | ascii_downcase | contains("cohesion"))
               and (.style | type == "string" and length > 0)
-              and (.abv | type == "number" and . >= 5.7 and . <= 5.9)
               and (.source_url | startswith("https://www.cohesionbeer.com/"))
             )
           ' "$RESPONSE" >/dev/null; then

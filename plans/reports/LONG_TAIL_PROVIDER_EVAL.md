@@ -16,12 +16,12 @@ Use these principles when revisiting the tradeoff:
 4. Preserve the fast offline path: resolve and score immediately with whatever local facts are available, then refine from remote evidence asynchronously.
 5. Apply one generic discovery pipeline to mainstream and obscure beers. Do not add per-beer exceptions.
 6. Remote models retrieve and normalize facts. They do not decide whether the user should drink the beer; the local scorer applies the same preference and history rules.
-7. Prefer a sourced abstention over invented identity, style, or ABV when evidence conflicts.
+7. Prefer a sourced abstention over invented identity or style when evidence conflicts. ABV is optional enrichment and must never gate a result.
 8. Send the minimum required search context. Taste profile, ratings, history, notes, photos, and location are not search inputs.
 
 ## Evaluation Design
 
-The cold test corpus contained ten long-tail beers. Each Tavily mode ran three independent trials per beer, for 30 trials per mode. "Full facts" means strict identity plus a usable coarse scorer category and ABV. "Official" includes a first-party source or a source wired to the producer. Latency is end-to-end Tavily retrieval plus Gemini extraction.
+The cold test corpus contained ten long-tail beers. Each Tavily mode ran three independent trials per beer, for 30 trials per mode. The primary product bar is strict identity plus a usable coarse scorer category; ABV is a secondary diagnostic only. "Official" includes a first-party source or a source wired to the producer. Latency is end-to-end Tavily retrieval plus Gemini extraction.
 
 These results characterize this corpus and test environment; they are not a guarantee for all beers or future provider behavior.
 
@@ -30,8 +30,8 @@ These results characterize this corpus and test environment; they are not a guar
 | Metric | Basic Tavily + Gemini | Advanced Tavily + bounded raw evidence + Gemini |
 |---|---:|---:|
 | Strict identity | 24/30 | 30/30 |
-| Full scorer-ready facts | 21/30 | 27/30 |
-| Usable coarse scorer category | 24/30 | 30/30 |
+| **Recommendation-ready: identity + coarse category** | **24/30** | **30/30** |
+| Identity + category + exact ABV (secondary) | 21/30 | 27/30 |
 | First-party/official-wired source | 18/30 | 24/30 |
 | Median latency | 2,174 ms | 5,344 ms |
 | p95 latency | 3,047 ms | 7,513 ms |
@@ -41,9 +41,9 @@ These results characterize this corpus and test environment; they are not a guar
 
 ### Per-Beer Outcomes
 
-Each cell is successful trials out of three. "Facts" uses the full scorer-ready definition above.
+Each cell is successful trials out of three. "Exact facts" includes ABV and is retained only as a secondary diagnostic; it is not the search success criterion.
 
-| Beer | Basic facts | Basic official source | Advanced facts | Advanced official source | Observation |
+| Beer | Basic exact facts | Basic official source | Advanced exact facts | Advanced official source | Observation |
 |---|---:|---:|---:|---:|---|
 | Drink Beer Slay Dragon | 3/3 | 3/3 | 3/3 | 3/3 | Basic and Advanced were complete. |
 | Redwood | 0/3 | 2/3 | 0/3 | 3/3 | An official homepage still reported 5.5% ABV rather than the current 5.3%; one Basic trial abstained. |
@@ -58,7 +58,7 @@ Each cell is successful trials out of three. "Facts" uses the full scorer-ready 
 
 ### Google Comparator
 
-Google-grounded Gemini 3.5 reached 30/30 strict identity and 24/30 exact-fact trials, covering 8/10 beers exactly, at a median around 2.2 seconds. A multi-search variant fixed Snímek but not Drink Beer Slay Dragon's stale ABV and reached a best of 9/10 exact beers. Plain Gemini without search evidence was not viable for this long-tail task.
+Google-grounded Gemini 3.5 reached 30/30 strict identity and 24/30 identity/category/ABV trials, covering 8/10 beers exactly, at a median around 2.2 seconds. A multi-search variant fixed Snímek but not Drink Beer Slay Dragon's stale ABV and reached a best of 9/10 exact beers. Those ABV misses are no longer product failures. Plain Gemini without search evidence was not viable for this long-tail task.
 
 Despite the strong retrieval result, Google Search Grounding was not selected for this architecture. Our reading of the current published terms requires display of grounded results and search suggestions and restricts extracting, analyzing, caching, or storing grounded output in the way SipCheck's local scoring and persistence flow requires. This is an engineering constraint assessment, not legal advice.
 
@@ -78,7 +78,7 @@ Advanced Tavily was selected because it produced strict identity and a usable co
 1. SipCheck checks typed text and local catalog data immediately.
 2. The local scorer produces the best available verdict from current facts, preferences, and history.
 3. For an unresolved or incomplete long-tail query, the backend sends only the typed search text to Tavily.
-4. Gemini converts bounded returned evidence into typed beer identity, style, ABV, and source fields.
+4. Gemini converts bounded returned evidence into typed beer identity, style, source, and optional ABV fields.
 5. SipCheck validates and merges those fields, then reruns the same local scorer. The remote model never receives the taste profile and never returns the recommendation.
 6. Normalized facts and a source URL may be persisted when the user acts on the result. Raw snippets and page content remain transient.
 
@@ -100,7 +100,7 @@ The usage guard calls Tavily's stateless `/usage` endpoint. It reports plan usag
 
 - Ten beers and 60 Tavily trials are useful directional evidence, not broad catalog coverage.
 - The corpus intentionally stresses the long tail; it does not measure common-beer performance.
-- First-party does not always mean current. Redwood's stale official ABV caused every Advanced full-fact miss.
+- First-party does not always mean current. Redwood's stale official ABV caused every Advanced secondary exact-fact miss, while all three trials still met the identity/category product bar.
 - Source classification measures provenance, not factual correctness. Untappd supplied usable facts for two beers but was not counted as official.
 - Network latency and provider ranking can change by geography, time, index state, and model version.
 - Provider terms and privacy policies can change. Review them before a public launch, and obtain written permission or counsel where normalized-fact persistence is material.

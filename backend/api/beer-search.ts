@@ -3,7 +3,7 @@ import {
   parseSearchRequest,
   publicSearchResults,
   searchBeers
-} from "../src/beer-search.ts";
+} from "../src/beer-search.js";
 
 interface VercelRequest {
   method?: string;

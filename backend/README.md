@@ -4,6 +4,9 @@ Vercel function for long-tail beer discovery. It searches Tavily, then uses
 Gemini only to extract facts from the returned evidence. Gemini does not use a
 search tool.
 
+Beer identity, brewery, style, and a source URL are the useful discovery facts.
+ABV is nullable enrichment and never gates whether a result is returned.
+
 Configure the Vercel project's root directory as `backend` and set these server
 environment variables:
 
