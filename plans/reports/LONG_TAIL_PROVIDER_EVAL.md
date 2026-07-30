@@ -41,6 +41,30 @@ An implementation audit corrected the original category count. The first scorer 
 | Tavily credits | 30 | 60 |
 | Average Gemini tokens | 1,388 | 11,187 |
 
+### Current Deployed Regression Gate
+
+The hardened `tavily-gemini-v1` runtime was rerun once per golden case against
+the exact Vercel preview attached to commit `e118b3f` on July 30, 2026. The
+per-case response, source, and timing data are retained in
+`plans/reports/LONG_TAIL_LIVE_EVAL.json`.
+
+| Metric | Exact deployed result |
+|---|---:|
+| Strict identity | **10/10** |
+| Supported coarse category | **9/9** |
+| Allowed credible source | **10/10** |
+| First-party source | 6/10 |
+| Median latency | 1,820 ms |
+| p95 latency | 2,662 ms |
+| Tavily credits | 20 |
+
+ABV was ignored. Snímek remained category-unknown because `Strong Beer` does
+not establish a scorer category. The runtime rejects sibling-beer substitutions,
+centers multi-beer evidence on the typed target, and makes at most one focused
+Gemini extraction retry when the first grounded extraction is empty or
+styleless. That retry reuses the same Tavily response, so a lookup still spends
+one Advanced search (two Tavily credits).
+
 ### Per-Beer Outcomes
 
 Each cell is successful trials out of three. "Exact facts" includes ABV and is retained only as a secondary diagnostic; it is not the search success criterion.
@@ -80,7 +104,7 @@ Advanced Tavily was selected because it produced strict identity in 30/30 trials
 1. SipCheck checks typed text and local catalog data immediately.
 2. The local scorer produces the best available verdict from current facts, preferences, and history.
 3. For an unresolved or incomplete long-tail query, the backend sends only the typed search text to Tavily.
-4. Gemini converts bounded returned evidence into typed beer identity, style, source, and optional ABV fields.
+4. Gemini converts bounded returned evidence into typed beer identity, style, source, and optional ABV fields. A grounded miss may get one focused Gemini retry over the same Tavily evidence.
 5. SipCheck validates and merges those fields, then reruns the same local scorer. The remote model never receives the taste profile and never returns the recommendation.
 6. Normalized facts and a source URL may be persisted when the user acts on the result. Raw snippets and page content remain transient.
 

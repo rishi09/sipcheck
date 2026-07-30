@@ -1,0 +1,196 @@
+{
+  "generated_at": "2026-07-30T21:53:26.405Z",
+  "endpoint": "https://sipcheck-beer-search-5q0bufjcf-rishi09-3609s-projects.vercel.app/api/beer-search",
+  "contract": "tavily-gemini-v1",
+  "credits": 20,
+  "summary": {
+    "identity": "10/10",
+    "category": "9/9",
+    "source": "10/10",
+    "official_source": "6/10",
+    "median_latency_ms": 1820,
+    "p95_latency_ms": 2662
+  },
+  "cases": [
+    {
+      "id": "bay_drink_slay",
+      "query": "Drink Beer Slay Dragon Oakland United Beerworks",
+      "latency_ms": 2662,
+      "identity": true,
+      "category": true,
+      "expected_category": "ipa",
+      "actual_category": "ipa",
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "DRINK BEER, SLAY DRAGON",
+        "brewery": "Oakland United Beerworks",
+        "style": "West Coast IPA",
+        "abv": 6.5,
+        "source_url": "https://oaklandunitedbeerworks.com/"
+      }
+    },
+    {
+      "id": "bay_redwood",
+      "query": "Redwood Oakland United Beerworks",
+      "latency_ms": 2251,
+      "identity": true,
+      "category": true,
+      "expected_category": "amber",
+      "actual_category": "amber",
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "Redwood",
+        "brewery": "Oakland United Beerworks",
+        "style": "Red Ale",
+        "abv": 5.5,
+        "source_url": "https://oaklandunitedbeerworks.com/"
+      }
+    },
+    {
+      "id": "denver_snimek",
+      "query": "Snímek Cohesion Brewing Company",
+      "latency_ms": 2068,
+      "identity": true,
+      "category": null,
+      "expected_category": null,
+      "actual_category": null,
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "Snímek Silné Pivo",
+        "brewery": "Cohesion Brewing Company",
+        "style": null,
+        "abv": 5.8,
+        "source_url": "https://www.cohesionbeer.com/tap-list"
+      }
+    },
+    {
+      "id": "denver_jantar",
+      "query": "Jantar Cohesion Brewing Company",
+      "latency_ms": 1562,
+      "identity": true,
+      "category": true,
+      "expected_category": "lager",
+      "actual_category": "lager",
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "Jantar Polotmavé Výčepní Pivo",
+        "brewery": "Cohesion Brewing Company",
+        "style": "Czech Amber Lager",
+        "abv": 4,
+        "source_url": "https://www.cohesionbeer.com/tap-list"
+      }
+    },
+    {
+      "id": "la_whipple",
+      "query": "Whipple Street Frogtown Brewery",
+      "latency_ms": 1502,
+      "identity": true,
+      "category": true,
+      "expected_category": "lager",
+      "actual_category": "lager",
+      "source": true,
+      "official_source": false,
+      "result": {
+        "name": "Whipple Street",
+        "brewery": "Frogtown Brewery",
+        "style": "Cream Ale",
+        "abv": 5.1,
+        "source_url": "https://untappd.com/b/frogtown-brewery-whipple-street/2665107"
+      }
+    },
+    {
+      "id": "la_stratasphere",
+      "query": "Stratasphere Frogtown Brewery",
+      "latency_ms": 1228,
+      "identity": true,
+      "category": true,
+      "expected_category": "ipa",
+      "actual_category": "ipa",
+      "source": true,
+      "official_source": false,
+      "result": {
+        "name": "Stratasphere",
+        "brewery": "Frogtown Brewery",
+        "style": "American IPA",
+        "abv": 6.5,
+        "source_url": "https://www.beeradvocate.com/beer/profile/47496/696296"
+      }
+    },
+    {
+      "id": "houston_scout",
+      "query": "Scout True Anomaly Brewing",
+      "latency_ms": 1820,
+      "identity": true,
+      "category": true,
+      "expected_category": "lager",
+      "actual_category": "lager",
+      "source": true,
+      "official_source": false,
+      "result": {
+        "name": "Scout",
+        "brewery": "True Anomaly Brewing",
+        "style": "Lager - Mexican",
+        "abv": 4.7,
+        "source_url": "https://untappd.com/b/true-anomaly-brewing-scout/4385035"
+      }
+    },
+    {
+      "id": "houston_skylab",
+      "query": "SKYLAB True Anomaly Brewing",
+      "latency_ms": 1787,
+      "identity": true,
+      "category": true,
+      "expected_category": "ipa",
+      "actual_category": "ipa",
+      "source": true,
+      "official_source": false,
+      "result": {
+        "name": "Skylab",
+        "brewery": "True Anomaly Brewing Co",
+        "style": "American IPA",
+        "abv": 7.2,
+        "source_url": "https://www.beeradvocate.com/beer/profile/55586/515542"
+      }
+    },
+    {
+      "id": "dc_senate",
+      "query": "SENATE BEER Right Proper Brewing",
+      "latency_ms": 2310,
+      "identity": true,
+      "category": true,
+      "expected_category": "lager",
+      "actual_category": "lager",
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "Senate Beer",
+        "brewery": "Right Proper Brewing Company",
+        "style": "Lager",
+        "abv": 4.7,
+        "source_url": "https://www.rightproperbrewing.com/brookland-taplist"
+      }
+    },
+    {
+      "id": "dc_big_tomorrow",
+      "query": "BIG TOMORROW Right Proper Brewing",
+      "latency_ms": 1934,
+      "identity": true,
+      "category": true,
+      "expected_category": "ipa",
+      "actual_category": "ipa",
+      "source": true,
+      "official_source": true,
+      "result": {
+        "name": "Big Tomorrow",
+        "brewery": "Right Proper Brewing Company",
+        "style": "West Coast-Style IPA",
+        "abv": 7.2,
+        "source_url": "https://www.rightproperbrewing.com/our-beer"
+      }
+    }
+  ]
+}
