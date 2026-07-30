@@ -1,7 +1,16 @@
 import SwiftUI
+#if DEBUG
+import Combine
+#endif
 
 struct MainTabView: View {
     @State private var selectedTab = 0
+
+    init() {
+        #if DEBUG
+        _selectedTab = State(initialValue: DeveloperScenario.requested()?.initialTab ?? 0)
+        #endif
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -35,6 +44,12 @@ struct MainTabView: View {
         // The E2E bridge assumes the bar at y≈584–646 on a 375×667pt screen;
         // .tabBarMinimizeBehavior(.onScrollDown) stays deferred for that reason.
         .tint(SipColors.accent)
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: .developerScenarioDidChange)) { notification in
+            guard let scenario = notification.object as? DeveloperScenario else { return }
+            selectedTab = scenario.initialTab
+        }
+        #endif
     }
 }
 

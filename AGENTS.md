@@ -69,6 +69,8 @@ review/analyze overrides automatic delivery.
 | Open-ended local beer search (completed 2026-07-29) | `codex/open-beer-search` | Released after generic catalog discovery, exact raw-name fallback, preference/history identity fixes, 130 passing tests, signed branch build 103, and published E2E run 51. No files remain reserved. |
 | Live long-tail beer discovery (completed 2026-07-30) | `codex/long-tail-search` | Released after generic Catalog.beer plus grounded web discovery, Production-compatible source sync, 166 unit/integration tests, 9 UI tests, live-search and signed Release run `30522296141`, and published E2E run 56 (`30522274144`). No files remain reserved. |
 | Canonical beer-library projection (completed 2026-07-30) | `codex/beer-library-projection` | Released after 185 unit/integration tests, 10 UI flows, signed branch build 115, and published E2E run 57. No files remain reserved. |
+| Tavily + Gemini long-tail upgrade (active) | `codex/tavily-gemini-search` | Reserved: `SipCheck/Config.swift`, `SipCheck/Services/BeerDiscoveryService.swift`, `SipCheckTests/BeerDiscoveryServiceTests.swift`, `.github/workflows/testflight.yml`, `.github/workflows/tavily-usage.yml`, `backend/`, and search/privacy documentation. |
+| Developer scenario lab + unified CLI (active) | `codex/dev-tools` | Reserved: `AGENTS.md`, `SipCheck.xcodeproj/project.pbxproj`, `SipCheck/SipCheckApp.swift`, `SipCheck/Models/DeveloperScenario.swift`, `SipCheck/Services/{Drink,Scan,Journal}Store.swift`, `SipCheck/Views/{MainTabView,Tabs/CheckTabView,Tabs/SettingsTabView}.swift`, `scripts/dev`, and focused developer-tool unit/UI tests. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
@@ -117,6 +119,17 @@ xcrun simctl install "iPhone 16e" ~/Library/Developer/Xcode/DerivedData/SipCheck
 # Launch on simulator
 xcrun simctl launch "iPhone 16e" com.rishishah.sipcheck
 ```
+
+### Fast Developer Loop
+```bash
+./scripts/dev run rich-history   # build + launch an isolated Debug scenario
+./scripts/dev test fast          # unit tests
+./scripts/dev test full          # unit + UI tests
+./scripts/dev screenshots        # canonical screenshot set
+./scripts/dev status             # branch + recent CI status
+./scripts/dev ship               # dispatch current main to TestFlight
+```
+Available scenarios: `empty`, `rich-history`, `saved-only`, and `error`.
 
 ## Architecture Decisions
 - **SwiftUI + ObservableObject** - No @Observable macro (sandbox build issues)

@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BUNDLE_ID="com.rishishah.sipcheck"
+DERIVED_DATA="${SIPCHECK_DERIVED_DATA:-/tmp/sipcheck-dev-derived}"
+SIMULATOR_NAME="${SIPCHECK_SIMULATOR_NAME:-iPhone 17 Pro}"
+DRY_RUN="${SIPCHECK_DEV_DRY_RUN:-0}"
+
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=1
+  shift
+fi
+
+usage() {
+  cat <<'USAGE'
+SipCheck developer command
+
+Usage:
+  ./scripts/dev run [empty|rich-history|saved-only|error]
+  ./scripts/dev test [fast|full]
+  ./scripts/dev screenshots [output-directory]
+  ./scripts/dev ship                         # dispatch main to TestFlight
+  ./scripts/dev status
+
+Defaults:
+  run          empty
+  test         fast (unit tests)
+  screenshots  /tmp/sipcheck-screenshots-<timestamp>
+
+Overrides:
+  SIPCHECK_SIMULATOR_UDID   exact simulator to use
+  SIPCHECK_SIMULATOR_NAME   simulator name (default: iPhone 17 Pro)
+  SIPCHECK_DERIVED_DATA     build directory
+  SIPCHECK_DEV_DRY_RUN=1    print routed commands without running them
+USAGE
+}
+
+print_command() {
+  printf '+'
+  printf ' %q' "$@"
+  printf '\n'
+}
+
+run_command() {
+  print_command "$@"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    return 0
+  fi
+  "$@"
+}
+
+resolve_simulator() {
+  if [[ -n "${SIPCHECK_SIMULATOR_UDID:-}" ]]; then
+    printf '%s\n' "$SIPCHECK_SIMULATOR_UDID"
+    return
+  fi
+
+  xcrun simctl list devices available -j | /usr/bin/python3 -c '
+import json, sys
+preferred = sys.argv[1]
+devices = [d for runtime in json.load(sys.stdin)["devices"].values() for d in runtime if d.get("isAvailable") and d.get("name", "").startswith("iPhone")]
+ordered = sorted(devices, key=lambda d: (d.get("name") != preferred, d.get("state") != "Booted", d.get("name") != "iPhone 16e"))
+if not ordered:
+    raise SystemExit("No available iPhone simulator found")
+print(ordered[0]["udid"])
+' "$SIMULATOR_NAME"
+}
+
+boot_simulator() {
+  local udid="$1"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    print_command xcrun simctl boot "$udid"
+    print_command xcrun simctl bootstatus "$udid" -b
+    return
+  fi
+  xcrun simctl boot "$udid" >/dev/null 2>&1 || true
+  run_command xcrun simctl bootstatus "$udid" -b
+}
+
+build_and_install() {
+  local configuration="$1"
+  local udid="$2"
+  run_command xcodebuild \
+    -project "$ROOT/SipCheck.xcodeproj" \
+    -scheme SipCheck \
+    -configuration "$configuration" \
+    -destination "platform=iOS Simulator,id=$udid" \
+    -derivedDataPath "$DERIVED_DATA" \
+    build
+
+  local app_path="$DERIVED_DATA/Build/Products/${configuration}-iphonesimulator/SipCheck.app"
+  if [[ "$DRY_RUN" != "1" && ! -d "$app_path" ]]; then
+    echo "Build succeeded but app was not found at $app_path" >&2
+    exit 1
+  fi
+  run_command xcrun simctl install "$udid" "$app_path"
+}
+
+run_scenario() {
+  local scenario="${1:-empty}"
+  case "$scenario" in
+    empty|rich-history|saved-only|error) ;;
+    *)
+      echo "Unknown scenario: $scenario" >&2
+      echo "Choose empty, rich-history, saved-only, or error." >&2
+      exit 2
+      ;;
+  esac
+
+  local udid
+  udid="$(resolve_simulator)"
+  boot_simulator "$udid"
+  build_and_install Debug "$udid"
+  run_command xcrun simctl launch --terminate-running-process "$udid" "$BUNDLE_ID" \
+    --mock-ai \
+    --mock-beer-search \
+    --isolated-storage \
+    --follow-up-reminders-off \
+    --disable-cloudkit \
+    --developer-scenario "$scenario"
+  echo "SipCheck launched with '$scenario' on $udid"
+}
+
+run_tests() {
+  local suite="${1:-fast}"
+  local udid
+  udid="$(resolve_simulator)"
+  boot_simulator "$udid"
+  case "$suite" in
+    fast)
+      run_command "$ROOT/scripts/run_tests.sh" --unit-only \
+        "--destination=platform=iOS Simulator,id=$udid"
+      ;;
+    full)
+      run_command "$ROOT/scripts/run_tests.sh" \
+        "--destination=platform=iOS Simulator,id=$udid"
+      ;;
+    *)
+      echo "Unknown test suite: $suite (choose fast or full)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+capture_screenshots() {
+  local output="${1:-/tmp/sipcheck-screenshots-$(date +%Y%m%d-%H%M%S)}"
+  if [[ -d "$output" && -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+    echo "Refusing to overwrite non-empty screenshot directory: $output" >&2
+    exit 2
+  fi
+  if [[ "$DRY_RUN" != "1" ]] && ! command -v axe >/dev/null 2>&1; then
+    echo "screenshots requires AXe: brew tap cameroncooke/axe && brew install axe" >&2
+    exit 1
+  fi
+
+  local udid
+  udid="$(resolve_simulator)"
+  boot_simulator "$udid"
+  build_and_install Release "$udid"
+  run_command /usr/bin/python3 "$ROOT/scripts/capture_product_baseline.py" \
+    --udid "$udid" \
+    --output "$output"
+  echo "Screenshots: $output"
+}
+
+show_status() {
+  cd "$ROOT"
+  echo "SipCheck developer status"
+  echo "  branch: $(git branch --show-current)"
+  echo "  commit: $(git rev-parse --short HEAD)"
+  local divergence
+  divergence="$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null || echo 'unknown unknown')"
+  echo "  origin/main (behind ahead): $divergence"
+  local changes
+  changes="$(git status --short | wc -l | tr -d ' ')"
+  echo "  working-tree changes: $changes"
+  if command -v gh >/dev/null 2>&1; then
+    gh run list --limit 3 --json status,conclusion,workflowName,headBranch,url \
+      --template '{{range .}}{{.workflowName}} · {{.headBranch}} · {{.status}}{{if .conclusion}}/{{.conclusion}}{{end}} · {{.url}}{{"\n"}}{{end}}' \
+      2>/dev/null || true
+  fi
+}
+
+ship_main() {
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "ship requires the GitHub CLI (gh) authenticated for this repository" >&2
+    exit 1
+  fi
+  run_command gh workflow run testflight.yml --ref main
+  echo "TestFlight workflow dispatched for current main. Follow it with ./scripts/dev status."
+}
+
+command="${1:-help}"
+shift || true
+case "$command" in
+  run) run_scenario "$@" ;;
+  test) run_tests "$@" ;;
+  screenshots) capture_screenshots "$@" ;;
+  ship) ship_main "$@" ;;
+  status) show_status ;;
+  help|-h|--help) usage ;;
+  *)
+    echo "Unknown command: $command" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -42,15 +42,38 @@ struct SipCheckApp: App {
             let testDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("SipCheckTestStorage")
             try? FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
-            _drinkStore = StateObject(wrappedValue: DrinkStore(storageDirectory: testDir, useSeedData: useSeedData))
-            _scanStore = StateObject(wrappedValue: ScanStore(storageDirectory: testDir, useSeedData: useSeedData))
-            _journalStore = StateObject(wrappedValue: JournalStore(storageDirectory: testDir, useSeedData: useSeedData))
+            let drinkStore = DrinkStore(storageDirectory: testDir, useSeedData: useSeedData)
+            let scanStore = ScanStore(storageDirectory: testDir, useSeedData: useSeedData)
+            let journalStore = JournalStore(storageDirectory: testDir, useSeedData: useSeedData)
+
+            #if DEBUG
+            if let scenario = DeveloperScenario.requested(in: args) {
+                scenario.apply(
+                    drinkStore: drinkStore,
+                    scanStore: scanStore,
+                    journalStore: journalStore,
+                    notify: false
+                )
+            } else {
+                DeveloperScenario.clearCurrent()
+            }
+            #endif
+
+            _drinkStore = StateObject(wrappedValue: drinkStore)
+            _scanStore = StateObject(wrappedValue: scanStore)
+            _journalStore = StateObject(wrappedValue: journalStore)
         } else if useSeedData {
+            #if DEBUG
+            DeveloperScenario.clearCurrent()
+            #endif
             let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
             _drinkStore = StateObject(wrappedValue: DrinkStore(storageDirectory: docsDir, useSeedData: true))
             _scanStore = StateObject(wrappedValue: ScanStore(storageDirectory: docsDir, useSeedData: true))
             _journalStore = StateObject(wrappedValue: JournalStore(storageDirectory: docsDir, useSeedData: true))
         } else {
+            #if DEBUG
+            DeveloperScenario.clearCurrent()
+            #endif
             _drinkStore = StateObject(wrappedValue: DrinkStore())
             _scanStore = StateObject(wrappedValue: ScanStore())
             _journalStore = StateObject(wrappedValue: JournalStore())
@@ -60,6 +83,11 @@ struct SipCheckApp: App {
         if args.contains("--mock-ai") { print("Mock AI mode enabled") }
         if args.contains("--seed-data") { print("Seed data mode enabled") }
         if args.contains("--isolated-storage") { print("Isolated storage mode enabled") }
+        #if DEBUG
+        if let scenario = DeveloperScenario.requested(in: args) {
+            print("Developer scenario enabled: \(scenario.rawValue)")
+        }
+        #endif
     }
 
     var body: some Scene {

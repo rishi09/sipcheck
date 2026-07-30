@@ -253,6 +253,16 @@ class DrinkStore: ObservableObject {
         BeerMatcher.findMatch(for: query, in: drinks)
     }
 
+    #if DEBUG
+    /// Replaces the isolated debug store without emitting CloudKit writes.
+    /// SipCheck Lab calls this only under `--isolated-storage`.
+    func replaceForDeveloperScenario(with records: [Drink]) {
+        drinks = records
+        tombstones = []
+        saveDrinks(synchronously: true)
+    }
+    #endif
+
     /// Inject sample drinks for testing. Idempotent — skips any already present by ID.
     /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
     /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).

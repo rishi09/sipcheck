@@ -73,6 +73,8 @@
 		L1000002 /* BeerDiscoveryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = L2000002; };
 		M1000001 /* BeerLibraryItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000001; };
 		M1000002 /* BeerLibraryProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = M2000002; };
+		N1000001 /* DeveloperScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000001; };
+		N1000002 /* DeveloperScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = N2000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -163,6 +165,8 @@
 		L2000002 /* BeerDiscoveryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerDiscoveryServiceTests.swift; sourceTree = "<group>"; };
 		M2000001 /* BeerLibraryItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerLibraryItem.swift; sourceTree = "<group>"; };
 		M2000002 /* BeerLibraryProjectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeerLibraryProjectionTests.swift; sourceTree = "<group>"; };
+		N2000001 /* DeveloperScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperScenario.swift; sourceTree = "<group>"; };
+		N2000002 /* DeveloperScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperScenarioTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -221,6 +225,7 @@
 			isa = PBXGroup;
 			children = (
 				M2000001 /* BeerLibraryItem.swift */,
+				N2000001 /* DeveloperScenario.swift */,
 				A2000002 /* Drink.swift */,
 				A2000003 /* DrinkEnums.swift */,
 				A2000023 /* TasteProfile.swift */,
@@ -333,6 +338,7 @@
 			isa = PBXGroup;
 			children = (
 				M2000002 /* BeerLibraryProjectionTests.swift */,
+				N2000002 /* DeveloperScenarioTests.swift */,
 				B2000001 /* BeerMatcherTests.swift */,
 				B2000002 /* DrinkStoreTests.swift */,
 				B2000004 /* ScanningPipelineTests.swift */,
@@ -476,6 +482,7 @@
 				A1000002 /* Drink.swift in Sources */,
 				A1000003 /* DrinkEnums.swift in Sources */,
 				M1000001 /* BeerLibraryItem.swift in Sources */,
+				N1000001 /* DeveloperScenario.swift in Sources */,
 				A1000005 /* AddBeerView.swift in Sources */,
 				A1000008 /* RatingPicker.swift in Sources */,
 				A1000009 /* StylePicker.swift in Sources */,
@@ -538,6 +545,7 @@
 				K1000001 /* RecommendationArchetypeEvalTests.swift in Sources */,
 				L1000002 /* BeerDiscoveryServiceTests.swift in Sources */,
 				M1000002 /* BeerLibraryProjectionTests.swift in Sources */,
+				N1000002 /* DeveloperScenarioTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

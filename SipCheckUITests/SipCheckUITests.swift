@@ -333,6 +333,50 @@ final class SipCheckUITests: XCTestCase {
         return toggle
     }
 
+    // MARK: - Developer acceleration: deterministic scenario lab
+
+    func testSipCheckLabLaunchesFourIsolatedScenarios() {
+        launchDeveloperScenario("empty")
+        XCTAssertTrue(app.staticTexts["Nothing logged yet — scan a beer to start"]
+            .waitForExistence(timeout: 4))
+        snap("01-dev-scenario-empty")
+
+        launchDeveloperScenario("rich-history")
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Sierra Nevada Pale Ale")
+        ).firstMatch.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Tried · 3 logs"].exists)
+        snap("02-dev-scenario-rich-history")
+
+        launchDeveloperScenario("saved-only")
+        XCTAssertTrue(app.staticTexts["Want to Try"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Tried · 0 logs"].exists)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "Lagunitas IPA")
+        ).firstMatch.exists)
+        snap("03-dev-scenario-saved-only")
+
+        launchDeveloperScenario("error")
+        XCTAssertTrue(app.descendants(matching: .any)["scanErrorBanner"]
+            .waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Couldn't read that label. Try again or enter the beer name."].exists)
+        snap("04-dev-scenario-error")
+    }
+
+    private func launchDeveloperScenario(_ scenario: String) {
+        openSettings()
+        let link = app.buttons["developerScenarioLabLink"]
+        XCTAssertTrue(link.waitForExistence(timeout: 4))
+        link.tap()
+
+        XCTAssertTrue(app.navigationBars["SipCheck Lab"].waitForExistence(timeout: 4))
+        let scenarioButton = app.buttons["developerScenario.\(scenario)"]
+        XCTAssertTrue(scenarioButton.waitForExistence(timeout: 4))
+        XCTAssertTrue(scenarioButton.isEnabled,
+                      "Scenario replacement must be available in isolated storage")
+        scenarioButton.tap()
+    }
+
     // MARK: - Flow 7: Journal edit persists across relaunch
 
     func testJournalEditPersistsAfterRelaunch() {

@@ -253,6 +253,19 @@ class ScanStore: ObservableObject {
         return nil
     }
 
+    #if DEBUG
+    /// Replaces the isolated debug store without emitting CloudKit writes.
+    /// Existing sandbox reminders are cancelled before the fixture changes.
+    func replaceForDeveloperScenario(with records: [Scan]) {
+        for scan in scans {
+            NotificationService.shared.cancelFollowUp(for: scan)
+        }
+        scans = records
+        tombstones = []
+        saveScans(synchronously: true)
+    }
+    #endif
+
     /// Inject sample scans for testing. Idempotent — skips any already present by ID.
     /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
     /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).

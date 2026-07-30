@@ -81,6 +81,26 @@ struct SettingsTabView: View {
                 } header: {
                     Text("Scanning")
                 }
+
+                Section {
+                    NavigationLink {
+                        DeveloperScenarioLabView { scenario in
+                            scenario.apply(
+                                drinkStore: drinkStore,
+                                scanStore: scanStore,
+                                journalStore: journalStore
+                            )
+                            dismiss()
+                        }
+                    } label: {
+                        Label("Open SipCheck Lab", systemImage: "wrench.and.screwdriver")
+                    }
+                    .accessibilityIdentifier("developerScenarioLabLink")
+                } header: {
+                    Text("Developer")
+                } footer: {
+                    Text("Launch deterministic app states without touching real data.")
+                }
                 #endif
 
                 // MARK: - Taste
@@ -328,6 +348,65 @@ struct SettingsTabView: View {
         return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 }
+
+#if DEBUG
+private struct DeveloperScenarioLabView: View {
+    let onLaunch: (DeveloperScenario) -> Void
+
+    private var isIsolatedStorage: Bool {
+        ProcessInfo.processInfo.arguments.contains("--isolated-storage")
+    }
+
+    var body: some View {
+        List {
+            if !isIsolatedStorage {
+                Section {
+                    Label("Protected", systemImage: "lock.shield.fill")
+                        .foregroundColor(SipColors.warning)
+                    Text("Scenarios only run in isolated storage. Start one with ./scripts/dev run <scenario>.")
+                        .font(SipTypography.caption)
+                        .foregroundColor(SipColors.textSecondary)
+                }
+            }
+
+            Section {
+                ForEach(DeveloperScenario.allCases) { scenario in
+                    Button {
+                        onLaunch(scenario)
+                    } label: {
+                        HStack(spacing: SipSpacing.m) {
+                            Image(systemName: scenario.symbol)
+                                .frame(width: 28)
+                                .foregroundColor(SipColors.accent)
+                            VStack(alignment: .leading, spacing: SipSpacing.xs) {
+                                Text(scenario.title)
+                                    .font(SipTypography.headline)
+                                    .foregroundColor(SipColors.textPrimary)
+                                Text(scenario.subtitle)
+                                    .font(SipTypography.caption)
+                                    .foregroundColor(SipColors.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.right.circle.fill")
+                                .foregroundColor(SipColors.accent)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!isIsolatedStorage)
+                    .accessibilityIdentifier("developerScenario.\(scenario.rawValue)")
+                }
+            } header: {
+                Text("Scenarios")
+            } footer: {
+                Text("Each launch replaces only the isolated sandbox and opens the most useful tab.")
+            }
+        }
+        .navigationTitle("SipCheck Lab")
+        .accessibilityIdentifier("developerScenarioLab")
+    }
+}
+#endif
 
 private struct BeerArtworkCredit: Identifiable {
     let beer: String

@@ -206,6 +206,16 @@ class JournalStore: ObservableObject {
         return nil
     }
 
+    #if DEBUG
+    /// Replaces the isolated debug store without emitting CloudKit writes.
+    /// SipCheck Lab calls this only under `--isolated-storage`.
+    func replaceForDeveloperScenario(with records: [JournalEntry]) {
+        entries = records
+        tombstones = []
+        saveEntries(synchronously: true)
+    }
+    #endif
+
     /// Inject sample journal entries for testing. Idempotent — skips any already present by ID.
     /// Seeds are stamped with a far-past `lastModifiedLocal` so a real record always
     /// beats them in last-write-wins (prevents the button from clobbering real iCloud edits).

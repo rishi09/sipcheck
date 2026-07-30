@@ -1,5 +1,8 @@
 import SwiftUI
 import AVFoundation
+#if DEBUG
+import Combine
+#endif
 
 /// Settles the recommendation from local evidence before anything is shown.
 /// A guessed camera identity may suggest fuzzy catalog facts for enrichment,
@@ -256,6 +259,11 @@ struct CheckTabView: View {
             newValue ? .selection : nil
         }
         .task {
+            #if DEBUG
+            if let scenario = DeveloperScenario.current {
+                applyDeveloperScenario(scenario)
+            }
+            #endif
             // Warm the catalog decode + token indexes off the main actor so
             // scan #1 pays the same ~0ms lookup cost as scan #10.
             Task.detached(priority: .utility) { _ = BundledCatalog.shared }
@@ -267,6 +275,12 @@ struct CheckTabView: View {
             }
             #endif
         }
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: .developerScenarioDidChange)) { notification in
+            guard let scenario = notification.object as? DeveloperScenario else { return }
+            applyDeveloperScenario(scenario)
+        }
+        #endif
         .sheet(isPresented: $showingCamera) {
             CameraView(capturedImage: $capturedImage)
         }
@@ -460,6 +474,17 @@ struct CheckTabView: View {
 
     // MARK: - Error Banner
 
+    #if DEBUG
+    private func applyDeveloperScenario(_ scenario: DeveloperScenario) {
+        if scenario == .error {
+            phase = .failed(DeveloperScenario.errorMessage)
+        } else if case .failed(let message) = phase,
+                  message == DeveloperScenario.errorMessage {
+            phase = .idle
+        }
+    }
+    #endif
+
     private func errorBannerView(message: String) -> some View {
         VStack {
             Spacer()
@@ -487,6 +512,8 @@ struct CheckTabView: View {
                     .fill(SipColors.surfaceElevated)
             )
             .padding(SipSpacing.l)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("scanErrorBanner")
         }
     }
 
