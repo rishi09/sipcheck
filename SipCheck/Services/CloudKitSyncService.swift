@@ -314,8 +314,6 @@ final class CloudKitSyncService {
         record["abv"] = scan.abv.map { $0 as CKRecordValue }
         record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
         record["origin"] = scan.origin.map { $0 as CKRecordValue }
-        record["factSourceKind"] = scan.factSource.map { $0.kind.rawValue as CKRecordValue }
-        record["factSourceURL"] = scan.factSource.map { $0.url.absoluteString as CKRecordValue }
     }
 
     private func scanFrom(_ record: CKRecord) -> Scan? {
@@ -334,16 +332,6 @@ final class CloudKitSyncService {
             linkedJournalId = nil
         }
 
-        let factSource: BeerFactSource?
-        if let rawKind = record["factSourceKind"] as? String,
-           let kind = BeerFactSource.Kind(rawValue: rawKind),
-           let rawURL = record["factSourceURL"] as? String,
-           let url = URL(string: rawURL) {
-            factSource = BeerFactSource(kind: kind, url: url)
-        } else {
-            factSource = nil
-        }
-
         var scan = Scan(
             id: id,
             beerName: beerName,
@@ -354,8 +342,7 @@ final class CloudKitSyncService {
             timestamp: record["timestamp"] as? Date ?? Date(),
             wantToTry: (record["wantToTry"] as? Int ?? 0) == 1,
             linkedJournalId: linkedJournalId,
-            origin: record["origin"] as? String,
-            factSource: factSource
+            origin: record["origin"] as? String
         )
         scan.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? scan.timestamp
         scan.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1

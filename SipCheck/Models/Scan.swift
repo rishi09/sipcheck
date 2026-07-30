@@ -24,8 +24,9 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var wantToTry: Bool
     var linkedJournalId: UUID?
     var origin: String?
-    /// Exact remote page that grounded an explicitly selected search result.
-    /// Nil for label, bundled-catalog, and on-device-only scans.
+    /// Exact page that grounded a selected search result. This is persisted in
+    /// local JSON but intentionally not added to CloudKit until its Production
+    /// schema can be promoted through the CloudKit Console.
     var factSource: BeerFactSource?
     var lastModifiedLocal: Date
     /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).

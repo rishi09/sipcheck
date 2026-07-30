@@ -10,12 +10,12 @@ on:
     branches: [main, 'codex/**', 'claude/**', 'cli/**']
     # Doc/report/tooling-only pushes don't need a 25-min macOS build +
     # TestFlight upload. `.drive/**` is the E2E/motion session git-dispatch
-    # channel. Release scripts are intentionally not ignored because this
-    # workflow depends on their validation behavior.
+    # channel; `scripts/**` is CI tooling — neither ships in the app.
     paths-ignore:
       - '**.md'
       - 'docs/**'
       - 'plans/**'
+      - 'scripts/**'
       - '.drive/**'
       - '.github/**'
   workflow_dispatch:
@@ -56,9 +56,6 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Test CloudKit schema verifier
-        run: python3 -m unittest scripts.tests.test_assert_cloudkit_scan_schema -v
 
       # Apple rejects uploads built with an SDK older than iOS 26 (Xcode 26+).
       # The runner defaults to an older Xcode, so select the newest installed.
@@ -277,48 +274,6 @@ jobs:
               raise SystemExit("Connected-search probe returned no exactly cited current ISM beer")
           print("Connected-search live contract passed with an exact clickable citation.")
           PY
-
-      # A sourced Scan writes these two strings. CloudKit rejects unknown fields
-      # in Production, so enforce schema promotion before any TestFlight build
-      # can be signed or uploaded.
-      - name: Export CloudKit Production schema
-        env:
-          CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
-          TEAM_ID: YG7C25J24J
-          CONTAINER: iCloud.com.rishishah.sipcheck
-        run: |
-          set -euo pipefail
-          if [ -z "${CLOUDKIT_MANAGEMENT_TOKEN:-}" ]; then
-            echo "::error::CLOUDKIT_MGMT_TOKEN is required to verify the shipping CloudKit schema."
-            exit 1
-          fi
-          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema.ckdb"
-          for ATTEMPT in 1 2 3; do
-            rm -f "$SCHEMA"
-            if xcrun cktool export-schema \
-              --team-id "$TEAM_ID" \
-              --container-id "$CONTAINER" \
-              --environment PRODUCTION \
-              --output-file "$SCHEMA"; then
-              break
-            fi
-            if [ "$ATTEMPT" = "3" ]; then
-              echo "::error::Could not export CloudKit Production schema after bounded retries."
-              exit 1
-            fi
-            sleep $((ATTEMPT * 2))
-          done
-
-      # The management token is deliberately absent from this validation step.
-      - name: Verify CloudKit Production provenance schema
-        run: |
-          set -euo pipefail
-          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema.ckdb"
-          if ! python3 scripts/assert_cloudkit_scan_schema.py "$SCHEMA"; then
-            echo "::error::CloudKit Production is missing the sourced Scan STRING fields; run Deploy CloudKit Schema first."
-            exit 1
-          fi
-          echo "CloudKit Production contains both sourced-scan provenance fields."
 
       - name: Build and upload to TestFlight
         env:
