@@ -848,10 +848,13 @@ actor BeerDiscoveryService {
         query: String
     ) -> Bool {
         guard !catalogResults.isEmpty else { return true }
-        let bestRelevance = catalogResults
-            .map { BeerDiscoveryRelevance.score($0, query: query) }
-            .max() ?? 0
+        guard let best = catalogResults.max(by: {
+            BeerDiscoveryRelevance.score($0, query: query)
+                < BeerDiscoveryRelevance.score($1, query: query)
+        }) else { return true }
+        let bestRelevance = BeerDiscoveryRelevance.score(best, query: query)
         if bestRelevance < 92 { return true }
+        if best.beerStyle == nil { return true }
 
         let queryBrewery = breweryIdentity(query)
         return catalogResults.contains { candidate in

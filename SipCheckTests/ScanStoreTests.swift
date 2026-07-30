@@ -127,6 +127,50 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertNil(malformed.factSource)
     }
 
+    func testCloudKitMetadataCodecRoundTripsSourceAndOriginWithoutNewFields() throws {
+        let source = try XCTUnwrap(BeerFactSource(
+            kind: .catalogBeer,
+            url: URL(string: "https://catalog.beer/beer/source-aware-ipa")!
+        ))
+
+        let encoded = try XCTUnwrap(CloudKitScanMetadataCodec.encode(
+            origin: "Brewed in Long Beach.",
+            factSource: source
+        ))
+        let decoded = CloudKitScanMetadataCodec.decode(encoded)
+
+        XCTAssertTrue(encoded.hasPrefix("SipCheck source v1 - Catalog.beer: https://"))
+        XCTAssertEqual(decoded.origin, "Brewed in Long Beach.")
+        XCTAssertEqual(decoded.factSource, source)
+    }
+
+    func testCloudKitMetadataCodecRoundTripsWebSourceWithoutOrigin() throws {
+        let source = try XCTUnwrap(BeerFactSource(
+            kind: .webSearch,
+            url: URL(string: "https://source-aware.example/beers/ipa")!
+        ))
+
+        let encoded = try XCTUnwrap(CloudKitScanMetadataCodec.encode(
+            origin: nil,
+            factSource: source
+        ))
+        let decoded = CloudKitScanMetadataCodec.decode(encoded)
+
+        XCTAssertTrue(encoded.hasPrefix("SipCheck source v1 - Brewery website: https://"))
+        XCTAssertNil(decoded.origin)
+        XCTAssertEqual(decoded.factSource, source)
+    }
+
+    func testCloudKitMetadataCodecPreservesLegacyAndMalformedOrigins() {
+        let legacy = "A legacy brewery origin story."
+        XCTAssertEqual(CloudKitScanMetadataCodec.decode(legacy).origin, legacy)
+        XCTAssertNil(CloudKitScanMetadataCodec.decode(legacy).factSource)
+
+        let malformed = "SipCheck source v1 - Catalog.beer: http://unsafe.example/beer"
+        XCTAssertEqual(CloudKitScanMetadataCodec.decode(malformed).origin, malformed)
+        XCTAssertNil(CloudKitScanMetadataCodec.decode(malformed).factSource)
+    }
+
     @MainActor
     func testRemoteMergePreservesLocalOnlyPhotoAndBrand() {
         let local = Scan(
@@ -163,6 +207,29 @@ final class ScanStoreTests: XCTestCase {
         remote.lastModifiedLocal = Date().addingTimeInterval(60)
         store.applyRemoteScans([remote])
 
+        XCTAssertEqual(store.scans.first?.factSource, source)
+    }
+
+    @MainActor
+    func testRemoteMergeDoesNotEraseLocalFactSource() {
+        let source = BeerFactSource(
+            kind: .webSearch,
+            url: URL(string: "https://source-aware.example/beers/ipa")!
+        )!
+        let local = Scan(
+            beerName: "Source Aware IPA",
+            explanation: "Local",
+            factSource: source
+        )
+        store.addScan(local)
+
+        var remote = local
+        remote.factSource = nil
+        remote.explanation = "Newer remote copy"
+        remote.lastModifiedLocal = Date().addingTimeInterval(60)
+        store.applyRemoteScans([remote])
+
+        XCTAssertEqual(store.scans.first?.explanation, "Newer remote copy")
         XCTAssertEqual(store.scans.first?.factSource, source)
     }
 

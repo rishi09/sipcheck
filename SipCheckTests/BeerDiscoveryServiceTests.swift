@@ -548,6 +548,47 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(recorder.hosts, ["catalog.beer"])
     }
 
+    func testServiceTopsUpStrongCatalogMatchWhenStyleCannotBeScored() async throws {
+        XCTAssertNil(BeerDiscoveryText.coarseStyle(from: "Special Release Hidden Signal"))
+        let recorder = RequestRecorder()
+        let sourceURL = "https://neighborhood.example/beers/hidden-signal"
+        let webData = try webResponseData(results: [[
+            "name": "Hidden Signal",
+            "brewery": "Neighborhood Fermentary",
+            "style": "West Coast IPA",
+            "abv": 6.7,
+            "source_url": sourceURL
+        ]], actionSources: [sourceURL])
+        StubURLProtocol.install { request in
+            recorder.record(request.url!)
+            if request.url?.host == "catalog.beer" {
+                return Self.response(
+                    for: request,
+                    body: Self.catalogHTML(
+                        name: "Hidden Signal",
+                        brewery: "Neighborhood Fermentary",
+                        style: "Special Release",
+                        abv: "6.7% ABV"
+                    )
+                )
+            }
+            return Self.response(for: request, data: webData)
+        }
+        let service = BeerDiscoveryService(
+            session: stubSession(),
+            cacheURL: nil,
+            mockSearch: false,
+            apiKey: "test-key-that-is-long-enough",
+            networkAvailable: { true }
+        )
+
+        let results = try await service.search(query: "Hidden Signal", limit: 5)
+
+        XCTAssertEqual(recorder.hosts, ["catalog.beer", "api.openai.com"])
+        XCTAssertEqual(results.first?.source, .webSearch)
+        XCTAssertEqual(results.first?.beerStyle, .ipa)
+    }
+
     func testFailedWebTopUpUsesAShortCacheLifetime() async throws {
         let clock = MutableDate(Date(timeIntervalSince1970: 1_000))
         let recorder = RequestRecorder()

@@ -1,6 +1,51 @@
 import Foundation
 import CloudKit
 
+struct CloudKitScanMetadata: Equatable {
+    let origin: String?
+    let factSource: BeerFactSource?
+}
+
+enum CloudKitScanMetadataCodec {
+    private static let catalogPrefix = "SipCheck source v1 - Catalog.beer: "
+    private static let webPrefix = "SipCheck source v1 - Brewery website: "
+
+    static func encode(origin: String?, factSource: BeerFactSource?) -> String? {
+        guard let factSource else { return origin }
+        let prefix = factSource.kind == .catalogBeer ? catalogPrefix : webPrefix
+        let sourceLine = prefix + factSource.url.absoluteString
+        guard let origin, !origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return sourceLine
+        }
+        return sourceLine + "\n\n" + origin
+    }
+
+    static func decode(_ value: String?) -> CloudKitScanMetadata {
+        guard let value else { return CloudKitScanMetadata(origin: nil, factSource: nil) }
+        let candidates: [(String, BeerFactSource.Kind)] = [
+            (catalogPrefix, .catalogBeer),
+            (webPrefix, .webSearch)
+        ]
+        for (prefix, kind) in candidates where value.hasPrefix(prefix) {
+            let payload = String(value.dropFirst(prefix.count))
+            let parts = payload.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+            let rawURL = String(parts[0]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: rawURL),
+                  let factSource = BeerFactSource(kind: kind, url: url) else {
+                break
+            }
+            let origin = parts.count == 2
+                ? String(parts[1]).trimmingCharacters(in: .whitespacesAndNewlines)
+                : ""
+            return CloudKitScanMetadata(
+                origin: origin.isEmpty ? nil : origin,
+                factSource: factSource
+            )
+        }
+        return CloudKitScanMetadata(origin: value, factSource: nil)
+    }
+}
+
 /// Fire-and-forget CloudKit sync. All operations fail silently — local JSON is always authoritative.
 /// Sync strategy: last-write-wins by `lastModifiedLocal`. Full sync on app launch.
 final class CloudKitSyncService {
@@ -313,7 +358,9 @@ final class CloudKitSyncService {
         record["style"] = scan.style.map { $0 as CKRecordValue }
         record["abv"] = scan.abv.map { $0 as CKRecordValue }
         record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
-        record["origin"] = scan.origin.map { $0 as CKRecordValue }
+        record["origin"] = CloudKitScanMetadataCodec
+            .encode(origin: scan.origin, factSource: scan.factSource)
+            .map { $0 as CKRecordValue }
     }
 
     private func scanFrom(_ record: CKRecord) -> Scan? {
@@ -332,6 +379,7 @@ final class CloudKitSyncService {
             linkedJournalId = nil
         }
 
+        let metadata = CloudKitScanMetadataCodec.decode(record["origin"] as? String)
         var scan = Scan(
             id: id,
             beerName: beerName,
@@ -342,7 +390,8 @@ final class CloudKitSyncService {
             timestamp: record["timestamp"] as? Date ?? Date(),
             wantToTry: (record["wantToTry"] as? Int ?? 0) == 1,
             linkedJournalId: linkedJournalId,
-            origin: record["origin"] as? String
+            origin: metadata.origin,
+            factSource: metadata.factSource
         )
         scan.lastModifiedLocal = record["lastModifiedLocal"] as? Date ?? scan.timestamp
         scan.isDeleted = (record["isDeleted"] as? Int ?? 0) == 1

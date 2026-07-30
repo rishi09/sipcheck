@@ -25,8 +25,8 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var linkedJournalId: UUID?
     var origin: String?
     /// Exact page that grounded a selected search result. This is persisted in
-    /// local JSON but intentionally not added to CloudKit until its Production
-    /// schema can be promoted through the CloudKit Console.
+    /// local JSON and encoded into the existing CloudKit origin string so older
+    /// Production schemas retain source attribution without adding fields.
     var factSource: BeerFactSource?
     var lastModifiedLocal: Date
     /// Soft-delete tombstone flag (kept hidden so the deletion syncs cross-device).

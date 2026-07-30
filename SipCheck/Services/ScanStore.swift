@@ -116,11 +116,12 @@ class ScanStore: ObservableObject {
             if let local = byID[remote.id] {
                 if cloudKitWins(remote, over: local) {
                     var merged = remote
-                    // These fields are local-only until the production Scan
-                    // schema is explicitly promoted. A routine remote update
-                    // must not erase a captured photo or resolved brewery.
+                    // A routine remote update must not erase local-only media,
+                    // resolved brewery identity, or a citation written before
+                    // the compatible CloudKit metadata encoding shipped.
                     merged.brand = remote.brand ?? local.brand
                     merged.photoFileName = remote.photoFileName ?? local.photoFileName
+                    merged.factSource = remote.factSource ?? local.factSource
                     byID[remote.id] = merged
                 }
             } else {
