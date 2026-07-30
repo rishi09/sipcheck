@@ -228,7 +228,7 @@ jobs:
             "$BEER_SEARCH_URL" \
             --header "Content-Type: application/json" \
             --header "Accept: application/json" \
-            --data '{"query":"Snímek Cohesion Brewing Company","limit":3}')
+            --data '{"query":"Jantar Cohesion Brewing Company","limit":3}')
           if [ "$STATUS" != "200" ]; then
             echo "::error::Live beer-search probe failed (HTTP ${STATUS})."
             exit 1
@@ -236,14 +236,14 @@ jobs:
           if ! jq -e '
             (.results | type == "array")
             and any(.results[];
-              (.name | test("^Snímek"; "i"))
+              (.name | test("^Jantar"; "i"))
               and (.brewery | ascii_downcase | contains("cohesion"))
               and (.style | type == "string" and length > 0)
               and (.source_url | type == "string" and startswith("https://"))
             )
           ' "$RESPONSE" >/dev/null; then
             echo "Returned results: $(jq -c '.results // []' "$RESPONSE")"
-            echo "::error::Live beer-search probe returned no sourced scorer-ready Snímek result."
+            echo "::error::Live beer-search probe returned no sourced scorer-ready Jantar result."
             exit 1
           fi
           echo "Live beer-search contract returned sourced facts for local scoring."
