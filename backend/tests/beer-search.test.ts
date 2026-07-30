@@ -73,14 +73,15 @@ test("only public HTTPS source URLs are accepted", () => {
   }
 });
 
-test("Tavily request is fixed to bounded advanced search", () => {
+test("Tavily request is fixed to bounded advanced search without ABV bias", () => {
   const body = buildTavilyRequestBody("Pliny");
   assert.equal(body.search_depth, "advanced");
-  assert.equal(body.max_results, 7);
+  assert.equal(body.max_results, 10);
   assert.equal(body.chunks_per_source, 3);
   assert.equal(body.include_raw_content, "markdown");
   assert.equal(body.include_answer, false);
-  assert.match(String(body.query), /current beer tap list menu/);
+  assert.match(String(body.query), /beer style official brewery/);
+  assert.doesNotMatch(String(body.query), /ABV/i);
 });
 
 test("Tavily evidence is sanitized, bounded, deduplicated, and public", () => {
@@ -92,7 +93,45 @@ test("Tavily evidence is sanitized, bounded, deduplicated, and public", () => {
   ] });
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0].title, "Beer");
-  assert.equal(Array.from(evidence[0].rawText).length, 5_000);
+  assert.equal(Array.from(evidence[0].rawText).length, 3_000);
+});
+
+test("evidence ranking retains a late official query-centered excerpt", () => {
+  const results = Array.from({ length: 10 }, (_, index) => ({
+    url: `https://aggregator${index}.beer/list`,
+    title: `Generic beer list ${index}`,
+    content: "Many unrelated beers and styles.",
+    raw_content: "x".repeat(10_000)
+  }));
+  results[8] = {
+    url: "https://www.trueanomalybrewing.com/beers",
+    title: "Beers",
+    content: "True Anomaly Brewing beer list.",
+    raw_content: `${Array.from({ length: 6 }, () => `Scout True Anomaly image ${"x".repeat(700)}`).join(" ")} Scout 4.7% / Mexican-Style Lager by True Anomaly Brewing.`
+  };
+  const evidence = boundTavilyEvidence({ results }, "Scout True Anomaly Brewing");
+  assert.equal(evidence.length, 10);
+  assert.equal(evidence[0].url, "https://www.trueanomalybrewing.com/beers");
+  assert.match(evidence[0].rawText, /Scout.+Mexican-Style Lager/);
+});
+
+test("flattened uppercase beer names regain a safe style boundary", () => {
+  const [official] = boundTavilyEvidence({ results: [{
+    url: "https://www.rightproperbrewing.com/our-beer",
+    title: "Our Beer",
+    content: "Right Proper Brewing Company BIG TOMORROWWest Coast-Style IPA",
+    raw_content: ""
+  }] }, "BIG TOMORROW Right Proper Brewing");
+  assert.match(official.snippet, /BIG TOMORROW West Coast-Style IPA/);
+  const [accepted] = validateExtraction({ results: [{
+    beer: "Big Tomorrow",
+    brewery: "Right Proper Brewing Company",
+    style: "West Coast-Style IPA",
+    abv: null,
+    source_url: official.url,
+    confidence: 0.95
+  }] }, [official], { query: "BIG TOMORROW Right Proper Brewing", limit: 4 });
+  assert.equal(accepted.style, "West Coast-Style IPA");
 });
 
 test("Gemini request has no tools and enumerates exact source URLs", () => {
@@ -181,6 +220,154 @@ test("unsupported optional facts are removed instead of trusted", () => {
   assert.equal(results[0].confidence, 0.7);
 });
 
+test("brewery grounding tolerates trailing legal suffixes but preserves the root", () => {
+  const scoutSource: TavilyEvidence = {
+    url: "https://www.trueanomalybrewing.com/beers",
+    title: "Scout | True Anomaly Brewing",
+    snippet: "Scout by True Anomaly Brewing is a Lager - Mexican.",
+    rawText: ""
+  };
+  const scout = {
+    beer: "Scout",
+    brewery: "True Anomaly Brewing Company",
+    style: "Mexican-Style Lager",
+    abv: null,
+    source_url: scoutSource.url,
+    confidence: 0.95
+  };
+  const accepted = validateExtraction({ results: [scout] }, [scoutSource], {
+    query: "Scout True Anomaly Brewing",
+    limit: 4
+  });
+  assert.equal(accepted.length, 1);
+  assert.equal(accepted[0].style, "Mexican-Style Lager");
+  const deduplicated = validateExtraction({
+    results: [scout, { ...scout, brewery: "True Anomaly Brewing" }]
+  }, [scoutSource], { query: "Scout True Anomaly Brewing", limit: 4 });
+  assert.equal(deduplicated.length, 1);
+  assert.deepEqual(validateExtraction({
+    results: [{ ...scout, brewery: "Other Anomaly Brewing Company" }]
+  }, [scoutSource], { query: "Scout Other Anomaly Brewing", limit: 4 }), []);
+
+  const proseOnlySource = {
+    ...scoutSource,
+    url: "https://reviews.example.org/scout",
+    title: "Scout beer review",
+    snippet: "Scout is a crisp lager. The true anomaly is how refreshing it tastes."
+  };
+  assert.deepEqual(validateExtraction({ results: [{
+    ...scout,
+    style: "Lager",
+    source_url: proseOnlySource.url
+  }] }, [proseOnlySource], { query: "Scout True Anomaly Brewing", limit: 4 }), []);
+});
+
+test("a grounded detail-page style label survives boilerplate without leaking across rows", () => {
+  const detailSource: TavilyEvidence = {
+    url: "https://www.beeradvocate.com/beer/profile/47496/351768",
+    title: "Whipple Street | Frogtown Brewery",
+    snippet: `Whipple Street by Frogtown Brewery. ${"x".repeat(360)} Style: Cream Ale`,
+    rawText: ""
+  };
+  const whipple = {
+    beer: "Whipple Street",
+    brewery: "Frogtown Brewery",
+    style: "Cream Ale",
+    abv: null,
+    source_url: detailSource.url,
+    confidence: 0.9
+  };
+  const [accepted] = validateExtraction({ results: [whipple] }, [detailSource], {
+    query: "Whipple Street Frogtown Brewery",
+    limit: 4
+  });
+  assert.equal(accepted.style, "Cream Ale");
+
+  const listSource = {
+    ...detailSource,
+    title: "Frogtown Brewery beer list",
+    snippet: `Whipple Street by Frogtown Brewery. ${"x".repeat(360)} Other Beer Style: Stout`
+  };
+  const [listResult] = validateExtraction({
+    results: [{ ...whipple, style: "Stout", source_url: listSource.url }]
+  }, [listSource], { query: "Whipple Street Frogtown Brewery", limit: 4 });
+  assert.equal(listResult.style, null);
+
+  const misleadingDetail = {
+    ...detailSource,
+    snippet: "Whipple Street by Frogtown Brewery. Style: Stout. Brewed with cream-like sweetness and an ale yeast."
+  };
+  const [misleadingResult] = validateExtraction({ results: [whipple] }, [misleadingDetail], {
+    query: "Whipple Street Frogtown Brewery",
+    limit: 4
+  });
+  assert.equal(misleadingResult.style, null);
+});
+
+test("IPA and India Pale Ale style aliases are grounded in both directions", () => {
+  const longStyleSource: TavilyEvidence = {
+    ...source,
+    snippet: "Falling Knife Catch is an India Pale Ale from ISM Brewing.",
+    rawText: ""
+  };
+  const [shortStyle] = validateExtraction({ results: [{
+    ...candidate,
+    style: "IPA",
+    abv: null,
+    source_url: longStyleSource.url
+  }] }, [longStyleSource], { query: "Falling Knife Catch", limit: 4 });
+  assert.equal(shortStyle.style, "IPA");
+
+  const shortStyleSource = {
+    ...longStyleSource,
+    snippet: "Falling Knife Catch is an IPA from ISM Brewing."
+  };
+  const [longStyle] = validateExtraction({ results: [{
+    ...candidate,
+    style: "India Pale Ale",
+    abv: null,
+    source_url: shortStyleSource.url
+  }] }, [shortStyleSource], { query: "Falling Knife Catch", limit: 4 });
+  assert.equal(longStyle.style, "India Pale Ale");
+});
+
+test("validated duplicate identities prefer official styled evidence before deduplication", () => {
+  const official: TavilyEvidence = {
+    url: "https://frogtownbrewery.com/beers/whipple-street",
+    title: "Whipple Street | Frogtown Brewery",
+    snippet: "Whipple Street by Frogtown Brewery is a Cream Ale.",
+    rawText: ""
+  };
+  const database: TavilyEvidence = {
+    ...official,
+    url: "https://www.beeradvocate.com/beer/profile/47496/351768"
+  };
+  const weak: TavilyEvidence = {
+    ...official,
+    url: "https://www.taphunter.com/brewery/frogtown/1",
+    snippet: "Whipple Street by Frogtown Brewery."
+  };
+  const makeCandidate = (sourceURL: string, style: string | null) => ({
+    beer: "Whipple Street",
+    brewery: "Frogtown Brewery",
+    style,
+    abv: null,
+    source_url: sourceURL,
+    confidence: 0.9
+  });
+  const results = validateExtraction({ results: [
+    makeCandidate(weak.url, null),
+    makeCandidate(database.url, "Cream Ale"),
+    makeCandidate(official.url, "Cream Ale")
+  ] }, [weak, database, official], {
+    query: "Whipple Street Frogtown Brewery",
+    limit: 6
+  });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].source_url, official.url);
+  assert.equal(results[0].style, "Cream Ale");
+});
+
 test("missing or malformed ABV never discards a grounded result", () => {
   const { abv: _unused, ...withoutABV } = candidate;
   for (const result of [withoutABV, { ...candidate, abv: "not-a-number" }]) {
@@ -220,7 +407,7 @@ test("search orchestration sends bounded provider requests and returns verified 
     { tavilyApiKey: "tavily-secret", geminiApiKey: "gemini-secret", fetchImpl }
   );
   assert.equal(calls.length, 2);
-  assert.equal(calls[0].body.max_results, 7);
+  assert.equal(calls[0].body.max_results, 10);
   assert.equal(calls[0].headers.get("authorization"), "Bearer tavily-secret");
   assert.ok(Array.isArray(calls[1].body.contents));
   assert.ok(isObjectForTest(calls[1].body.generationConfig));

@@ -44,7 +44,13 @@ async function fetchJSON(url: string, init?: RequestInit): Promise<unknown> {
     cache: "no-store"
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json() as Promise<unknown>;
+  const contentType = response.headers.get("content-type") ?? "unknown content type";
+  const body = await response.text();
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    throw new Error(`Expected JSON from ${new URL(url).host}, received ${contentType}`);
+  }
 }
 
 function publicResults(payload: unknown): PublicBeerResult[] {

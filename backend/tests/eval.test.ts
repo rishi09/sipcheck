@@ -16,7 +16,7 @@ const expected: GoldenBeerCase = {
   style_evidence: "Double IPA",
   coarse_category: "ipa",
   official_hosts: ["russianriverbrewing.com"],
-  credible_hosts: ["untappd.com"],
+  credible_hosts: ["untappd.com", "beeradvocate.com"],
   source_urls: []
 };
 
@@ -66,4 +66,24 @@ test("unknown expected category is excluded without weakening identity or source
   assert.equal(result.category, null);
   assert.equal(result.source, true);
   assert.equal(result.officialSource, false);
+});
+
+test("BeerAdvocate is credible but not official, while arbitrary aggregators fail", () => {
+  const beerAdvocate = evaluateGoldenCase(expected, [{
+    name: "Pliny the Elder",
+    brewery: "Russian River Brewing Company",
+    style: "Double IPA",
+    source_url: "https://www.beeradvocate.com/beer/profile/863/7971"
+  }]);
+  assert.equal(beerAdvocate.source, true);
+  assert.equal(beerAdvocate.officialSource, false);
+
+  const tapHunter = evaluateGoldenCase(expected, [{
+    name: "Pliny the Elder",
+    brewery: "Russian River Brewing Company",
+    style: "Double IPA",
+    source_url: "https://www.taphunter.com/beer/pliny/1"
+  }]);
+  assert.equal(tapHunter.source, false);
+  assert.equal(tapHunter.officialSource, false);
 });

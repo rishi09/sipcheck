@@ -7,7 +7,7 @@
     "style_evidence": "West Coast IPA",
     "coarse_category": "ipa",
     "official_hosts": ["oaklandunitedbeerworks.com"],
-    "credible_hosts": [],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://oaklandunitedbeerworks.com/beers-on-tap/"]
   },
   {
@@ -18,7 +18,7 @@
     "style_evidence": "Red Ale - American Amber",
     "coarse_category": "amber",
     "official_hosts": ["oaklandunitedbeerworks.com"],
-    "credible_hosts": [],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://oaklandunitedbeerworks.com/beers-on-tap/"]
   },
   {
@@ -29,7 +29,7 @@
     "style_evidence": "Silné Pivo (Strong Beer)",
     "coarse_category": null,
     "official_hosts": ["cohesionbeer.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.cohesionbeer.com/tap-list"],
     "notes": "Pivo means beer, not lager. Do not infer a coarse category from Strong Beer alone."
   },
@@ -41,7 +41,7 @@
     "style_evidence": "Polotmavé Výčepní Pivo (Czech Amber Lager)",
     "coarse_category": "lager",
     "official_hosts": ["cohesionbeer.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.cohesionbeer.com/tap-list"]
   },
   {
@@ -52,7 +52,7 @@
     "style_evidence": "Vanilla Cream Ale",
     "coarse_category": "lager",
     "official_hosts": ["frogtownbrewery.com", "menu-5a543.web.app"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": [
       "https://www.frogtownbrewery.com/ontaptoday",
       "https://untappd.com/b/frogtown-brewery-whipple-street/2665107"
@@ -66,7 +66,7 @@
     "style_evidence": "West Coast IPA",
     "coarse_category": "ipa",
     "official_hosts": ["frogtownbrewery.com", "menu-5a543.web.app"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": [
       "https://www.frogtownbrewery.com/ontaptoday",
       "https://untappd.com/b/frogtown-brewery-stratasphere/4682198"
@@ -80,7 +80,7 @@
     "style_evidence": "Mexican-Style Lager",
     "coarse_category": "lager",
     "official_hosts": ["trueanomalybrewing.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.trueanomalybrewing.com/beers"]
   },
   {
@@ -91,7 +91,7 @@
     "style_evidence": "American IPA",
     "coarse_category": "ipa",
     "official_hosts": ["trueanomalybrewing.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.trueanomalybrewing.com/beers"]
   },
   {
@@ -102,7 +102,7 @@
     "style_evidence": "American-Style Light Lager",
     "coarse_category": "lager",
     "official_hosts": ["rightproperbrewing.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.rightproperbrewing.com/our-beer"]
   },
   {
@@ -113,7 +113,7 @@
     "style_evidence": "West Coast-Style IPA",
     "coarse_category": "ipa",
     "official_hosts": ["rightproperbrewing.com"],
-    "credible_hosts": ["untappd.com"],
+    "credible_hosts": ["untappd.com", "beeradvocate.com"],
     "source_urls": ["https://www.rightproperbrewing.com/our-beer"]
   }
 ]
