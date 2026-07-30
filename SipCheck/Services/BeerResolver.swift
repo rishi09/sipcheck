@@ -90,6 +90,30 @@ enum BeerResolver {
         )
     }
 
+    /// Typed text has an explicit identity boundary. A catalog suggestion is
+    /// an opt-in to that catalog row; Return/CTA/custom-result input keeps the
+    /// user's exact identity and uses only facts printed in their text.
+    static func resolveTyped(
+        recognizedText text: String,
+        selectedCatalogBeer: ResolvedBeer?
+    ) -> ResolvedBeer {
+        guard let selectedCatalogBeer else {
+            return resolve(recognizedText: text, using: nil)
+        }
+
+        let printed = resolve(recognizedText: text, using: nil)
+        let style = printed.style ?? selectedCatalogBeer.style
+        let source: ResolvedBeer.Source = printed.style != nil ? .labelText : selectedCatalogBeer.source
+        return ResolvedBeer(
+            name: selectedCatalogBeer.name,
+            brewery: selectedCatalogBeer.brewery,
+            style: style,
+            abv: printed.abv ?? selectedCatalogBeer.abv,
+            source: source,
+            confidence: selectedCatalogBeer.confidence
+        )
+    }
+
     /// Pick a human-readable identity line from an unresolved OCR blob. Vision
     /// returns lines in page order, so a bottle-neck date or batch code often
     /// precedes the large brand/name on the label. Catalog hits remain
@@ -246,7 +270,9 @@ final class BundledCatalog: BeerCatalog {
     private let entries: [Entry]
     /// Precomputed normalized names + token sets, parallel to `entries`.
     private let normalizedNames: [String]
+    private let normalizedBreweries: [String]
     private let tokenSets: [Set<String>]
+    private let breweryTokenSets: [Set<String>]
     /// Normalized-name → index, for O(1) exact hits before falling back to fuzzy.
     private let exactIndex: [String: Int]
     /// token → entry indices; candidate generation so fuzzy scoring never walks
@@ -295,7 +321,7 @@ final class BundledCatalog: BeerCatalog {
                 .error("catalog.json missing or undecodable in \(bundle.bundlePath, privacy: .public) — offline name matching disabled")
         }
         self.entries = loaded
-        (self.normalizedNames, self.tokenSets, self.exactIndex, self.tokenIndex) =
+        (self.normalizedNames, self.normalizedBreweries, self.tokenSets, self.breweryTokenSets, self.exactIndex, self.tokenIndex) =
             BundledCatalog.buildIndexes(loaded)
     }
 
@@ -303,12 +329,115 @@ final class BundledCatalog: BeerCatalog {
     init(seed rows: [(name: String, brewery: String?, style: String?, coarse: String?, abv: Double?)]) {
         let mapped = rows.map { Entry(name: $0.name, brewery: $0.brewery, style: $0.style, coarse: $0.coarse, abv: $0.abv) }
         self.entries = mapped
-        (self.normalizedNames, self.tokenSets, self.exactIndex, self.tokenIndex) =
+        (self.normalizedNames, self.normalizedBreweries, self.tokenSets, self.breweryTokenSets, self.exactIndex, self.tokenIndex) =
             BundledCatalog.buildIndexes(mapped)
     }
 
     func lookup(name: String) -> ResolvedBeer? {
         matches(name: name, limit: 1).first
+    }
+
+    /// All rows sharing an exact normalized product name. Preference seeding
+    /// uses this conservative view so a partial/fuzzy local name cannot borrow
+    /// another beer's style, and duplicate names can be treated as ambiguous.
+    func exactMatches(name: String) -> [ResolvedBeer] {
+        let q = BundledCatalog.normalize(name)
+        guard !q.isEmpty else { return [] }
+        return entries.indices.compactMap { index in
+            guard normalizedNames[index] == q else { return nil }
+            return resolved(entries[index], confidence: 1.0)
+        }
+    }
+
+    /// Discovery search for user-entered text. Unlike `matches`, this method is
+    /// allowed to be permissive because its rows are suggestions, never silent
+    /// identity decisions. It supports partial product names and brewery names
+    /// so a taproom release remains findable when the user remembers either.
+    func search(name: String, limit: Int = 5) -> [ResolvedBeer] {
+        let q = BundledCatalog.normalize(name)
+        guard q.count >= 2, limit > 0 else { return [] }
+
+        let queryTokens = q.split(separator: " ").map(String.init)
+        var scored: [(idx: Int, score: Double)] = []
+        scored.reserveCapacity(min(entries.count, 32))
+
+        for i in entries.indices {
+            let product = normalizedNames[i]
+            let brewery = normalizedBreweries[i]
+            let productTokens = tokenSets[i]
+            let breweryTokens = breweryTokenSets[i]
+
+            let productScore: Double
+            if product == q {
+                productScore = 1.0
+            } else if product.hasPrefix(q) {
+                productScore = 0.96
+            } else if product.contains(q) {
+                productScore = 0.90
+            } else if queryTokens.allSatisfy({ query in
+                productTokens.contains(where: { $0.hasPrefix(query) })
+            }) {
+                productScore = 0.86
+            } else {
+                productScore = 0
+            }
+
+            // A brewery query is usually intentional and must not be crowded
+            // out by unrelated product names containing the same word.
+            let breweryScore: Double
+            if brewery == q {
+                breweryScore = 0.99
+            } else if brewery.hasPrefix(q) {
+                breweryScore = 0.97
+            } else if brewery.contains(q) {
+                breweryScore = 0.93
+            } else if queryTokens.allSatisfy({ query in
+                breweryTokens.contains(where: { $0.hasPrefix(query) })
+            }) {
+                breweryScore = 0.89
+            } else {
+                breweryScore = 0
+            }
+
+            let combinedTokens = productTokens.union(breweryTokens)
+            let spansProductAndBrewery = queryTokens.contains { query in
+                productTokens.contains(where: { $0.hasPrefix(query) })
+            } && queryTokens.contains { query in
+                breweryTokens.contains(where: { $0.hasPrefix(query) })
+            }
+            let combinedScore: Double
+            if queryTokens.count >= 2,
+               spansProductAndBrewery,
+               queryTokens.allSatisfy({ query in
+                    combinedTokens.contains(where: { $0.hasPrefix(query) })
+               }) {
+                combinedScore = 0.95
+            } else {
+                combinedScore = 0
+            }
+
+            let score = max(productScore, max(breweryScore, combinedScore))
+            if score > 0 { scored.append((i, score)) }
+        }
+
+        scored.sort { lhs, rhs in
+            if lhs.score != rhs.score { return lhs.score > rhs.score }
+            let leftName = entries[lhs.idx].name.localizedLowercase
+            let rightName = entries[rhs.idx].name.localizedLowercase
+            if leftName != rightName { return leftName < rightName }
+            return (entries[lhs.idx].brewery ?? "") < (entries[rhs.idx].brewery ?? "")
+        }
+
+        var seen: Set<String> = []
+        var results: [ResolvedBeer] = []
+        for candidate in scored {
+            let entry = entries[candidate.idx]
+            let key = "\(normalizedNames[candidate.idx])|\(normalizedBreweries[candidate.idx])"
+            guard seen.insert(key).inserted else { continue }
+            results.append(resolved(entry, confidence: candidate.score))
+            if results.count == limit { break }
+        }
+        return results
     }
 
     /// Ranked candidate matches with a 0–1 confidence, best first. Deterministic
@@ -420,22 +549,36 @@ final class BundledCatalog: BeerCatalog {
 
     private static func buildIndexes(
         _ entries: [Entry]
-    ) -> (names: [String], tokens: [Set<String>], exact: [String: Int], byToken: [String: [Int]]) {
+    ) -> (
+        names: [String],
+        breweries: [String],
+        tokens: [Set<String>],
+        breweryTokens: [Set<String>],
+        exact: [String: Int],
+        byToken: [String: [Int]]
+    ) {
         var names: [String] = []
+        var breweries: [String] = []
         var tokens: [Set<String>] = []
+        var breweryTokens: [Set<String>] = []
         var exact: [String: Int] = [:]
         var byToken: [String: [Int]] = [:]
         names.reserveCapacity(entries.count)
+        breweries.reserveCapacity(entries.count)
         tokens.reserveCapacity(entries.count)
+        breweryTokens.reserveCapacity(entries.count)
         for (i, e) in entries.enumerated() {
             let n = normalize(e.name)
+            let brewery = normalize(e.brewery ?? "")
             names.append(n)
+            breweries.append(brewery)
             let set = Set(n.split(separator: " ").map(String.init))
             tokens.append(set)
+            breweryTokens.append(Set(brewery.split(separator: " ").map(String.init)))
             if exact[n] == nil { exact[n] = i }
             for t in set { byToken[t, default: []].append(i) }
         }
-        return (names, tokens, exact, byToken)
+        return (names, breweries, tokens, breweryTokens, exact, byToken)
     }
 
     private func resolved(_ e: Entry, confidence: Double) -> ResolvedBeer {

@@ -515,7 +515,45 @@ private enum OnboardingPreferenceMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-private struct OnboardingPreferencePicker: View {
+/// Produces open-ended preference choices. Curated examples accelerate
+/// selection, but the user's exact text is always a valid choice.
+/// This keeps small-batch and taproom-only beers from becoming a dead end.
+enum OpenBeerSearchOptions {
+    static func names(
+        for query: String,
+        selectedBeers: Set<String>
+    ) -> [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            let customSelections = selectedBeers
+                .filter { selected in
+                    !onboardingBeerOptions.contains {
+                        BeerMatcher.exactNamesMatch($0, selected)
+                    }
+                }
+                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+            return customSelections + onboardingBeerOptions
+        }
+
+        var results: [String] = []
+        func appendUnique(_ name: String) {
+            guard !results.contains(where: { BeerMatcher.exactNamesMatch($0, name) }) else { return }
+            results.append(name)
+        }
+
+        for beer in onboardingBeerOptions where beer.localizedCaseInsensitiveContains(trimmed) {
+            appendUnique(beer)
+        }
+
+        // The catalog is deliberately not treated as exhaustive. Keeping the
+        // raw name also preserves an exact item-level preference when no source
+        // can infer a style for a neighborhood or one-off release.
+        appendUnique(trimmed)
+        return results
+    }
+}
+
+struct OnboardingPreferencePicker: View {
     let selectedBeers: Set<String>
     let selectedStyles: Set<BeerStyle>
     let beerAccessibilityPrefix: String
@@ -549,8 +587,7 @@ private struct OnboardingPreferencePicker: View {
     }
 
     private var filteredBeers: [String] {
-        guard !query.isEmpty else { return onboardingBeerOptions }
-        return onboardingBeerOptions.filter { $0.localizedCaseInsensitiveContains(query) }
+        OpenBeerSearchOptions.names(for: query, selectedBeers: selectedBeers)
     }
 
     private var filteredStyles: [BeerStyle] {
@@ -605,21 +642,19 @@ private struct OnboardingPreferencePicker: View {
             )
 
             if mode == .beers {
-                if filteredBeers.isEmpty {
-                    emptyResults("No matching beers")
-                } else {
-                    LazyVGrid(
-                        columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
-                        spacing: SipSpacing.s
-                    ) {
-                        ForEach(filteredBeers, id: \.self) { beer in
-                            OnboardingBeerTile(
-                                beer: beer,
-                                isSelected: selectedBeers.contains(beer),
-                                accessibilityPrefix: beerAccessibilityPrefix
-                            ) {
-                                onToggleBeer(beer)
-                            }
+                LazyVGrid(
+                    columns: onboardingGridColumns(normalCount: 2, dynamicTypeSize: dynamicTypeSize),
+                    spacing: SipSpacing.s
+                ) {
+                    ForEach(filteredBeers, id: \.self) { beer in
+                        OnboardingBeerTile(
+                            beer: beer,
+                            isSelected: selectedBeers.contains(where: {
+                                BeerMatcher.exactNamesMatch($0, beer)
+                            }),
+                            accessibilityPrefix: beerAccessibilityPrefix
+                        ) {
+                            onToggleBeer(beer)
                         }
                     }
                 }
@@ -790,8 +825,10 @@ private struct BeerPickerPage: View {
     }
 
     private func toggleBeer(_ beer: String) {
-        if selectedBeers.contains(beer) {
-            selectedBeers.remove(beer)
+        if let existing = selectedBeers.first(where: {
+            BeerMatcher.exactNamesMatch($0, beer)
+        }) {
+            selectedBeers.remove(existing)
         } else {
             selectedBeers.insert(beer)
         }
@@ -899,8 +936,10 @@ private struct GoToPickerPage: View {
     }
 
     private func toggleBeer(_ beer: String) {
-        if selectedBeers.contains(beer) {
-            selectedBeers.remove(beer)
+        if let existing = selectedBeers.first(where: {
+            BeerMatcher.exactNamesMatch($0, beer)
+        }) {
+            selectedBeers.remove(existing)
         } else {
             selectedBeers.insert(beer)
         }
@@ -926,17 +965,17 @@ private struct GoToPickerPage: View {
         // keys, so a stale chip set must never ride along with a fresh
         // beer resolution.
         let styleChips = selectedGoToStyles.map(\.rawValue).sorted()
+        TastePreferences.saveGoToSelections(beers: beers, styleChips: styleChips)
 
         Task {
             let styles: [String] = await Task.detached(priority: .utility) {
-                // Same catalog+inference fusion the scan path uses, so the
-                // seed style for a beer matches what scanning it would resolve.
-                Array(Set(beers.compactMap {
-                    (TastePreferences.styleForOnboardingBeer($0)
-                        ?? BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style)?.rawValue
-                })).sorted()
+                TastePreferences.locallyResolvedStyles(for: beers)
             }.value
-            guard generation == persistGeneration else { return } // stale snapshot
+            guard generation == persistGeneration,
+                  TastePreferences.goToSelectionsAreCurrent(
+                    beers: beers,
+                    styleChips: styleChips
+                  ) else { return }
             TastePreferences.saveGoTo(beers: beers, styleChips: styleChips, seedStyles: styles)
         }
     }
@@ -1046,8 +1085,10 @@ private struct StayAwayPickerPage: View {
     }
 
     private func toggleBeer(_ beer: String) {
-        if selectedAvoidBeers.contains(beer) {
-            selectedAvoidBeers.remove(beer)
+        if let existing = selectedAvoidBeers.first(where: {
+            BeerMatcher.exactNamesMatch($0, beer)
+        }) {
+            selectedAvoidBeers.remove(existing)
         } else {
             selectedAvoidBeers.insert(beer)
         }
@@ -1067,20 +1108,15 @@ private struct StayAwayPickerPage: View {
         guard hasEditedAvoidSelections else { return }
         avoidGeneration += 1
         let generation = avoidGeneration
-        let picks = selectedAvoidBeers.sorted() + selectedAvoidStyles.map(\.rawValue).sorted()
+        let beers = selectedAvoidBeers.sorted()
+        let styleChips = selectedAvoidStyles.map(\.rawValue).sorted()
+        if !isPreview {
+            TastePreferences.saveAvoidSelections(beers: beers, styleChips: styleChips)
+        }
 
         Task {
             let styles: [String] = await Task.detached(priority: .utility) {
-                var resolved: Set<String> = []
-                for pick in picks {
-                    if let direct = BeerStyle.allCases.first(where: { $0.rawValue.caseInsensitiveCompare(pick) == .orderedSame }) {
-                        resolved.insert(direct.rawValue)
-                    } else if let style = TastePreferences.styleForOnboardingBeer(pick)
-                        ?? BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
-                        resolved.insert(style.rawValue)
-                    }
-                }
-                return resolved.sorted()
+                Array(Set(styleChips).union(TastePreferences.locallyResolvedStyles(for: beers))).sorted()
             }.value
             guard generation == avoidGeneration else { return } // stale snapshot
             // Update the inline echo BEFORE the preview gate: the echo is
@@ -1091,7 +1127,15 @@ private struct StayAwayPickerPage: View {
                 }
             }
             guard !isPreview else { return } // Lab preview never touches taste data
-            TastePreferences.saveAvoidBeers(picks, avoidStyles: styles)
+            guard TastePreferences.avoidSelectionsAreCurrent(
+                beers: beers,
+                styleChips: styleChips
+            ) else { return }
+            TastePreferences.saveAvoidSelections(
+                beers: beers,
+                styleChips: styleChips,
+                avoidStyles: styles
+            )
         }
     }
 
@@ -1109,7 +1153,7 @@ private struct StayAwayPickerPage: View {
         echoedAvoidStyles.removeAll()
         hasEditedAvoidSelections = true
         if !isPreview {
-            TastePreferences.saveAvoidBeers([], avoidStyles: [])
+            TastePreferences.saveAvoidSelections(beers: [], styleChips: [], avoidStyles: [])
         }
         onAdvance()
     }

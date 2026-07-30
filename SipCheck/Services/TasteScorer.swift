@@ -83,12 +83,13 @@ enum TasteScorer {
         // fake a confident verdict on its own.
         guard let resolvedStyle = style ?? inferStyle(from: name) else {
             let score = abv.map { abvScore($0, idealABV: idealABV(from: profile)) } ?? 0.0
-            return Assessment(
+            let base = Assessment(
                 verdict: .yourCall,
                 shortReason: "we couldn't tell the style — trust your gut",
                 score: score,
                 isHardAvoid: false
             )
+            return applyingNamedBeerPreference(name: name, preferences: preferences, to: base)
         }
 
         var score = 0.0
@@ -173,12 +174,13 @@ enum TasteScorer {
 
         let verdict = verdict(for: score)
         let reason = reasons.isEmpty ? "no strong signal either way" : reasons.joined(separator: "; ")
-        return Assessment(
+        let base = Assessment(
             verdict: verdict,
             shortReason: reason,
             score: score,
             isHardAvoid: isHardAvoid
         )
+        return applyingNamedBeerPreference(name: name, preferences: preferences, to: base)
     }
 
     /// The scorer's ABV anchor: liked-history average first, any-history
@@ -208,8 +210,8 @@ enum TasteScorer {
     }
 
     /// A rating for this exact beer is stronger evidence than aggregate style
-    /// history. Without this override, one liked pale ale only contributes
-    /// 0.75 and the same beer can come back as YOUR CALL on the next check.
+    /// history. Without this override, broad style evidence can still leave the
+    /// same beer at YOUR CALL on the next check.
     static func applyingExactRating(_ rating: Rating?, to assessment: Assessment) -> Assessment {
         guard let rating else { return assessment }
         guard !assessment.isHardAvoid else { return assessment }
@@ -238,12 +240,45 @@ enum TasteScorer {
         }
     }
 
+    /// A behavioral named-beer choice remains actionable even when a local or
+    /// one-off release has no catalog/model facts. Exact normalized equality is
+    /// intentional: a broad fuzzy match must never turn one similarly named beer
+    /// into another beer's hard avoid.
+    private static func applyingNamedBeerPreference(
+        name: String,
+        preferences: TastePreferences,
+        to assessment: Assessment
+    ) -> Assessment {
+        if preferences.avoidBeers.contains(where: {
+            BeerMatcher.exactNamesMatch($0, name)
+        }) {
+            return Assessment(
+                verdict: .skipIt,
+                shortReason: "you marked this exact beer as a stay-away",
+                score: min(-avoidSeedPenalty, assessment.score),
+                isHardAvoid: true
+            )
+        }
+
+        guard !assessment.isHardAvoid,
+              preferences.goToBeers.contains(where: {
+                  BeerMatcher.exactNamesMatch($0, name)
+              }) else { return assessment }
+        return Assessment(
+            verdict: .tryIt,
+            shortReason: "you marked this exact beer as a go-to",
+            score: max(tryThreshold, assessment.score),
+            isHardAvoid: false
+        )
+    }
+
     /// Apply aggregate taste history and any exact-beer rating to a resolved
     /// set of facts. Both the instant resolver and asynchronous fact refinement
     /// use this entry point so a newly discovered style cannot leave a stale
     /// verdict on screen.
     static func assessWithExactHistory(
         name: String,
+        brewery: String? = nil,
         style: BeerStyle?,
         abv: Double?,
         drinks: [Drink],
@@ -259,7 +294,7 @@ enum TasteScorer {
             preferences: preferences
         )
         let exactRating = allowExactMatch
-            ? BeerMatcher.exactMatch(for: name, in: drinks)?.rating
+            ? BeerMatcher.exactMatch(for: name, brewery: brewery, in: drinks)?.rating
             : nil
         return applyingExactRating(exactRating, to: base)
     }

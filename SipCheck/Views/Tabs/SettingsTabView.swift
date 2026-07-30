@@ -465,11 +465,15 @@ private struct TastePreferencesEditorView: View {
                         Text("Your go-tos")
                             .font(SipTypography.headline)
                             .foregroundColor(SipColors.textPrimary)
-                        picksGrid(
-                            styleSelected: { goToStyles.contains($0) },
-                            onTapStyle: toggleGoToStyle,
-                            beerSelected: { goToBeers.contains($0) },
-                            onTapBeer: toggleGoToBeer
+                        OnboardingPreferencePicker(
+                            selectedBeers: goToBeers,
+                            selectedStyles: goToStyles,
+                            beerAccessibilityPrefix: "settingsGoToBeerTile",
+                            styleAccessibilityPrefix: "settingsGoToStyle",
+                            modeAccessibilityID: "settingsGoToMode",
+                            searchAccessibilityID: "settingsGoToSearch",
+                            onToggleBeer: toggleGoToBeer,
+                            onToggleStyle: toggleGoToStyle
                         )
                     }
 
@@ -477,11 +481,15 @@ private struct TastePreferencesEditorView: View {
                         Text("Your stay-aways")
                             .font(SipTypography.headline)
                             .foregroundColor(SipColors.textPrimary)
-                        picksGrid(
-                            styleSelected: { avoidStyles.contains($0) },
-                            onTapStyle: toggleAvoidStyle,
-                            beerSelected: { avoidBeers.contains($0) },
-                            onTapBeer: toggleAvoidBeer
+                        OnboardingPreferencePicker(
+                            selectedBeers: avoidBeers,
+                            selectedStyles: avoidStyles,
+                            beerAccessibilityPrefix: "settingsAvoidBeerTile",
+                            styleAccessibilityPrefix: "settingsAvoidStyle",
+                            modeAccessibilityID: "settingsAvoidMode",
+                            searchAccessibilityID: "settingsAvoidSearch",
+                            onToggleBeer: toggleAvoidBeer,
+                            onToggleStyle: toggleAvoidStyle
                         )
                     }
 
@@ -574,49 +582,6 @@ private struct TastePreferencesEditorView: View {
         }
     }
 
-    /// Two adaptive grids per section: brand-anchored style chips (wider
-    /// cells so the exemplar line fits, mirroring the onboarding pickers)
-    /// followed by the shared 16-beer pool — the exact pools the onboarding
-    /// pickers offer, so edits restore identically on a replay.
-    private func picksGrid(
-        styleSelected: @escaping (BeerStyle) -> Bool,
-        onTapStyle: @escaping (BeerStyle) -> Void,
-        beerSelected: @escaping (String) -> Bool,
-        onTapBeer: @escaping (String) -> Void
-    ) -> some View {
-        VStack(alignment: .leading, spacing: SipSpacing.s) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 150), spacing: SipSpacing.s)],
-                alignment: .leading,
-                spacing: SipSpacing.s
-            ) {
-                ForEach(onboardingStyleChips, id: \.self) { style in
-                    ChipButton(
-                        label: styleChipLabel(style),
-                        isSelected: styleSelected(style),
-                        anchorCaption: styleChipAnchor(style)
-                    ) {
-                        onTapStyle(style)
-                    }
-                }
-            }
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 100), spacing: SipSpacing.s)],
-                alignment: .leading,
-                spacing: SipSpacing.s
-            ) {
-                ForEach(onboardingBeerOptions, id: \.self) { beer in
-                    ChipButton(
-                        label: beer,
-                        isSelected: beerSelected(beer)
-                    ) {
-                        onTapBeer(beer)
-                    }
-                }
-            }
-        }
-    }
-
     // MARK: Go-to / stay-away tap handlers (write-through on every tap,
     // matching the onboarding pages — swiping the sheet away must not
     // discard edits)
@@ -627,7 +592,11 @@ private struct TastePreferencesEditorView: View {
     }
 
     private func toggleGoToBeer(_ beer: String) {
-        if goToBeers.contains(beer) { goToBeers.remove(beer) } else { goToBeers.insert(beer) }
+        if let existing = goToBeers.first(where: { BeerMatcher.exactNamesMatch($0, beer) }) {
+            goToBeers.remove(existing)
+        } else {
+            goToBeers.insert(beer)
+        }
         persistGoTo()
     }
 
@@ -637,7 +606,11 @@ private struct TastePreferencesEditorView: View {
     }
 
     private func toggleAvoidBeer(_ beer: String) {
-        if avoidBeers.contains(beer) { avoidBeers.remove(beer) } else { avoidBeers.insert(beer) }
+        if let existing = avoidBeers.first(where: { BeerMatcher.exactNamesMatch($0, beer) }) {
+            avoidBeers.remove(existing)
+        } else {
+            avoidBeers.insert(beer)
+        }
         persistAvoid()
     }
 
@@ -653,15 +626,17 @@ private struct TastePreferencesEditorView: View {
         // keys, so a stale chip set must never ride along with a fresh
         // beer resolution.
         let styleChips = goToStyles.map(\.rawValue).sorted()
+        TastePreferences.saveGoToSelections(beers: beers, styleChips: styleChips)
 
         Task {
             let styles: [String] = await Task.detached(priority: .utility) {
-                Array(Set(beers.compactMap {
-                    (TastePreferences.styleForOnboardingBeer($0)
-                        ?? BeerResolver.resolve(recognizedText: $0, using: BundledCatalog.shared).style)?.rawValue
-                })).sorted()
+                TastePreferences.locallyResolvedStyles(for: beers)
             }.value
-            guard generation == goToGeneration else { return } // stale snapshot
+            guard generation == goToGeneration,
+                  TastePreferences.goToSelectionsAreCurrent(
+                    beers: beers,
+                    styleChips: styleChips
+                  ) else { return }
             TastePreferences.saveGoTo(beers: beers, styleChips: styleChips, seedStyles: styles)
         }
     }
@@ -672,23 +647,24 @@ private struct TastePreferencesEditorView: View {
     private func persistAvoid() {
         avoidGeneration += 1
         let generation = avoidGeneration
-        let picks = avoidBeers.sorted() + avoidStyles.map(\.rawValue).sorted()
+        let beers = avoidBeers.sorted()
+        let styleChips = avoidStyles.map(\.rawValue).sorted()
+        TastePreferences.saveAvoidSelections(beers: beers, styleChips: styleChips)
 
         Task {
             let styles: [String] = await Task.detached(priority: .utility) {
-                var resolved: Set<String> = []
-                for pick in picks {
-                    if let direct = BeerStyle.allCases.first(where: { $0.rawValue.caseInsensitiveCompare(pick) == .orderedSame }) {
-                        resolved.insert(direct.rawValue)
-                    } else if let style = TastePreferences.styleForOnboardingBeer(pick)
-                        ?? BeerResolver.resolve(recognizedText: pick, using: BundledCatalog.shared).style {
-                        resolved.insert(style.rawValue)
-                    }
-                }
-                return resolved.sorted()
+                Array(Set(styleChips).union(TastePreferences.locallyResolvedStyles(for: beers))).sorted()
             }.value
-            guard generation == avoidGeneration else { return } // stale snapshot
-            TastePreferences.saveAvoidBeers(picks, avoidStyles: styles)
+            guard generation == avoidGeneration,
+                  TastePreferences.avoidSelectionsAreCurrent(
+                    beers: beers,
+                    styleChips: styleChips
+                  ) else { return }
+            TastePreferences.saveAvoidSelections(
+                beers: beers,
+                styleChips: styleChips,
+                avoidStyles: styles
+            )
         }
     }
 
@@ -703,19 +679,16 @@ private struct TastePreferencesEditorView: View {
         if selectedDislikes.isEmpty, !saved.dislikes.isEmpty { selectedDislikes = Set(saved.dislikes) }
 
         if goToBeers.isEmpty {
-            goToBeers = Set(TastePreferences.savedKnownBeers).intersection(Set(onboardingBeerOptions))
+            goToBeers = Set(TastePreferences.savedGoToBeers)
         }
         if goToStyles.isEmpty {
             goToStyles = Set(TastePreferences.savedGoToStyles.compactMap { BeerStyle(rawValue: $0) })
         }
-        // Saved avoid picks are a mixed list: style rawValues split back into
-        // style chips, known beer options back into beer chips.
-        let savedAvoidPicks = TastePreferences.savedAvoidBeers
         if avoidStyles.isEmpty {
-            avoidStyles = Set(savedAvoidPicks.compactMap { BeerStyle(rawValue: $0) })
+            avoidStyles = Set(TastePreferences.savedAvoidStyleChips.compactMap { BeerStyle(rawValue: $0) })
         }
         if avoidBeers.isEmpty {
-            avoidBeers = Set(savedAvoidPicks).intersection(Set(onboardingBeerOptions))
+            avoidBeers = Set(TastePreferences.savedAvoidBeers)
         }
     }
 

@@ -160,6 +160,11 @@ struct CheckTabView: View {
         let menuRunnerUp: Scan?
     }
 
+    private struct TextEntrySearchState {
+        let suggestions: [ResolvedBeer]
+        let customQuery: String?
+    }
+
     // Camera / input state
     @State private var capturedImage: UIImage?
     @State private var showingCamera = false
@@ -208,7 +213,11 @@ struct CheckTabView: View {
                     scan: scan,
                     // Exact-name match only: a fuzzy hit here would put a false
                     // "you've had this one" banner on a beer the user never tried.
-                    previousDrink: BeerMatcher.exactMatch(for: scan.beerName, in: drinkStore.drinks),
+                    previousDrink: BeerMatcher.exactMatch(
+                        for: scan.beerName,
+                        brewery: scan.brand,
+                        in: drinkStore.drinks
+                    ),
                     refining: refining,
                     savedForLater: savedForLater,
                     capturedImage: capturedImage,
@@ -481,73 +490,108 @@ struct CheckTabView: View {
     // MARK: - Text Entry Sheet
 
     private var textEntrySheet: some View {
-        NavigationStack {
-            VStack(spacing: SipSpacing.xl) {
-                VStack(alignment: .leading, spacing: SipSpacing.s) {
-                    Text("Enter beer name or description")
-                        .font(SipTypography.subhead)
-                        .foregroundColor(SipColors.textSecondary)
-                    // Elevated input well (crit note 6) — the field sits one
-                    // step above the sheet surface, never a system light border.
-                    AutoFocusBeerTextField(text: $textEntryInput) {
-                        submitTextEntry()
-                    }
+        let searchState = textEntrySearchState
+        return NavigationStack {
+            ScrollView {
+                VStack(spacing: SipSpacing.xl) {
+                    VStack(alignment: .leading, spacing: SipSpacing.s) {
+                        Text("Enter beer name or description")
+                            .font(SipTypography.subhead)
+                            .foregroundColor(SipColors.textSecondary)
+                        // Elevated input well (crit note 6) — the field sits one
+                        // step above the sheet surface, never a system light border.
+                        AutoFocusBeerTextField(text: $textEntryInput) {
+                            submitTextEntry()
+                        }
                         .accessibilityIdentifier("beerTextInput")
-                }
-                .padding(.horizontal)
+                    }
+                    .padding(.horizontal)
 
-                // Live catalog suggestions (round-2 crit #8): instant, local,
-                // free — fills the dead zone between field and CTA. Tapping a
-                // row runs the scan with the canonical catalog name.
-                if !textEntrySuggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(textEntrySuggestions.enumerated()), id: \.offset) { index, suggestion in
-                            Button {
-                                submitSuggestion(suggestion.name)
-                            } label: {
-                                HStack(spacing: SipSpacing.m) {
-                                    Image(systemName: "magnifyingglass")
-                                        .font(SipTypography.caption)
-                                        .foregroundColor(SipColors.textSecondary)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(suggestion.name)
+                    // The exact typed action stays first and visible. Catalog
+                    // suggestions follow as optional accelerators; the whole
+                    // result area scrolls on compact phones above the keyboard.
+                    if !searchState.suggestions.isEmpty || searchState.customQuery != nil {
+                        VStack(alignment: .leading, spacing: 0) {
+                            if let customQuery = searchState.customQuery {
+                                Button {
+                                    submitCustomBeer(customQuery)
+                                } label: {
+                                    HStack(spacing: SipSpacing.m) {
+                                        Image(systemName: "arrow.right.circle")
+                                            .font(SipTypography.caption)
+                                            .foregroundColor(SipColors.accent)
+                                        Text("Check exactly \u{201c}\(customQuery)\u{201d}")
                                             .font(SipTypography.subhead)
                                             .foregroundColor(SipColors.textPrimary)
-                                            .lineLimit(1)
-                                        if let detail = suggestionDetail(suggestion) {
-                                            Text(detail)
-                                                .font(SipTypography.caption)
-                                                .foregroundColor(SipColors.textSecondary)
-                                                .lineLimit(1)
-                                        }
+                                            .lineLimit(2)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                    Spacer(minLength: 0)
+                                    .padding(.vertical, SipSpacing.s)
+                                    .padding(.horizontal, SipSpacing.m)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.vertical, SipSpacing.s)
-                                .padding(.horizontal, SipSpacing.m)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("suggestionRow_\(index)")
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Check exact beer name \(customQuery)")
+                                .accessibilityIdentifier("customBeerResult")
 
-                            if index < textEntrySuggestions.count - 1 {
-                                Divider()
-                                    .background(SipColors.textSecondary.opacity(0.2))
-                                    .padding(.leading, SipSpacing.m)
+                                if !searchState.suggestions.isEmpty {
+                                    Divider()
+                                        .background(SipColors.textSecondary.opacity(0.2))
+                                        .padding(.leading, SipSpacing.m)
+                                }
+                            }
+
+                            ForEach(Array(searchState.suggestions.enumerated()), id: \.offset) { index, suggestion in
+                                Button {
+                                    submitSuggestion(suggestion)
+                                } label: {
+                                    HStack(spacing: SipSpacing.m) {
+                                        Image(systemName: "magnifyingglass")
+                                            .font(SipTypography.caption)
+                                            .foregroundColor(SipColors.textSecondary)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(suggestion.name)
+                                                .font(SipTypography.subhead)
+                                                .foregroundColor(SipColors.textPrimary)
+                                                .lineLimit(1)
+                                            if let detail = suggestionDetail(suggestion) {
+                                                Text(detail)
+                                                    .font(SipTypography.caption)
+                                                    .foregroundColor(SipColors.textSecondary)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(.vertical, SipSpacing.s)
+                                    .padding(.horizontal, SipSpacing.m)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("suggestionRow_\(index)")
+
+                                if index < searchState.suggestions.count - 1 {
+                                    Divider()
+                                        .background(SipColors.textSecondary.opacity(0.2))
+                                        .padding(.leading, SipSpacing.m)
+                                }
                             }
                         }
+                        .background(
+                            RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
+                                .fill(SipColors.surfaceElevated)
+                        )
+                        .padding(.horizontal)
+                        .animation(.snappy(duration: 0.25), value: searchState.suggestions.map(\.name))
                     }
-                    .background(
-                        RoundedRectangle(cornerRadius: SipRadius.control, style: .continuous)
-                            .fill(SipColors.surfaceElevated)
-                    )
-                    .padding(.horizontal)
-                    .animation(.snappy(duration: 0.25), value: textEntrySuggestions.map(\.name))
                 }
-
-                Spacer()
-
-                // CTA rides just above the keyboard (crit note 6).
+                .padding(.top, SipSpacing.xl)
+                .padding(.bottom, SipSpacing.xl)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                // CTA rides just above the keyboard and stays reachable while
+                // a long suggestion list scrolls independently.
                 Button(action: {
                     submitTextEntry()
                 }) {
@@ -555,11 +599,11 @@ struct CheckTabView: View {
                 }
                 .buttonStyle(SipPrimaryButtonStyle())
                 .padding(.horizontal)
-                .padding(.bottom, SipSpacing.s)
+                .padding(.vertical, SipSpacing.s)
                 .disabled(textEntryInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 .accessibilityIdentifier("checkBeerButton")
+                .background(SipColors.surface)
             }
-            .padding(.top, SipSpacing.xl)
             // Sheets rest one step above the canvas: elevated surface token,
             // never raw #1A1A1E (round-2 crit #8) and never system/pure-#000.
             // The input well + suggestion card use surfaceElevated on top.
@@ -577,13 +621,21 @@ struct CheckTabView: View {
         }
     }
 
-    /// Up to 5 catalog candidates for the current input (≥2 chars). Pure and
-    /// synchronous — `BundledCatalog.matches` is an in-memory token-index
-    /// lookup (warmed in `.task`), so recomputing per keystroke is free.
-    private var textEntrySuggestions: [ResolvedBeer] {
-        let query = textEntryInput.trimmingCharacters(in: .whitespaces)
-        guard query.count >= 2 else { return [] }
-        return BundledCatalog.shared.matches(name: query, limit: 5)
+    /// Compute discovery suggestions once per sheet render. The user's exact
+    /// text is always a separate result because even an identically named
+    /// catalog row can represent a different local beer.
+    private var textEntrySearchState: TextEntrySearchState {
+        let query = textEntryInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            return TextEntrySearchState(suggestions: [], customQuery: nil)
+        }
+        let suggestions = query.count >= 2
+            ? BundledCatalog.shared.search(name: query, limit: 5)
+            : []
+        return TextEntrySearchState(
+            suggestions: suggestions,
+            customQuery: query
+        )
     }
 
     /// "Sierra Nevada · Pale Ale" secondary line, nil when we know nothing.
@@ -596,10 +648,16 @@ struct CheckTabView: View {
 
     /// Tapped suggestion: same exit path as submit, but with the canonical
     /// catalog name (which then exact-hits the catalog in the resolver).
-    private func submitSuggestion(_ canonicalName: String) {
+    private func submitSuggestion(_ suggestion: ResolvedBeer) {
         showingTextEntry = false
         textEntryInput = ""
-        runScan(text: canonicalName)
+        runScan(text: suggestion.name, selectedCatalogBeer: suggestion)
+    }
+
+    private func submitCustomBeer(_ name: String) {
+        showingTextEntry = false
+        textEntryInput = ""
+        runScan(text: name)
     }
 
     private func submitTextEntry() {
@@ -710,7 +768,7 @@ struct CheckTabView: View {
         }
     }
 
-    private func runScan(text: String) {
+    private func runScan(text: String, selectedCatalogBeer: ResolvedBeer? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         guard startScan() else { return }
@@ -719,7 +777,12 @@ struct CheckTabView: View {
 
         scanTask = Task(priority: .userInitiated) {
             let start = CFAbsoluteTimeGetCurrent()
-            let outcome = Self.computeOutcome(fromText: trimmed, path: "text", drinks: drinks)
+            let outcome = Self.computeOutcome(
+                fromText: trimmed,
+                path: "text",
+                drinks: drinks,
+                selectedCatalogBeer: selectedCatalogBeer
+            )
             let latencyMs = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
 
             await MainActor.run {
@@ -746,7 +809,12 @@ struct CheckTabView: View {
     }
 
     /// Stage 1 compute — pure and static so it can run off the main actor.
-    private static func computeOutcome(fromText text: String, path: String, drinks: [Drink]) -> ScanOutcome {
+    private static func computeOutcome(
+        fromText text: String,
+        path: String,
+        drinks: [Drink],
+        selectedCatalogBeer: ResolvedBeer? = nil
+    ) -> ScanOutcome {
         let profile = TasteProfile.build(from: drinks)
         let prefs = TastePreferences.current
 
@@ -763,7 +831,8 @@ struct CheckTabView: View {
                     path: path,
                     drinks: drinks,
                     profile: profile,
-                    preferences: prefs
+                    preferences: prefs,
+                    selectedCatalogBeer: selectedCatalogBeer
                 )
             }
             let scan = Scan(
@@ -799,7 +868,8 @@ struct CheckTabView: View {
             path: path,
             drinks: drinks,
             profile: profile,
-            preferences: prefs
+            preferences: prefs,
+            selectedCatalogBeer: selectedCatalogBeer
         )
     }
 
@@ -809,9 +879,15 @@ struct CheckTabView: View {
         path: String,
         drinks: [Drink],
         profile: TasteProfile,
-        preferences prefs: TastePreferences
+        preferences prefs: TastePreferences,
+        selectedCatalogBeer: ResolvedBeer?
     ) -> ScanOutcome {
-        let resolved = BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
+        let resolved = path == "text"
+            ? BeerResolver.resolveTyped(
+                recognizedText: text,
+                selectedCatalogBeer: selectedCatalogBeer
+            )
+            : BeerResolver.resolve(recognizedText: text, using: BundledCatalog.shared)
         let (name, nameIsGuess) = displayName(fromText: text, resolved: resolved, path: path)
         let trustedFacts = ScanRecommendationSettlementPolicy.trustedFacts(
             from: resolved,
@@ -821,6 +897,7 @@ struct CheckTabView: View {
         )
         let assessment = TasteScorer.assessWithExactHistory(
             name: name,
+            brewery: trustedFacts.brewery,
             style: trustedFacts.style,
             abv: trustedFacts.abv,
             drinks: drinks,
@@ -981,6 +1058,7 @@ struct CheckTabView: View {
                     }
                     let assessment = TasteScorer.assessWithExactHistory(
                         name: current.beerName,
+                        brewery: current.brand,
                         style: resolvedStyle,
                         abv: current.abv,
                         drinks: drinkStore.drinks,

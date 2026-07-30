@@ -44,10 +44,21 @@ enum BeerMatcher {
     /// Strict variant for "you've had this one" claims: exact normalized-name
     /// equality only. The loose substring/fuzzy `findMatch` produces false
     /// banners ("Voodoo" ≠ "Voodoo Ranger Juice Force").
-    static func exactMatch(for query: String, in drinks: [Drink]) -> Drink? {
+    static func exactMatch(for query: String, brewery: String? = nil, in drinks: [Drink]) -> Drink? {
         let normalizedQuery = normalize(query)
         guard !normalizedQuery.isEmpty else { return nil }
-        return drinks.first { normalize($0.name) == normalizedQuery }
+        let nameMatches = drinks.filter { normalize($0.name) == normalizedQuery }
+        guard !nameMatches.isEmpty else { return nil }
+
+        let normalizedBrewery = normalize(brewery ?? "")
+        if !normalizedBrewery.isEmpty {
+            return nameMatches.first { normalize($0.brand) == normalizedBrewery }
+        }
+
+        // Raw typed/local identity deliberately has no brewery. It may reuse an
+        // equally brewery-less history row, but must not borrow a branded row
+        // merely because that is the only same-named beer logged so far.
+        return nameMatches.first { normalize($0.brand).isEmpty }
     }
 
     static func exactNamesMatch(_ lhs: String, _ rhs: String) -> Bool {

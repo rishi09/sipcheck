@@ -66,6 +66,7 @@ review/analyze overrides automatic delivery.
 | Product screenshot baseline (completed 2026-07-22) | `codex/product-screenshot-baseline` | Released after 25 canonical Release and 12 compact screenshots were captured, visually audited, hashed, indexed, and published. No files remain reserved. |
 | Screenshot HTML gallery (completed 2026-07-22) | `codex/screenshot-html-gallery` | Released after the 37-screen local gallery, filtering, lightbox navigation, responsive layout, and accessibility behavior were verified. No files remain reserved. |
 | Founder video feedback follow-up (completed 2026-07-24) | `codex/video-feedback-fixes` | Released after 118 unit/integration tests, 8 UI flows, screenshot review, signed Release run `30138986488`, and E2E run 50 (`30138986486`). No files remain reserved. |
+| Open-ended local beer search (active) | `codex/open-beer-search` | `AGENTS.md`, `SipCheck/Views/OnboardingView.swift`, `SipCheck/Views/Tabs/SettingsTabView.swift`, `SipCheck/Views/Tabs/CheckTabView.swift`, `SipCheck/Services/BeerMatcher.swift`, `SipCheck/Services/BeerResolver.swift`, `SipCheck/Services/TastePreferences.swift`, `SipCheck/Services/TasteScorer.swift`, and focused search/preference tests. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.

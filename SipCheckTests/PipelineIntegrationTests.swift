@@ -175,6 +175,90 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(result?.style, .paleAle)
     }
 
+    func testDiscoverySearchSupportsPartialProductAndBreweryNames() {
+        let catalog = BundledCatalog(seed: [
+            (name: "Neighborhood Bloom", brewery: "Block Eight Brewing", style: "American IPA", coarse: "ipa", abv: 6.8),
+            (name: "Cellar Light", brewery: "Block Eight Brewing", style: "Pilsner", coarse: "pilsner", abv: 4.9),
+            (name: "Other Bloom", brewery: "Elsewhere Ales", style: "Saison", coarse: "belgian", abv: 5.8)
+        ])
+
+        XCTAssertEqual(catalog.search(name: "Bloom").map(\.name), [
+            "Neighborhood Bloom", "Other Bloom"
+        ])
+        XCTAssertEqual(Set(catalog.search(name: "Block Eight").map(\.name)), Set([
+            "Neighborhood Bloom", "Cellar Light"
+        ]))
+        XCTAssertEqual(catalog.search(name: "Neigh").first?.name, "Neighborhood Bloom")
+        XCTAssertEqual(
+            catalog.search(name: "Block Eight Neighborhood").first?.name,
+            "Neighborhood Bloom"
+        )
+    }
+
+    func testBrewerySearchIsNotCrowdedOutByProductNameMatches() {
+        let productRows = (1...6).map { index in
+            (name: "Harbor Release \(index)", brewery: Optional("Elsewhere Ales"), style: Optional("Saison"), coarse: Optional("belgian"), abv: Optional(5.8))
+        }
+        let catalog = BundledCatalog(seed: productRows + [
+            (name: "Cellar Pils", brewery: "Harbor Works", style: "Pilsner", coarse: "pilsner", abv: 4.9)
+        ])
+
+        let results = catalog.search(name: "Harbor", limit: 5)
+        XCTAssertTrue(results.contains { $0.brewery == "Harbor Works" })
+    }
+
+    func testOpenBeerSearchAlwaysKeepsUnknownTypedName() {
+        let customName = "Taproom One-Off, Batch 3"
+
+        let results = OpenBeerSearchOptions.names(
+            for: customName,
+            selectedBeers: []
+        )
+        XCTAssertEqual(results, [customName])
+
+        let restored = OpenBeerSearchOptions.names(
+            for: "",
+            selectedBeers: [customName]
+        )
+        XCTAssertEqual(restored.first, customName)
+        XCTAssertTrue(restored.contains("Modelo"), "Curated accelerators should remain available")
+    }
+
+    func testOpenBeerPreferenceSearchOffersCuratedMatchesAndExactTypedFallback() {
+        let results = OpenBeerSearchOptions.names(
+            for: "Lag",
+            selectedBeers: []
+        )
+        XCTAssertEqual(results, ["Lagunitas", "Allagash White", "Lag"])
+    }
+
+    func testRawTypedBeerDoesNotBorrowCatalogIdentity() {
+        let catalog = BundledCatalog(seed: [
+            (name: "Shared Name", brewery: "Catalog Brewing", style: "American IPA", coarse: "ipa", abv: 6.8),
+            (name: "Shared Name", brewery: "Local Cellars", style: "Pilsner", coarse: "pilsner", abv: 4.9)
+        ])
+
+        let raw = BeerResolver.resolveTyped(
+            recognizedText: "Shared Name",
+            selectedCatalogBeer: nil
+        )
+        XCTAssertEqual(raw.name, "Shared Name")
+        XCTAssertEqual(raw.source, .unresolved)
+        XCTAssertNil(raw.brewery)
+        XCTAssertNil(raw.style)
+
+        let matches = catalog.search(name: "Shared Name")
+        XCTAssertEqual(Set(matches.compactMap(\.brewery)), Set(["Catalog Brewing", "Local Cellars"]))
+        let selected = matches.first { $0.brewery == "Local Cellars" }
+        let suggestion = BeerResolver.resolveTyped(
+            recognizedText: "Shared Name",
+            selectedCatalogBeer: selected
+        )
+        XCTAssertEqual(suggestion.source, .catalog)
+        XCTAssertEqual(suggestion.brewery, "Local Cellars")
+        XCTAssertEqual(suggestion.style, .pilsner)
+    }
+
     func testEnrichmentPolicySpendsOnlyOnUncertainScans() {
         XCTAssertFalse(EnrichmentPolicy.shouldStart(
             nameIsGuess: false,

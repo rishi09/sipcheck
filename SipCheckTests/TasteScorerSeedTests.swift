@@ -14,7 +14,9 @@ final class TasteScorerSeedTests: XCTestCase {
         dislikes: [String] = [],
         seedStyles: [String] = [],
         goToStyles: [String] = [],
-        avoidStyles: [String] = []
+        avoidStyles: [String] = [],
+        goToBeers: [String] = [],
+        avoidBeers: [String] = []
     ) -> TastePreferences {
         TastePreferences(
             vibe: vibe,
@@ -22,7 +24,9 @@ final class TasteScorerSeedTests: XCTestCase {
             dislikes: dislikes,
             seedStyles: seedStyles,
             goToStyles: goToStyles,
-            avoidStyles: avoidStyles
+            avoidStyles: avoidStyles,
+            goToBeers: goToBeers,
+            avoidBeers: avoidBeers
         )
     }
 
@@ -123,7 +127,7 @@ final class TasteScorerSeedTests: XCTestCase {
 
     func testOverlappingGoToRemainsAvailableForEditingWhileAvoidWinsScoring() {
         let defaults = UserDefaults.standard
-        let keys = ["tasteGoToStyles", "tasteAvoidStyles"]
+        let keys = ["tasteGoToStyles", "tasteGoToStyleChipsJSON", "tasteAvoidStyles"]
         let originals = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
             for (key, value) in originals {
@@ -136,6 +140,7 @@ final class TasteScorerSeedTests: XCTestCase {
         }
 
         defaults.set("Stout", forKey: "tasteGoToStyles")
+        defaults.removeObject(forKey: "tasteGoToStyleChipsJSON")
         defaults.set("Stout", forKey: "tasteAvoidStyles")
 
         XCTAssertEqual(TastePreferences.savedGoToStyles, ["Stout"])
@@ -220,20 +225,15 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(lager.verdict, .yourCall)
     }
 
-    // MARK: - 7. saveAvoidBeers pushes empties (seed-save semantics)
+    // MARK: - 7. saveAvoidSelections preserves typed channels and empties
 
-    func testSaveAvoidBeersPushesEmpties() {
+    func testSaveAvoidSelectionsPreservesTypedChannelsAndExplicitEmpties() {
         let defaults = UserDefaults.standard
-        let cloud = NSUbiquitousKeyValueStore.default
-        let keys = ["avoidBeers", "tasteAvoidStyles"]
+        let keys = [
+            "avoidBeers", "avoidBeersJSON", "tasteAvoidBeersJSON",
+            "tasteAvoidStyleChipsJSON", "tasteAvoidStyles"
+        ]
         let originals = keys.map { ($0, defaults.string(forKey: $0)) }
-        // saveAvoidBeers write-throughs the iCloud KVS too (the unit-test host
-        // launches WITHOUT the hermetic args, so cloudDisabled is false), and
-        // seedValue treats a PRESENT-but-empty cloud value as authoritative —
-        // restoring only UserDefaults would leave this test's final empty
-        // save shadowing (and sync-erasing) real stay-away picks on any
-        // iCloud-signed-in device.
-        let cloudOriginals = keys.map { ($0, cloud.string(forKey: $0)) }
         defer {
             for (key, value) in originals {
                 if let value {
@@ -242,23 +242,62 @@ final class TasteScorerSeedTests: XCTestCase {
                     defaults.removeObject(forKey: key)
                 }
             }
-            for (key, value) in cloudOriginals {
-                if let value {
-                    cloud.set(value, forKey: key)
-                } else {
-                    cloud.removeObject(forKey: key)
-                }
-            }
-            cloud.synchronize()
         }
 
-        TastePreferences.saveAvoidBeers(["Guinness", "Sour"], avoidStyles: ["Stout", "Sour"])
+        defaults.set("Porter", forKey: "tasteAvoidStyles")
+        TastePreferences.saveAvoidSelections(
+            beers: ["Guinness"],
+            styleChips: ["Sour"]
+        )
+        XCTAssertEqual(defaults.string(forKey: "tasteAvoidStyles"), "Sour")
+
+        TastePreferences.saveAvoidSelections(
+            beers: ["Guinness"],
+            styleChips: ["Sour"],
+            avoidStyles: ["Stout", "Sour"]
+        )
         XCTAssertEqual(defaults.string(forKey: "avoidBeers"), "Guinness,Sour")
+        XCTAssertEqual(TastePreferences.savedAvoidBeers, ["Guinness"])
+        XCTAssertEqual(TastePreferences.savedAvoidStyleChips, ["Sour"])
         XCTAssertEqual(defaults.string(forKey: "tasteAvoidStyles"), "Sour,Stout")
+
+        TastePreferences.saveAvoidSelections(
+            beers: ["IPA"],
+            styleChips: [],
+            avoidStyles: []
+        )
+        XCTAssertEqual(TastePreferences.savedAvoidBeers, ["IPA"])
+        XCTAssertEqual(TastePreferences.savedAvoidStyleChips, [])
+        XCTAssertEqual(TastePreferences.current.avoidBeers, ["IPA"])
+        XCTAssertEqual(TastePreferences.current.avoidStyles, [])
+        let isolatedAvoidPreferences = prefs(
+            avoidStyles: TastePreferences.current.avoidStyles,
+            avoidBeers: TastePreferences.current.avoidBeers
+        )
+        XCTAssertEqual(
+            TasteScorer.assess(
+                name: "IPA",
+                style: nil,
+                abv: nil,
+                profile: emptyProfile,
+                preferences: isolatedAvoidPreferences
+            ).verdict,
+            .skipIt
+        )
+        XCTAssertEqual(
+            TasteScorer.assess(
+                name: "Other IPA",
+                style: .ipa,
+                abv: nil,
+                profile: emptyProfile,
+                preferences: isolatedAvoidPreferences
+            ).verdict,
+            .yourCall
+        )
 
         // Clearing the picker must write PRESENT-but-empty values (never nil):
         // an empty seed value is authoritative and must propagate.
-        TastePreferences.saveAvoidBeers([], avoidStyles: [])
+        TastePreferences.saveAvoidSelections(beers: [], styleChips: [], avoidStyles: [])
         XCTAssertEqual(defaults.string(forKey: "avoidBeers"), "")
         XCTAssertEqual(defaults.string(forKey: "tasteAvoidStyles"), "")
         XCTAssertEqual(TastePreferences.savedAvoidBeers, [])
@@ -289,9 +328,39 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(TastePreferences.styleForOnboardingBeer("Guinness"), .stout)
     }
 
+    func testPreferenceStyleResolutionNeverUsesFuzzyOrAmbiguousCatalogFacts() {
+        let catalog = BundledCatalog(seed: [
+            (name: "Shared Name", brewery: "Catalog Brewing", style: "American IPA", coarse: "ipa", abv: 6.8),
+            (name: "Shared Name", brewery: "Local Cellars", style: "Pilsner", coarse: "pilsner", abv: 4.9),
+            (name: "Neighborhood Bloom", brewery: "Block Eight", style: "American IPA", coarse: "ipa", abv: 6.5)
+        ])
+
+        XCTAssertEqual(
+            TastePreferences.locallyResolvedStyles(for: ["Shared Name"], catalog: catalog),
+            []
+        )
+        XCTAssertEqual(
+            TastePreferences.locallyResolvedStyles(for: ["Neighborhood Bloom Reserve"], catalog: catalog),
+            []
+        )
+        XCTAssertEqual(
+            TastePreferences.locallyResolvedStyles(for: ["Neighborhood Bloom"], catalog: catalog),
+            ["IPA"]
+        )
+        XCTAssertEqual(
+            TastePreferences.locallyResolvedStyles(for: ["Taproom Hazy IPA"], catalog: catalog),
+            ["IPA"]
+        )
+    }
+
     func testNamedGoToBeerGetsExplicitGoToWeight() {
         let defaults = UserDefaults.standard
-        let keys = ["knownBeers", "tasteSeedStyles", "tasteGoToStyles"]
+        let keys = [
+            "knownBeers", "tasteGoToBeers", "tasteGoToBeersJSON", "tasteGoToStyleChipsJSON",
+            "tasteSeedStyles", "tasteGoToStyles", "avoidBeers",
+            "avoidBeersJSON", "tasteAvoidBeersJSON",
+            "tasteAvoidStyleChipsJSON", "tasteAvoidStyles"
+        ]
         let originals = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
             for (key, value) in originals {
@@ -303,10 +372,17 @@ final class TasteScorerSeedTests: XCTestCase {
             }
         }
 
+        defaults.set("", forKey: "avoidBeers")
+        defaults.set("[]", forKey: "avoidBeersJSON")
+        defaults.set("[]", forKey: "tasteAvoidBeersJSON")
+        defaults.set("[]", forKey: "tasteAvoidStyleChipsJSON")
+        defaults.set("", forKey: "tasteAvoidStyles")
         TastePreferences.saveGoTo(beers: ["Lagunitas"], styleChips: [], seedStyles: ["IPA"])
 
         XCTAssertEqual(defaults.string(forKey: "tasteSeedStyles"), "IPA")
         XCTAssertEqual(defaults.string(forKey: "tasteGoToStyles"), "IPA")
+        XCTAssertEqual(TastePreferences.savedGoToStyles, [])
+        XCTAssertEqual(TastePreferences.savedGoToBeers, ["Lagunitas"])
         let assessment = TasteScorer.assess(
             name: "Two Hearted",
             style: .ipa,
@@ -315,6 +391,123 @@ final class TasteScorerSeedTests: XCTestCase {
             preferences: TastePreferences.current
         )
         XCTAssertEqual(assessment.verdict, .tryIt)
+
+        TastePreferences.saveGoToSelections(beers: [], styleChips: [])
+        XCTAssertEqual(TastePreferences.savedGoToStyles, [])
+        XCTAssertEqual(TastePreferences.current.goToStyles, [])
+    }
+
+    func testUnknownNamedGoToIsActionableWithoutCatalogFacts() {
+        let assessment = TasteScorer.assess(
+            name: "Neighborhood One-Off",
+            style: nil,
+            abv: nil,
+            profile: emptyProfile,
+            preferences: prefs(goToBeers: ["Neighborhood One-Off"])
+        )
+
+        XCTAssertEqual(assessment.verdict, .tryIt)
+        XCTAssertEqual(assessment.score, 2.0, accuracy: 0.0001)
+        XCTAssertTrue(assessment.shortReason.contains("exact beer"))
+    }
+
+    func testUnknownNamedStayAwayBeatsExactHistoricalLike() {
+        let drinks = [Drink(name: "Neighborhood One-Off", style: "Other", rating: .like)]
+        let assessment = TasteScorer.assessWithExactHistory(
+            name: "Neighborhood One-Off",
+            style: nil,
+            abv: nil,
+            drinks: drinks,
+            profile: TasteProfile.build(from: drinks),
+            preferences: prefs(
+                goToBeers: ["Neighborhood One-Off"],
+                avoidBeers: ["Neighborhood One-Off"]
+            )
+        )
+
+        XCTAssertEqual(assessment.verdict, .skipIt)
+        XCTAssertLessThanOrEqual(assessment.score, -5.5)
+        XCTAssertTrue(assessment.shortReason.contains("stay-away"))
+    }
+
+    func testNamedPreferenceDoesNotFuzzyMatchAnotherBeer() {
+        let assessment = TasteScorer.assess(
+            name: "Neighborhood One-Off Reserve",
+            style: nil,
+            abv: nil,
+            profile: emptyProfile,
+            preferences: prefs(avoidBeers: ["Neighborhood One-Off"])
+        )
+
+        XCTAssertEqual(assessment.verdict, .yourCall)
+    }
+
+    func testNamedPreferencesPersistImmediatelyAndRoundTripNamesContainingCommas() {
+        let defaults = UserDefaults.standard
+        let keys = [
+            "knownBeers", "tasteGoToBeers", "tasteGoToBeersJSON", "tasteGoToStyleChipsJSON",
+            "tasteSeedStyles", "tasteGoToStyles", "avoidBeers",
+            "avoidBeersJSON", "tasteAvoidBeersJSON",
+            "tasteAvoidStyleChipsJSON", "tasteAvoidStyles"
+        ]
+        let originals = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in originals {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+
+        defaults.set("Stout", forKey: "tasteSeedStyles")
+        defaults.set("Stout", forKey: "tasteGoToStyles")
+        TastePreferences.saveGoToSelections(
+            beers: ["Small Batch, Lot 7"],
+            styleChips: ["Sour"]
+        )
+        TastePreferences.saveAvoidSelections(
+            beers: ["Barrel Trial, No. 2"],
+            styleChips: []
+        )
+
+        XCTAssertEqual(defaults.string(forKey: "tasteSeedStyles"), "")
+        XCTAssertEqual(defaults.string(forKey: "tasteGoToStyles"), "Sour")
+        XCTAssertEqual(TastePreferences.current.goToBeers, ["Small Batch, Lot 7"])
+        XCTAssertEqual(TastePreferences.current.avoidBeers, ["Barrel Trial, No. 2"])
+        XCTAssertTrue(TastePreferences.goToSelectionsAreCurrent(
+            beers: ["Small Batch, Lot 7"],
+            styleChips: ["Sour"]
+        ))
+        XCTAssertTrue(TastePreferences.avoidSelectionsAreCurrent(
+            beers: ["Barrel Trial, No. 2"],
+            styleChips: []
+        ))
+
+        TastePreferences.saveGoToSelections(beers: ["Newer Choice"], styleChips: [])
+        TastePreferences.saveAvoidSelections(beers: ["Newer Avoid"], styleChips: [])
+        XCTAssertFalse(TastePreferences.goToSelectionsAreCurrent(
+            beers: ["Small Batch, Lot 7"],
+            styleChips: ["Sour"]
+        ))
+        XCTAssertFalse(TastePreferences.avoidSelectionsAreCurrent(
+            beers: ["Barrel Trial, No. 2"],
+            styleChips: []
+        ))
+
+        TastePreferences.saveGoTo(
+            beers: ["Small Batch, Lot 7"],
+            styleChips: [],
+            seedStyles: []
+        )
+        TastePreferences.saveAvoidSelections(
+            beers: ["Barrel Trial, No. 2"],
+            styleChips: [],
+            avoidStyles: []
+        )
+
+        XCTAssertEqual(TastePreferences.savedGoToBeers, ["Small Batch, Lot 7"])
+        XCTAssertEqual(TastePreferences.savedAvoidBeers, ["Barrel Trial, No. 2"])
+        XCTAssertEqual(TastePreferences.current.goToBeers, ["Small Batch, Lot 7"])
+        XCTAssertEqual(TastePreferences.current.avoidBeers, ["Barrel Trial, No. 2"])
     }
 
     func testManyLikesOutweighOneHistoricalDislike() {
@@ -366,6 +559,36 @@ final class TasteScorerSeedTests: XCTestCase {
         XCTAssertEqual(TasteScorer.applyingExactRating(.dislike, to: base).verdict, .skipIt)
         XCTAssertEqual(TasteScorer.applyingExactRating(.neutral, to: base).verdict, .yourCall)
         XCTAssertEqual(TasteScorer.applyingExactRating(nil, to: base).verdict, base.verdict)
+    }
+
+    func testExactHistoryDoesNotCrossSameNameBreweries() {
+        let drinks = [
+            Drink(name: "Shared Name", brand: "Catalog Brewing", style: "IPA", rating: .dislike),
+            Drink(name: "Shared Name", brand: "Local Cellars", style: "Pilsner", rating: .like)
+        ]
+        let profile = TasteProfile.build(from: drinks)
+
+        let local = TasteScorer.assessWithExactHistory(
+            name: "Shared Name",
+            brewery: "Local Cellars",
+            style: .pilsner,
+            abv: nil,
+            drinks: drinks,
+            profile: profile,
+            preferences: prefs()
+        )
+        let catalog = TasteScorer.assessWithExactHistory(
+            name: "Shared Name",
+            brewery: "Catalog Brewing",
+            style: .ipa,
+            abv: nil,
+            drinks: drinks,
+            profile: profile,
+            preferences: prefs()
+        )
+
+        XCTAssertEqual(local.verdict, .tryIt)
+        XCTAssertEqual(catalog.verdict, .skipIt)
     }
 
     func testExactLikeCannotOverrideExplicitStayAwayStyle() {

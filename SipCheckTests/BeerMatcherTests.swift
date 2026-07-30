@@ -116,6 +116,34 @@ final class BeerMatcherTests: XCTestCase {
         XCTAssertEqual(result?.name, "Bell's Two Hearted")
     }
 
+    func testExactIdentityUsesBreweryForDuplicateBeerNames() {
+        let drinks = [
+            Drink(name: "Shared Name", brand: "Catalog Brewing", style: "IPA", rating: .dislike),
+            Drink(name: "Shared Name", brand: "Local Cellars", style: "Pilsner", rating: .like)
+        ]
+
+        XCTAssertEqual(
+            BeerMatcher.exactMatch(for: "Shared Name", brewery: "Local Cellars", in: drinks)?.rating,
+            .like
+        )
+        XCTAssertEqual(
+            BeerMatcher.exactMatch(for: "Shared Name", brewery: "Catalog Brewing", in: drinks)?.rating,
+            .dislike
+        )
+        XCTAssertNil(
+            BeerMatcher.exactMatch(for: "Shared Name", in: drinks),
+            "A name-only lookup must not guess between known breweries"
+        )
+
+        let singleBrandedHistory = [
+            Drink(name: "Neighborhood Lager", brand: "Catalog Brewing", rating: .like)
+        ]
+        XCTAssertNil(
+            BeerMatcher.exactMatch(for: "Neighborhood Lager", in: singleBrandedHistory),
+            "A raw local beer must not borrow the sole branded same-name history row"
+        )
+    }
+
     func testLongOCRBlobStillFindsContainedHistoryName() {
         let drinks = [Drink(name: "Two Hearted", style: "IPA", rating: .like)]
         let legalCopy = String(repeating: " government warning", count: 20)

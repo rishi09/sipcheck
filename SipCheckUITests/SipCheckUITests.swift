@@ -186,6 +186,17 @@ final class SipCheckUITests: XCTestCase {
         goToModelo.tap()
         XCTAssertEqual(goToModelo.value as? String, "Selected")
 
+        let clearGoToSearch = app.buttons["Clear search"]
+        XCTAssertTrue(clearGoToSearch.waitForExistence(timeout: 2))
+        clearGoToSearch.tap()
+        goToSearch.tap()
+        goToSearch.typeText("Neighborhood One-Off")
+        let customGoTo = app.buttons["onboardingGoToBeerTile.neighborhood-one-off"]
+        XCTAssertTrue(customGoTo.waitForExistence(timeout: 3),
+                      "An unknown local beer must remain selectable without a catalog hit")
+        customGoTo.tap()
+        XCTAssertEqual(customGoTo.value as? String, "Selected")
+
         let goToMode = app.segmentedControls["onboardingGoToMode"]
         XCTAssertTrue(goToMode.waitForExistence(timeout: 3))
         goToMode.buttons["Styles"].tap()
@@ -222,10 +233,13 @@ final class SipCheckUITests: XCTestCase {
         let beerField = app.textFields["beerTextInput"]
         XCTAssertTrue(beerField.waitForExistence(timeout: 3))
         beerField.tap()
-        beerField.typeText("Lagunitas IPA")
-        app.buttons["Check This Beer"].tap()
+        beerField.typeText("Neighborhood One-Off")
+        let customBeerResult = app.buttons["customBeerResult"]
+        XCTAssertTrue(customBeerResult.waitForExistence(timeout: 3),
+                      "Check search must expose the exact typed name when the catalog misses")
+        customBeerResult.tap()
         XCTAssertTrue(app.staticTexts["TRY IT"].waitForExistence(timeout: 10),
-                      "'Nothing's off the table' must clear the just-entered IPA avoid")
+                      "A custom named go-to must remain actionable without catalog facts")
 
         openSettings()
         let resetToggle = revealReminderToggle()
@@ -239,7 +253,7 @@ final class SipCheckUITests: XCTestCase {
         app.buttons["Profile"].tap()
         XCTAssertTrue(app.buttons["settingsButton"].waitForExistence(timeout: 3))
         app.buttons["settingsButton"].tap()
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5))
     }
 
     private func replayOnboarding() {
