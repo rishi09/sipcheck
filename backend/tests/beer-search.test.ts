@@ -462,6 +462,31 @@ test("search orchestration sends bounded provider requests and returns verified 
   assert.equal(results[0].beer, "Falling Knife Catch");
 });
 
+test("empty extraction gets one focused Gemini retry without another Tavily search", async () => {
+  let calls = 0;
+  const fetchImpl: typeof fetch = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response(JSON.stringify({ results: [{
+        url: source.url,
+        title: source.title,
+        content: source.snippet,
+        raw_content: source.rawText
+      }] }), { status: 200 });
+    }
+    return new Response(JSON.stringify(calls === 2
+      ? geminiResponse([])
+      : geminiResponse([candidate])), { status: 200 });
+  };
+  const results = await searchBeers(
+    { query: "Falling Knife Catch", limit: 4 },
+    { tavilyApiKey: "tavily-secret", geminiApiKey: "gemini-secret", fetchImpl }
+  );
+  assert.equal(calls, 3);
+  assert.equal(results[0].beer, "Falling Knife Catch");
+  assert.equal(results[0].style, "West Coast IPA");
+});
+
 function isObjectForTest(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

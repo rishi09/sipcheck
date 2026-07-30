@@ -829,21 +829,39 @@ export async function searchBeers(
   const evidence = boundTavilyEvidence(tavilyPayload, request.query);
   if (evidence.length === 0) return [];
 
-  const geminiPayload = await fetchJSON(
-    fetchImpl,
-    GEMINI_ENDPOINT,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": dependencies.geminiApiKey,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+  const extract = async (sourceEvidence: TavilyEvidence[]): Promise<BeerSearchResult[]> => {
+    const geminiPayload = await fetchJSON(
+      fetchImpl,
+      GEMINI_ENDPOINT,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": dependencies.geminiApiKey,
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(buildGeminiRequestBody(request, sourceEvidence))
       },
-      body: JSON.stringify(buildGeminiRequestBody(request, evidence))
-    },
-    dependencies.geminiTimeoutMs ?? GEMINI_TIMEOUT_MS,
-    "extraction_timeout",
-    "extraction_unavailable"
-  );
-  return validateExtraction(parseGeminiResponse(geminiPayload), evidence, request);
+      dependencies.geminiTimeoutMs ?? GEMINI_TIMEOUT_MS,
+      "extraction_timeout",
+      "extraction_unavailable"
+    );
+    return validateExtraction(parseGeminiResponse(geminiPayload), sourceEvidence, request);
+  };
+
+  const firstResults = await extract(evidence);
+  if (firstResults.some((result) => result.style !== null)) return firstResults;
+
+  const firstQueryToken = distinctiveQueryTokens(request.query)[0];
+  const matchingEvidence = firstQueryToken
+    ? evidence.filter((item) => supportsPhrase(
+      `${item.title}\n${item.snippet}\n${item.rawText}`,
+      firstQueryToken
+    ))
+    : evidence;
+  const focusedEvidence = (matchingEvidence.length > 0 ? matchingEvidence : evidence).slice(0, 3);
+  const retryResults = await extract(focusedEvidence);
+  return retryResults.some((result) => result.style !== null) || firstResults.length === 0
+    ? retryResults
+    : firstResults;
 }
