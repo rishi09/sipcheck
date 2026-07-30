@@ -57,6 +57,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test CloudKit schema verifier
+        run: python3 -m unittest scripts.tests.test_assert_cloudkit_scan_schema -v
+
       # Apple rejects uploads built with an SDK older than iOS 26 (Xcode 26+).
       # The runner defaults to an older Xcode, so select the newest installed.
       - name: Select latest Xcode

@@ -28,12 +28,8 @@ struct SipCheckApp: App {
         // --seed-data: Load known test drinks on launch
         let useIsolatedStorage = args.contains("--isolated-storage")
         let useSeedData = args.contains("--seed-data")
-        #if DEBUG
-        let isCloudKitSchemaSeed = args.contains("--cloudkit-schema-seed")
-        #else
-        let isCloudKitSchemaSeed = false
-        #endif
 
+        // Skip age gate and onboarding in isolated-storage test mode
         if useIsolatedStorage {
             UserDefaults.standard.set(true, forKey: "hasConfirmedAge")
             UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
@@ -42,17 +38,7 @@ struct SipCheckApp: App {
             }
         }
 
-        if isCloudKitSchemaSeed {
-            // Keep the one-shot schema launch away from real Documents while
-            // leaving CloudKit enabled. RootView's overlay works above any
-            // onboarding state, so no user defaults need to be changed.
-            let seedDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("SipCheckCloudKitSchemaSeed-\(UUID().uuidString)")
-            try? FileManager.default.createDirectory(at: seedDir, withIntermediateDirectories: true)
-            _drinkStore = StateObject(wrappedValue: DrinkStore(storageDirectory: seedDir))
-            _scanStore = StateObject(wrappedValue: ScanStore(storageDirectory: seedDir))
-            _journalStore = StateObject(wrappedValue: JournalStore(storageDirectory: seedDir))
-        } else if useIsolatedStorage {
+        if useIsolatedStorage {
             let testDir = FileManager.default.temporaryDirectory
                 .appendingPathComponent("SipCheckTestStorage")
             try? FileManager.default.createDirectory(at: testDir, withIntermediateDirectories: true)
@@ -74,7 +60,6 @@ struct SipCheckApp: App {
         if args.contains("--mock-ai") { print("Mock AI mode enabled") }
         if args.contains("--seed-data") { print("Seed data mode enabled") }
         if args.contains("--isolated-storage") { print("Isolated storage mode enabled") }
-        if isCloudKitSchemaSeed { print("CloudKit schema seed mode enabled") }
     }
 
     var body: some Scene {
@@ -110,9 +95,6 @@ private struct RootView: View {
     @State private var addBeerPrefill: AddBeerPrefill?
     @Environment(\.scenePhase) private var scenePhase
     @State private var lastSyncAttempt: Date?
-    #if DEBUG
-    @State private var cloudKitSchemaSeedResult: CloudKitSchemaSeedResult?
-    #endif
 
     var body: some View {
         Group {
@@ -140,28 +122,11 @@ private struct RootView: View {
         }
         .task {
             #if DEBUG
-            if await runCloudKitSchemaSeedIfRequested() { return }
             await runDeviceSmokeTestIfRequested()
             await runDeviceImageBatchTestIfRequested()
             #endif
             await performLaunchSync()
         }
-        #if DEBUG
-        .overlay(alignment: .topLeading) {
-            if let result = cloudKitSchemaSeedResult {
-                Text(result == .complete ? "CloudKit schema seed complete" : "CloudKit schema seed failed")
-                    .font(.caption)
-                    .padding(8)
-                    .background(Color.black)
-                    .foregroundColor(.white)
-                    .accessibilityIdentifier(
-                        result == .complete
-                            ? "cloudKitSchemaSeedComplete"
-                            : "cloudKitSchemaSeedFailed"
-                    )
-            }
-        }
-        #endif
         // item-driven, not isPresented + if-let: the same two-state race that
         // blanked the Journal's want-to-try sheet applies here.
         .sheet(item: $followUpScan) { scan in
@@ -285,9 +250,6 @@ private struct RootView: View {
     // MARK: - CloudKit Launch Sync
 
     private func performLaunchSync() async {
-        #if DEBUG
-        guard !ProcessInfo.processInfo.arguments.contains("--cloudkit-schema-seed") else { return }
-        #endif
         lastSyncAttempt = Date()
         let result = await CloudKitSyncService.shared.fullSync(
             localDrinks: drinkStore.syncRecords,
@@ -302,28 +264,6 @@ private struct RootView: View {
     }
 
     #if DEBUG
-    private enum CloudKitSchemaSeedResult {
-        case complete
-        case failed
-    }
-
-    /// One-shot physical-device hook for creating new Development schema
-    /// fields. It never reads or writes the app's local stores.
-    private func runCloudKitSchemaSeedIfRequested() async -> Bool {
-        guard ProcessInfo.processInfo.arguments.contains("--cloudkit-schema-seed") else {
-            return false
-        }
-        do {
-            try await CloudKitSyncService.shared.seedDevelopmentProvenanceSchema()
-            cloudKitSchemaSeedResult = .complete
-            print("CLOUDKIT_SCHEMA_SEED complete")
-        } catch {
-            cloudKitSchemaSeedResult = .failed
-            print("CLOUDKIT_SCHEMA_SEED failed: \(error.localizedDescription)")
-        }
-        return true
-    }
-
     /// Physical-device verification hook. It is inert unless explicitly
     /// launched from devicectl with `--device-smoke-test` and is absent from
     /// Release/TestFlight behavior.

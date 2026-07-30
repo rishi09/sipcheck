@@ -1,9 +1,7 @@
 name: Deploy CloudKit Schema
 
-# Promotes the CloudKit schema from Development to Production so new record
-# types / fields (e.g. isDeleted) go live for TestFlight + App Store builds.
-# Run manually after the Development schema has the latest fields (which Xcode
-# auto-creates when the app saves records in the Development environment).
+# Adds and verifies SipCheck's declared sourced-Scan fields independently in
+# Development and Production for TestFlight/App Store.
 #
 # Requires a CloudKit *Management Token* (NOT an API token or server-to-server
 # key) stored as the secret CLOUDKIT_MGMT_TOKEN. Generate it at
@@ -22,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test schema patcher
+        run: python3 -m unittest scripts.tests.test_assert_cloudkit_scan_schema -v
+
       - name: Select latest Xcode (for cktool)
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -38,7 +39,7 @@ jobs:
             echo "::error::CLOUDKIT_MGMT_TOKEN secret is not set. Generate a CloudKit Management Token in the CloudKit Console and add it as a repo secret."
             exit 1
           fi
-          SCHEMA="$RUNNER_TEMP/sipcheck-development-schema.ckdb"
+          SCHEMA="$RUNNER_TEMP/sipcheck-development-schema-export.ckdb"
           for ATTEMPT in 1 2 3; do
             rm -f "$SCHEMA"
             if xcrun cktool export-schema \
@@ -55,17 +56,41 @@ jobs:
             sleep $((ATTEMPT * 3))
           done
 
-      # Keep the management token out of repository-controlled validation code.
-      - name: Assert Development provenance schema
+      # Keep the management token out of repository-controlled schema editing.
+      # The patcher preserves the export byte-for-byte except for absent fields
+      # inserted inside the existing Scan record before its GRANT clauses.
+      - name: Prepare Development provenance schema
         run: |
           set -euo pipefail
-          SCHEMA="$RUNNER_TEMP/sipcheck-development-schema.ckdb"
-          if ! python3 scripts/assert_cloudkit_scan_schema.py "$SCHEMA"; then
-            echo "::error::Development schema is missing the sourced Scan STRING fields. Save a sourced scan from a Development-signed app before promotion."
-            exit 1
-          fi
+          python3 scripts/assert_cloudkit_scan_schema.py \
+            "$RUNNER_TEMP/sipcheck-development-schema-export.ckdb" \
+            --patch-output "$RUNNER_TEMP/sipcheck-development-schema-patched.ckdb"
 
-      - name: Promote Development schema to Production
+      - name: Import provenance fields into Development
+        env:
+          CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
+          TEAM_ID: YG7C25J24J
+          CONTAINER: iCloud.com.rishishah.sipcheck
+        run: |
+          set -euo pipefail
+          SCHEMA="$RUNNER_TEMP/sipcheck-development-schema-patched.ckdb"
+          for ATTEMPT in 1 2 3; do
+            if xcrun cktool import-schema \
+              --team-id "$TEAM_ID" \
+              --container-id "$CONTAINER" \
+              --environment DEVELOPMENT \
+              --validate \
+              --file "$SCHEMA"; then
+              exit 0
+            fi
+            if [ "$ATTEMPT" = "3" ]; then
+              echo "::error::CloudKit Development schema import failed after bounded retries."
+              exit 1
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+
+      - name: Re-export Development schema
         env:
           CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
           TEAM_ID: YG7C25J24J
@@ -73,35 +98,33 @@ jobs:
         run: |
           set -euo pipefail
           SCHEMA="$RUNNER_TEMP/sipcheck-development-schema.ckdb"
-          for ATTEMPT in 1 2 3; do
-            if xcrun cktool validate-schema \
+          SUCCESSFUL_EXPORTS=0
+          # Require five successful snapshots separated by backoff (at least
+          # 20 seconds when healthy) so a just-imported schema has converged.
+          for ATTEMPT in 1 2 3 4 5 6 7 8; do
+            rm -f "$SCHEMA"
+            if xcrun cktool export-schema \
               --team-id "$TEAM_ID" \
               --container-id "$CONTAINER" \
-              --environment PRODUCTION \
-              --file "$SCHEMA"; then
-              break
+              --environment DEVELOPMENT \
+              --output-file "$SCHEMA"; then
+              SUCCESSFUL_EXPORTS=$((SUCCESSFUL_EXPORTS + 1))
+              if [ "$SUCCESSFUL_EXPORTS" = "5" ]; then
+                exit 0
+              fi
             fi
-            if [ "$ATTEMPT" = "3" ]; then
-              echo "::error::CloudKit schema validation failed after bounded retries."
+            if [ "$ATTEMPT" = "8" ]; then
+              echo "::error::Could not obtain five post-import Development schema snapshots."
               exit 1
             fi
-            sleep $((ATTEMPT * 3))
+            sleep $((ATTEMPT * 2))
           done
-          for ATTEMPT in 1 2 3; do
-            if xcrun cktool import-schema \
-              --team-id "$TEAM_ID" \
-              --container-id "$CONTAINER" \
-              --environment PRODUCTION \
-              --validate \
-              --file "$SCHEMA"; then
-              exit 0
-            fi
-            if [ "$ATTEMPT" = "3" ]; then
-              echo "::error::CloudKit schema import failed after bounded retries."
-              exit 1
-            fi
-            sleep $((ATTEMPT * 5))
-          done
+
+      - name: Assert Development provenance schema
+        run: |
+          set -euo pipefail
+          python3 scripts/assert_cloudkit_scan_schema.py \
+            "$RUNNER_TEMP/sipcheck-development-schema.ckdb"
 
       - name: Export Production schema
         env:
@@ -110,7 +133,7 @@ jobs:
           CONTAINER: iCloud.com.rishishah.sipcheck
         run: |
           set -euo pipefail
-          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema.ckdb"
+          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema-export.ckdb"
           for ATTEMPT in 1 2 3 4 5 6; do
             rm -f "$SCHEMA"
             if xcrun cktool export-schema \
@@ -127,6 +150,70 @@ jobs:
             sleep $((ATTEMPT * 5))
           done
 
+      # Patch the Production export independently. This proves the workflow
+      # cannot deploy unrelated record types or fields that happen to exist in
+      # the shared Development environment.
+      - name: Prepare Production provenance schema
+        run: |
+          set -euo pipefail
+          python3 scripts/assert_cloudkit_scan_schema.py \
+            "$RUNNER_TEMP/sipcheck-production-schema-export.ckdb" \
+            --patch-output "$RUNNER_TEMP/sipcheck-production-schema-patched.ckdb"
+
+      - name: Import provenance fields into Production
+        env:
+          CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
+          TEAM_ID: YG7C25J24J
+          CONTAINER: iCloud.com.rishishah.sipcheck
+        run: |
+          set -euo pipefail
+          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema-patched.ckdb"
+          for ATTEMPT in 1 2 3; do
+            if xcrun cktool import-schema \
+              --team-id "$TEAM_ID" \
+              --container-id "$CONTAINER" \
+              --environment PRODUCTION \
+              --validate \
+              --file "$SCHEMA"; then
+              exit 0
+            fi
+            if [ "$ATTEMPT" = "3" ]; then
+              echo "::error::CloudKit Production schema import failed after bounded retries."
+              exit 1
+            fi
+            sleep $((ATTEMPT * 5))
+          done
+
+      - name: Re-export Production schema
+        env:
+          CLOUDKIT_MANAGEMENT_TOKEN: ${{ secrets.CLOUDKIT_MGMT_TOKEN }}
+          TEAM_ID: YG7C25J24J
+          CONTAINER: iCloud.com.rishishah.sipcheck
+        run: |
+          set -euo pipefail
+          SCHEMA="$RUNNER_TEMP/sipcheck-production-schema.ckdb"
+          SUCCESSFUL_EXPORTS=0
+          # Require five successful snapshots separated by backoff (at least
+          # 20 seconds when healthy) before the tokenless content assertion.
+          for ATTEMPT in 1 2 3 4 5 6 7 8; do
+            rm -f "$SCHEMA"
+            if xcrun cktool export-schema \
+              --team-id "$TEAM_ID" \
+              --container-id "$CONTAINER" \
+              --environment PRODUCTION \
+              --output-file "$SCHEMA"; then
+              SUCCESSFUL_EXPORTS=$((SUCCESSFUL_EXPORTS + 1))
+              if [ "$SUCCESSFUL_EXPORTS" = "5" ]; then
+                exit 0
+              fi
+            fi
+            if [ "$ATTEMPT" = "8" ]; then
+              echo "::error::Could not obtain five post-import Production schema snapshots."
+              exit 1
+            fi
+            sleep $((ATTEMPT * 2))
+          done
+
       - name: Assert Production provenance schema
         run: |
           set -euo pipefail
@@ -135,4 +222,4 @@ jobs:
             echo "::error::Production schema is missing the sourced Scan STRING fields after import."
             exit 1
           fi
-          echo "CloudKit schema promoted Development to Production."
+          echo "CloudKit sourced-scan fields verified in Development and Production."

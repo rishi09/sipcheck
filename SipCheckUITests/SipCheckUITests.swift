@@ -17,21 +17,13 @@ final class SipCheckUITests: XCTestCase {
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
-        if ProcessInfo.processInfo.environment["SIPCHECK_SCHEMA_SEED"] == "1" {
-            app.launchArguments = [
-                "--mock-ai",
-                "--mock-beer-search",
-                "--cloudkit-schema-seed"
-            ]
-        } else {
-            app.launchArguments = [
-                "--mock-ai",
-                "--mock-beer-search",
-                "--seed-data",
-                "--isolated-storage",
-                "--follow-up-reminders-off"
-            ]
-        }
+        app.launchArguments = [
+            "--mock-ai",
+            "--mock-beer-search",
+            "--seed-data",
+            "--isolated-storage",
+            "--follow-up-reminders-off"
+        ]
         app.launch()
     }
 
@@ -117,20 +109,6 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertTrue(selectedSource.isHittable)
         XCTAssertTrue(selectedSource.label.contains("neighborhood-fermentary.example"))
         snap("02-long-tail-verdict")
-    }
-
-    func testDevelopmentCloudKitSchemaSeed() throws {
-        guard ProcessInfo.processInfo.environment["SIPCHECK_SCHEMA_SEED"] == "1" else {
-            throw XCTSkip("Runs only when intentionally seeding the Development CloudKit schema")
-        }
-
-        let complete = app.staticTexts["cloudKitSchemaSeedComplete"]
-        let failed = app.staticTexts["cloudKitSchemaSeedFailed"]
-        let finished = NSPredicate { _, _ in complete.exists || failed.exists }
-        let expectation = XCTNSPredicateExpectation(predicate: finished, object: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 30), .completed)
-        XCTAssertFalse(failed.exists, "The direct CloudKit schema seed reported a failure")
-        XCTAssertTrue(complete.exists)
     }
 
     private func openBeerEntryField() -> XCUIElement {

@@ -17,14 +17,7 @@ final class CloudKitSyncService {
     private init() {
         let args = ProcessInfo.processInfo.arguments
         let isUnitTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-        #if DEBUG
-        let allowsSchemaSeed = args.contains("--cloudkit-schema-seed")
-        #else
-        let allowsSchemaSeed = false
-        #endif
-        disabled = args.contains("--disable-cloudkit")
-            || args.contains("--isolated-storage")
-            || (isUnitTest && !allowsSchemaSeed)
+        disabled = isUnitTest || args.contains("--disable-cloudkit") || args.contains("--isolated-storage")
         container = disabled ? nil : CKContainer(identifier: "iCloud.com.rishishah.sipcheck")
     }
 
@@ -131,60 +124,6 @@ final class CloudKitSyncService {
         guard let records = await fetchAllRecords(ofType: "Scan") else { return nil }
         return records.compactMap { scanFrom($0) }
     }
-
-    #if DEBUG
-    /// Creates the sourced-scan fields in CloudKit Development without
-    /// touching ScanStore or leaving a fictional beer in the user's history.
-    /// A non-UUID record name also makes the temporary record unreadable by
-    /// `scanFrom` if CloudKit briefly exposes it before deletion completes.
-    func seedDevelopmentProvenanceSchema() async throws {
-        guard !disabled else {
-            throw NSError(
-                domain: "CloudKitSchemaSeed",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "CloudKit is disabled for this launch"]
-            )
-        }
-
-        let recordID = CKRecord.ID(
-            recordName: "sipcheck-schema-seed-provenance-\(UUID().uuidString)"
-        )
-        let record = CKRecord(recordType: "Scan", recordID: recordID)
-        let now = Date()
-        record["beerName"] = "Schema Seed" as CKRecordValue
-        record["verdict"] = Verdict.yourCall.rawValue as CKRecordValue
-        record["explanation"] = "Temporary schema record" as CKRecordValue
-        record["timestamp"] = now as CKRecordValue
-        record["wantToTry"] = 0 as CKRecordValue
-        record["lastModifiedLocal"] = now as CKRecordValue
-        record["isDeleted"] = 1 as CKRecordValue
-        record["factSourceKind"] = BeerFactSource.Kind.webSearch.rawValue as CKRecordValue
-        record["factSourceURL"] = "https://example.com/sipcheck-schema-seed" as CKRecordValue
-
-        _ = try await db.save(record)
-
-        var cleanupError: Error?
-        for attempt in 1...3 {
-            do {
-                _ = try await db.deleteRecord(withID: recordID)
-                return
-            } catch let error as CKError where error.code == .unknownItem {
-                return
-            } catch {
-                cleanupError = error
-                if attempt < 3 {
-                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
-                }
-            }
-        }
-
-        throw cleanupError ?? NSError(
-            domain: "CloudKitSchemaSeed",
-            code: 2,
-            userInfo: [NSLocalizedDescriptionKey: "Temporary schema record cleanup failed"]
-        )
-    }
-    #endif
 
     // MARK: - JournalEntry
 
