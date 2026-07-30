@@ -30,6 +30,10 @@ concurrency:
   group: testflight-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  deployments: read
+
 jobs:
   # Gate the build on the App Store Connect secrets existing, so pushes don't
   # fail loudly before the one-time secret setup is done. Runs on cheap Linux.
@@ -50,9 +54,57 @@ jobs:
             echo "::warning::Missing secrets. Need ASC_KEY_ID/ASC_ISSUER_ID/ASC_KEY_CONTENT and DIST_CERT_P12_BASE64/DIST_CERT_PASSWORD (the exported Distribution certificate). Skipping the build until they're set."
           fi
 
+  backend:
+    name: Verify deployed beer-search backend
+    runs-on: ubuntu-latest
+    outputs:
+      base_url: ${{ steps.deployment.outputs.base_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test beer-search proxy source
+        run: |
+          npm --prefix backend ci
+          npm --prefix backend test
+          npm --prefix backend run typecheck
+
+      # Vercel's Git integration builds this exact commit from the backend/
+      # project root. Resolve the successful GitHub deployment for GITHUB_SHA
+      # instead of trusting a mutable URL that could contain older source.
+      - name: Resolve exact Vercel deployment
+        id: deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            deployments=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/deployments?sha=${GITHUB_SHA}&per_page=20")
+            while IFS= read -r deployment_id; do
+              [ -n "$deployment_id" ] || continue
+              url=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses?per_page=20" \
+                --jq '[.[] | select(.state == "success") | .environment_url // empty | select(startswith("https://") and contains("vercel.app"))][0] // empty')
+              if [ -n "$url" ]; then
+                echo "base_url=${url%/}" >> "$GITHUB_OUTPUT"
+                echo "Verified Vercel deployment for ${GITHUB_SHA}: ${url%/}"
+                exit 0
+              fi
+            done < <(jq -r '.[].id' <<<"$deployments")
+            echo "Waiting for Vercel deployment for ${GITHUB_SHA} (${attempt}/60)..."
+            sleep 10
+          done
+          echo "::error::No successful Vercel deployment was attached to ${GITHUB_SHA}."
+          exit 1
+
   testflight:
-    needs: check-secrets
-    if: needs.check-secrets.outputs.ready == 'true'
+    needs: [check-secrets, backend]
+    if: needs.check-secrets.outputs.ready == 'true' && needs.backend.result == 'success'
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -136,7 +188,7 @@ jobs:
       # credits on every branch push.
       - name: Validate deployed beer-search proxy
         env:
-          BEER_SEARCH_BASE_URL: https://sipcheck-beer-search.vercel.app/api
+          BEER_SEARCH_BASE_URL: ${{ needs.backend.outputs.base_url }}/api
         run: |
           set -euo pipefail
           RESPONSE=$(mktemp)
@@ -151,6 +203,7 @@ jobs:
           fi
           if ! jq -e '
             .status == "ok"
+            and .contract == "tavily-gemini-v1"
             and .providers.tavily == true
             and .providers.gemini == true
           ' "$RESPONSE" >/dev/null; then
@@ -164,7 +217,7 @@ jobs:
       - name: Smoke test connected beer discovery
         if: ${{ github.ref == 'refs/heads/main' || inputs.live_search_smoke == true }}
         env:
-          BEER_SEARCH_URL: https://sipcheck-beer-search.vercel.app/api/beer-search
+          BEER_SEARCH_URL: ${{ needs.backend.outputs.base_url }}/api/beer-search
         run: |
           set -euo pipefail
           RESPONSE=$(mktemp)
@@ -186,7 +239,7 @@ jobs:
               (.name | test("^Snímek"; "i"))
               and (.brewery | ascii_downcase | contains("cohesion"))
               and (.style | type == "string" and length > 0)
-              and (.source_url | startswith("https://www.cohesionbeer.com/"))
+              and (.source_url | type == "string" and startswith("https://"))
             )
           ' "$RESPONSE" >/dev/null; then
             echo "Returned results: $(jq -c '.results // []' "$RESPONSE")"

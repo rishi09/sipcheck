@@ -13,6 +13,11 @@ environment variables:
 - `TAVILY_API_KEY`
 - `GEMINI_API_KEY`
 
+The `sipcheck-beer-search` Vercel project is connected to this GitHub repository
+with `backend/` as its project root. Branch commits receive preview deployments;
+`main` is the production branch. The TestFlight workflow resolves and tests the
+Vercel deployment attached to its exact Git commit before building the app.
+
 The endpoint is `POST /api/beer-search`:
 
 ```json
@@ -35,8 +40,8 @@ Successful responses use the iOS client's public `name` field:
 }
 ```
 
-`GET /api/health` performs no provider calls and reports only whether each
-required provider secret is configured.
+`GET /api/health` performs no provider calls and reports the public contract
+version plus whether each required provider secret is configured.
 
 Neither upstream evidence nor extracted results are cached or logged by this
-service. Run the dependency-free unit suite with `npm test`.
+service. Run `npm test` and `npm run typecheck` before deployment.

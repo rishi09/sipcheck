@@ -38,6 +38,12 @@ const IGNORED_QUERY_TOKENS = new Set([
   "co"
 ]);
 
+const STYLE_QUERY_TOKENS = new Set([
+  "ipa", "pale", "ale", "lager", "pils", "pilsner", "stout", "porter",
+  "wheat", "hefeweizen", "witbier", "sour", "gose", "lambic", "amber",
+  "brown", "belgian", "saison", "tripel", "dubbel", "barleywine"
+]);
+
 export interface BeerSearchRequest {
   query: string;
   limit: number;
@@ -218,9 +224,10 @@ knowledge. Return real beers relevant to USER_QUERY, up to MAX_RESULTS.
 USER_QUERY is the identity constraint, not a general topic. When it names a
 specific beer, return only that beer from the named brewery; never substitute a
 different beer from the same brewery. Every distinctive query token must match
-the returned beer name, brewery name, or an explicit alias in the selected
-record. When USER_QUERY names only a brewery, multiple current beers from that
-brewery are allowed.
+the returned beer name, brewery name, style, or grounded context such as a
+location in the selected record. At least one distinctive token must match the
+beer or brewery identity. When USER_QUERY names only a brewery, multiple current
+beers from that brewery are allowed.
 
 For each result, every non-null fact must be explicitly supported by the single
 record selected in source_url; never combine records. beer and brewery must both
@@ -406,7 +413,21 @@ function editDistanceAtMostOne(left: string, right: string): boolean {
   return edits + (i < left.length || j < right.length ? 1 : 0) <= 1;
 }
 
-function isRelevant(query: string, beer: string, brewery: string): boolean {
+function tokenMatches(queryToken: string, candidateTokens: string[]): boolean {
+  return candidateTokens.some((candidateToken) => {
+    if (candidateToken.startsWith(queryToken) || queryToken.startsWith(candidateToken)) return true;
+    return Math.min(candidateToken.length, queryToken.length) >= 5
+      && editDistanceAtMostOne(candidateToken, queryToken);
+  });
+}
+
+function isRelevant(
+  query: string,
+  beer: string,
+  brewery: string,
+  style: string | null,
+  groundedContext: string
+): boolean {
   const normalizedQuery = normalizedIdentity(query);
   const normalizedBeer = normalizedIdentity(beer);
   const normalizedBrewery = normalizedIdentity(brewery);
@@ -416,12 +437,16 @@ function isRelevant(query: string, beer: string, brewery: string): boolean {
   if (normalizedBeer.startsWith(normalizedQuery) || combined.includes(normalizedQuery)) return true;
 
   const queryTokens = normalizedQuery.split(" ").filter((token) => !IGNORED_QUERY_TOKENS.has(token));
-  const candidateTokens = combined.split(" ");
-  return queryTokens.length > 0 && queryTokens.every((queryToken) => candidateTokens.some((candidateToken) => {
-    if (candidateToken.startsWith(queryToken) || queryToken.startsWith(candidateToken)) return true;
-    return Math.min(candidateToken.length, queryToken.length) >= 5
-      && editDistanceAtMostOne(candidateToken, queryToken);
-  }));
+  const identityTokens = combined.split(" ");
+  const styleTokens = normalizedIdentity(style ?? "").split(" ").filter(Boolean);
+  const contextTokens = normalizedIdentity(groundedContext).split(" ").filter(Boolean);
+  return queryTokens.length > 0
+    && queryTokens.some((queryToken) => tokenMatches(queryToken, identityTokens))
+    && queryTokens.every((queryToken) => {
+      if (tokenMatches(queryToken, identityTokens) || tokenMatches(queryToken, styleTokens)) return true;
+      if (STYLE_QUERY_TOKENS.has(queryToken)) return false;
+      return tokenMatches(queryToken, contextTokens);
+    });
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -494,8 +519,6 @@ export function validateExtraction(
       : -1;
     const styleTypeIsValid = raw.style === null || typeof raw.style === "string";
     if (!beer || !brewery || !source || !styleTypeIsValid || confidence < 0 || confidence > 1) continue;
-    if (!isRelevant(request.query, beer, brewery)) continue;
-
     const sourceText = `${source.title}\n${source.snippet}\n${source.rawText}`;
     if (!supportsPhrase(sourceText, beer) || !supportsPhrase(sourceText, brewery)) continue;
     const windows = evidenceWindows(sourceText, beer);
@@ -503,6 +526,7 @@ export function validateExtraction(
 
     const requestedStyle = raw.style === null ? null : validOutputString(raw.style, 80);
     const style = requestedStyle && supportsStyle(windows, requestedStyle) ? requestedStyle : null;
+    if (!isRelevant(request.query, beer, brewery, style, windows.join("\n"))) continue;
     const requestedABV = typeof raw.abv === "number"
       && Number.isFinite(raw.abv)
       && raw.abv >= 0

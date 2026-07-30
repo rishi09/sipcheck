@@ -67,9 +67,10 @@ enum BeerDiscoveryText {
 
     static func coarseStyle(from value: String?) -> BeerStyle? {
         guard let value else { return nil }
+        if let inferred = TasteScorer.inferStyle(from: value) { return inferred }
         let tokens = Set(normalize(value).split(separator: " ").map(String.init))
-        if tokens.contains("pivo") { return .lager }
-        return TasteScorer.inferStyle(from: value)
+        if tokens.contains("lezak") { return .lager }
+        return nil
     }
 
     static func parseABV(from value: String) -> Double? {
@@ -103,6 +104,11 @@ enum BeerDiscoveryText {
 
 enum BeerDiscoveryRelevance {
     private static let ignoredTokens = Set(["beer", "brew", "brewing", "brewery", "company", "co"])
+    private static let styleQualifierTokens = Set([
+        "ipa", "pale", "ale", "lager", "pils", "pilsner", "stout", "porter",
+        "wheat", "hefeweizen", "witbier", "sour", "gose", "lambic", "amber",
+        "brown", "belgian", "saison", "tripel", "dubbel", "barleywine"
+    ])
 
     static func score(_ candidate: BeerDiscoveryCandidate, query: String) -> Int {
         let queryValue = BeerDiscoveryText.normalize(query)
@@ -120,9 +126,14 @@ enum BeerDiscoveryRelevance {
 
         let queryTokens = queryValue.split(separator: " ").map(String.init)
             .filter { !ignoredTokens.contains($0) }
-        let candidateTokens = combined.split(separator: " ").map(String.init)
+        let identityTokens = combined.split(separator: " ").map(String.init)
+        let qualifierTokens = BeerDiscoveryText.normalize(
+            [candidate.styleName, candidate.coarseStyleName]
+                .compactMap { $0 }
+                .joined(separator: " ")
+        ).split(separator: " ").map(String.init)
         guard !queryTokens.isEmpty else { return 0 }
-        let allTokensMatch = queryTokens.allSatisfy { queryToken in
+        let matches: (String, [String]) -> Bool = { queryToken, candidateTokens in
             candidateTokens.contains { candidateToken in
                 candidateToken.hasPrefix(queryToken)
                     || queryToken.hasPrefix(candidateToken)
@@ -130,7 +141,25 @@ enum BeerDiscoveryRelevance {
                         && BeerMatcher.calculateSimilarity(candidateToken, queryToken) >= 0.8)
             }
         }
-        return allTokensMatch ? 85 : 0
+        let allTokensMatch = queryTokens.allSatisfy { queryToken in
+            matches(queryToken, identityTokens) || matches(queryToken, qualifierTokens)
+        }
+        if allTokensMatch { return 85 }
+
+        let contradictsKnownStyle = queryTokens.contains { queryToken in
+            styleQualifierTokens.contains(queryToken)
+                && !matches(queryToken, qualifierTokens)
+        }
+        if contradictsKnownStyle { return 0 }
+
+        // A backend-grounded result may use additional location/context words
+        // that are not part of the public result schema. Require an identity
+        // anchor; local catalog candidates need two because they lack that
+        // server-side evidence validation.
+        let identityMatchCount = queryTokens.filter { matches($0, identityTokens) }.count
+        let minimumIdentityMatches = candidate.source == .webSearch ? 1 : 2
+        if identityMatchCount >= minimumIdentityMatches { return 80 }
+        return 0
     }
 }
 

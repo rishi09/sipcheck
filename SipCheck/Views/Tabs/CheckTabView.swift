@@ -819,7 +819,7 @@ struct CheckTabView: View {
 
         beerDiscoveryTask = Task {
             do {
-                try await Task.sleep(nanoseconds: 350_000_000)
+                try await Task.sleep(nanoseconds: 650_000_000)
                 guard !Task.isCancelled,
                       generation == beerDiscoveryGeneration,
                       showingTextEntry,

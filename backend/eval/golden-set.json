@@ -1,0 +1,119 @@
+[
+  {
+    "id": "bay_drink_slay",
+    "query": "Drink Beer Slay Dragon Oakland United Beerworks",
+    "beer_aliases": ["Drink Beer, Slay Dragon", "Drink Beer Slay Dragon"],
+    "brewery_aliases": ["Oakland United Beerworks", "Oakland United Beer Works"],
+    "style_evidence": "West Coast IPA",
+    "coarse_category": "ipa",
+    "official_hosts": ["oaklandunitedbeerworks.com"],
+    "credible_hosts": [],
+    "source_urls": ["https://oaklandunitedbeerworks.com/beers-on-tap/"]
+  },
+  {
+    "id": "bay_redwood",
+    "query": "Redwood Oakland United Beerworks",
+    "beer_aliases": ["Redwood", "Redwood Red Ale"],
+    "brewery_aliases": ["Oakland United Beerworks", "Oakland United Beer Works"],
+    "style_evidence": "Red Ale - American Amber",
+    "coarse_category": "amber",
+    "official_hosts": ["oaklandunitedbeerworks.com"],
+    "credible_hosts": [],
+    "source_urls": ["https://oaklandunitedbeerworks.com/beers-on-tap/"]
+  },
+  {
+    "id": "denver_snimek",
+    "query": "Snímek Cohesion Brewing Company",
+    "beer_aliases": ["Snímek", "Snimek", "Snímek Silné Pivo", "Snimek Silne Pivo"],
+    "brewery_aliases": ["Cohesion Brewing Company", "Cohesion Brewing", "Cohesion"],
+    "style_evidence": "Silné Pivo (Strong Beer)",
+    "coarse_category": null,
+    "official_hosts": ["cohesionbeer.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.cohesionbeer.com/tap-list"],
+    "notes": "Pivo means beer, not lager. Do not infer a coarse category from Strong Beer alone."
+  },
+  {
+    "id": "denver_jantar",
+    "query": "Jantar Cohesion Brewing Company",
+    "beer_aliases": ["Jantar"],
+    "brewery_aliases": ["Cohesion Brewing Company", "Cohesion Brewing", "Cohesion"],
+    "style_evidence": "Polotmavé Výčepní Pivo (Czech Amber Lager)",
+    "coarse_category": "lager",
+    "official_hosts": ["cohesionbeer.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.cohesionbeer.com/tap-list"]
+  },
+  {
+    "id": "la_whipple",
+    "query": "Whipple Street Frogtown Brewery",
+    "beer_aliases": ["Whipple Street"],
+    "brewery_aliases": ["Frogtown Brewery", "Frogtown"],
+    "style_evidence": "Vanilla Cream Ale",
+    "coarse_category": "lager",
+    "official_hosts": ["frogtownbrewery.com", "menu-5a543.web.app"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": [
+      "https://www.frogtownbrewery.com/ontaptoday",
+      "https://untappd.com/b/frogtown-brewery-whipple-street/2665107"
+    ]
+  },
+  {
+    "id": "la_stratasphere",
+    "query": "Stratasphere Frogtown Brewery",
+    "beer_aliases": ["Stratasphere"],
+    "brewery_aliases": ["Frogtown Brewery", "Frogtown"],
+    "style_evidence": "West Coast IPA",
+    "coarse_category": "ipa",
+    "official_hosts": ["frogtownbrewery.com", "menu-5a543.web.app"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": [
+      "https://www.frogtownbrewery.com/ontaptoday",
+      "https://untappd.com/b/frogtown-brewery-stratasphere/4682198"
+    ]
+  },
+  {
+    "id": "houston_scout",
+    "query": "Scout True Anomaly Brewing",
+    "beer_aliases": ["Scout"],
+    "brewery_aliases": ["True Anomaly Brewing Company", "True Anomaly Brewing", "True Anomaly"],
+    "style_evidence": "Mexican-Style Lager",
+    "coarse_category": "lager",
+    "official_hosts": ["trueanomalybrewing.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.trueanomalybrewing.com/beers"]
+  },
+  {
+    "id": "houston_skylab",
+    "query": "SKYLAB True Anomaly Brewing",
+    "beer_aliases": ["SKYLAB", "Sky Lab"],
+    "brewery_aliases": ["True Anomaly Brewing Company", "True Anomaly Brewing", "True Anomaly"],
+    "style_evidence": "American IPA",
+    "coarse_category": "ipa",
+    "official_hosts": ["trueanomalybrewing.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.trueanomalybrewing.com/beers"]
+  },
+  {
+    "id": "dc_senate",
+    "query": "SENATE BEER Right Proper Brewing",
+    "beer_aliases": ["Senate Beer"],
+    "brewery_aliases": ["Right Proper Brewing Company", "Right Proper Brewing", "Right Proper"],
+    "style_evidence": "American-Style Light Lager",
+    "coarse_category": "lager",
+    "official_hosts": ["rightproperbrewing.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.rightproperbrewing.com/our-beer"]
+  },
+  {
+    "id": "dc_big_tomorrow",
+    "query": "BIG TOMORROW Right Proper Brewing",
+    "beer_aliases": ["Big Tomorrow"],
+    "brewery_aliases": ["Right Proper Brewing Company", "Right Proper Brewing", "Right Proper"],
+    "style_evidence": "West Coast-Style IPA",
+    "coarse_category": "ipa",
+    "official_hosts": ["rightproperbrewing.com"],
+    "credible_hosts": ["untappd.com"],
+    "source_urls": ["https://www.rightproperbrewing.com/our-beer"]
+  }
+]

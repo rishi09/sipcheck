@@ -7,7 +7,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "lib": ["ES2022", "DOM"],
+    "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["api/**/*.ts", "src/**/*.ts"]
+  "include": ["api/**/*.ts", "eval/**/*.ts", "src/**/*.ts"]
 }

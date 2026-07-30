@@ -11,6 +11,7 @@ test("health payload exposes configuration state without secret values", () => {
 
   assert.deepEqual(payload, {
     status: "ok",
+    contract: "tavily-gemini-v1",
     providers: {
       tavily: true,
       gemini: false
@@ -22,6 +23,7 @@ test("health payload exposes configuration state without secret values", () => {
 test("health payload has the exact provider-free response shape", () => {
   assert.deepEqual(healthPayload({}), {
     status: "ok",
+    contract: "tavily-gemini-v1",
     providers: {
       tavily: false,
       gemini: false

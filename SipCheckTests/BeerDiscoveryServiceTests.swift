@@ -80,8 +80,11 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "Czech-style K\u{00F6}lsch"), .pilsner)
         XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "M\u{00E4}rzen"), .amber)
         XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "English Barleywine"), .belgian)
-        XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "Siln\u{00E9} Pivo (Strong Beer)"), .lager)
-        XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "Polotmav\u{00E9} V\u{00FD}\u{010D}epn\u{00ED} Pivo"), .lager)
+        XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "Sv\u{011B}tl\u{00FD} Le\u{017E}\u{00E1}k"), .lager)
+        XCTAssertNil(BeerDiscoveryText.coarseStyle(from: "Siln\u{00E9} Pivo (Strong Beer)"))
+        XCTAssertNil(BeerDiscoveryText.coarseStyle(from: "Polotmav\u{00E9} V\u{00FD}\u{010D}epn\u{00ED} Pivo"))
+        XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "P\u{0161}eni\u{010D}n\u{00E9} Pivo (Wheat Beer)"), .wheat)
+        XCTAssertEqual(BeerDiscoveryText.coarseStyle(from: "Kysel\u{00E9} Pivo (Sour Beer)"), .sour)
         XCTAssertNil(BeerDiscoveryText.coarseStyle(from: "House Ale"))
     }
 
@@ -89,6 +92,17 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         let result = candidate(name: "Sky Lab", brewery: "True Anomaly Brewing", id: "sky-lab")
 
         XCTAssertEqual(BeerDiscoveryRelevance.score(result, query: "SKYLAB"), 100)
+    }
+
+    func testDiscoveryRelevanceAllowsStyleAndLocationQualifiers() {
+        let pliny = candidate(name: "Pliny the Elder", brewery: "Russian River Brewing", id: "pliny")
+        let smogCity = candidate(name: "Infinite Wishes", brewery: "Smog City Brewing", id: "smog-city")
+
+        XCTAssertGreaterThan(BeerDiscoveryRelevance.score(pliny, query: "Pliny IPA"), 0)
+        XCTAssertGreaterThan(BeerDiscoveryRelevance.score(pliny, query: "Pliny California"), 0)
+        XCTAssertEqual(BeerDiscoveryRelevance.score(pliny, query: "Pliny Stout"), 0)
+        XCTAssertGreaterThan(BeerDiscoveryRelevance.score(smogCity, query: "Smog City Los Angeles"), 0)
+        XCTAssertEqual(BeerDiscoveryRelevance.score(pliny, query: "Unrelated IPA"), 0)
     }
 
     func testABVParsingRequiresABVContext() {

@@ -142,6 +142,31 @@ test("invented URLs, unsupported identities, and irrelevant results are dropped"
   assert.deepEqual(validateExtraction({ results: [candidate] }, [source], { query: "Unrelated Porter", limit: 6 }), []);
 });
 
+test("grounded style and location qualifiers preserve a matching identity", () => {
+  const qualifiedSource = {
+    ...source,
+    snippet: `${source.snippet} Brewed in Long Beach, California.`
+  };
+  for (const query of ["Falling Knife Catch IPA", "Falling Knife Catch Long Beach"]) {
+    const results = validateExtraction({ results: [candidate] }, [qualifiedSource], {
+      query,
+      limit: 6
+    });
+    assert.equal(results.length, 1, query);
+  }
+  assert.deepEqual(validateExtraction({ results: [candidate] }, [qualifiedSource], {
+    query: "Unrelated IPA",
+    limit: 6
+  }), []);
+  assert.deepEqual(validateExtraction({ results: [candidate] }, [{
+    ...qualifiedSource,
+    rawText: `${qualifiedSource.rawText} Nearby beer: Midnight Stout.`
+  }], {
+    query: "Falling Knife Catch Stout",
+    limit: 6
+  }), []);
+});
+
 test("unsupported optional facts are removed instead of trusted", () => {
   const identityOnly: TavilyEvidence = {
     ...source,
