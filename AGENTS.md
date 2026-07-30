@@ -70,7 +70,7 @@ review/analyze overrides automatic delivery.
 | Live long-tail beer discovery (completed 2026-07-30) | `codex/long-tail-search` | Released after generic Catalog.beer plus grounded web discovery, Production-compatible source sync, 166 unit/integration tests, 9 UI tests, live-search and signed Release run `30522296141`, and published E2E run 56 (`30522274144`). No files remain reserved. |
 | Canonical beer-library projection (completed 2026-07-30) | `codex/beer-library-projection` | Released after 185 unit/integration tests, 10 UI flows, signed branch build 115, and published E2E run 57. No files remain reserved. |
 | Tavily + Gemini long-tail upgrade (active) | `codex/tavily-gemini-search` | Reserved: `SipCheck/Config.swift`, `SipCheck/Services/BeerDiscoveryService.swift`, `SipCheckTests/BeerDiscoveryServiceTests.swift`, `.github/workflows/testflight.yml`, `.github/workflows/tavily-usage.yml`, `backend/`, and search/privacy documentation. |
-| Developer scenario lab + unified CLI (active) | `codex/dev-tools` | Reserved: `AGENTS.md`, `SipCheck.xcodeproj/project.pbxproj`, `SipCheck/SipCheckApp.swift`, `SipCheck/Models/DeveloperScenario.swift`, `SipCheck/Services/{Drink,Scan,Journal}Store.swift`, `SipCheck/Views/{MainTabView,Tabs/CheckTabView,Tabs/SettingsTabView}.swift`, `scripts/dev`, and focused developer-tool unit/UI tests. |
+| Developer scenario lab + unified CLI (completed 2026-07-30) | `codex/dev-tools` | Released after CLI routing checks, Debug/Release/test builds, 188 unit/integration tests, 11 UI flows, signed branch build 126, and published E2E run 63. No files remain reserved. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
