@@ -242,11 +242,155 @@ jobs:
               and (.source_url | type == "string" and startswith("https://"))
             )
           ' "$RESPONSE" >/dev/null; then
-            echo "Returned results: $(jq -c '.results // []' "$RESPONSE")"
+            echo "Returned results: $(jq -c '(.results // []) | map(del(.image_url))' "$RESPONSE")"
             echo "::error::Live beer-search probe returned no sourced scorer-ready Jantar result."
             exit 1
           fi
           echo "Live beer-search contract returned sourced facts for local scoring."
+
+      # Spend a second bounded search only alongside the release/manual live
+      # smoke. This proves that an exact beer + brewery can produce reference
+      # artwork and that the returned public-HTTPS-shaped URL serves an image the
+      # iOS ImageIO path can decode. Redirects are followed manually only while
+      # they stay on the original host, matching the app's loader policy.
+      - name: Smoke test connected beer artwork
+        if: ${{ github.ref == 'refs/heads/main' || inputs.live_search_smoke == true }}
+        env:
+          BEER_SEARCH_URL: ${{ needs.backend.outputs.base_url }}/api/beer-search
+        run: |
+          set -euo pipefail
+          SEARCH_RESPONSE=$(mktemp)
+          IMAGE_BODY=$(mktemp)
+          IMAGE_HEADERS=$(mktemp)
+          trap 'rm -f "$SEARCH_RESPONSE" "$IMAGE_BODY" "$IMAGE_HEADERS"' EXIT
+
+          STATUS=$(curl --silent --show-error --output "$SEARCH_RESPONSE" --write-out '%{http_code}' \
+            --retry 2 --retry-all-errors --retry-delay 2 --retry-max-time 90 \
+            --connect-timeout 10 --max-time 60 \
+            "$BEER_SEARCH_URL" \
+            --header "Content-Type: application/json" \
+            --header "Accept: application/json" \
+            --data '{"query":"Sierra Nevada Pale Ale Sierra Nevada Brewing Company","limit":5}')
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Live beer-artwork search probe failed (HTTP ${STATUS})."
+            exit 1
+          fi
+
+          IMAGE_URL=$(jq -r '
+            [
+              .results[]?
+              | select(
+                  ((.name? // "") | test("^(Sierra Nevada )?Pale Ale$"; "i"))
+                  and ((.brewery? // "") | test("Sierra Nevada"; "i"))
+                  and ((.image_url? // "") | startswith("https://"))
+                )
+              | .image_url
+            ][0] // empty
+          ' "$SEARCH_RESPONSE")
+          if [ -z "$IMAGE_URL" ]; then
+            echo "Returned results: $(jq -c '(.results // []) | map(del(.image_url))' "$SEARCH_RESPONSE")"
+            echo "::error::Live beer-artwork probe returned no exact Sierra Nevada Pale Ale image_url."
+            exit 1
+          fi
+
+          ORIGINAL_HOST=$(ruby -ruri -e '
+            url = URI(ARGV.fetch(0))
+            abort unless url.scheme == "https" && url.host && url.userinfo.nil? && url.port == 443
+            puts url.host.downcase
+          ' "$IMAGE_URL")
+          CURRENT_URL="$IMAGE_URL"
+          IMAGE_STATUS=""
+          IMAGE_MIME=""
+
+          # Fetch one response at a time so every hop is revalidated. Curl's
+          # normal --location mode exposes only the final host and could hide a
+          # cross-host intermediate redirect that the iOS delegate rejects.
+          for HOP in 0 1 2 3 4 5; do
+            : > "$IMAGE_BODY"
+            : > "$IMAGE_HEADERS"
+            if ! FETCH_META=$(curl --silent --show-error --output "$IMAGE_BODY" \
+              --dump-header "$IMAGE_HEADERS" \
+              --write-out '%{http_code}\n%{content_type}' \
+              --proto '=https' \
+              --max-filesize 4194304 \
+              --retry 2 --retry-all-errors --retry-delay 1 --retry-max-time 45 \
+              --connect-timeout 10 --max-time 30 \
+              --header 'Accept: image/avif,image/webp,image/heic,image/png,image/jpeg,image/gif' \
+              "$CURRENT_URL"); then
+              echo "::error::Live beer-artwork URL exceeded its size/time bounds or could not be fetched."
+              exit 1
+            fi
+
+            IMAGE_STATUS=$(sed -n '1p' <<<"$FETCH_META")
+            IMAGE_MIME=$(sed -n '2p' <<<"$FETCH_META" | cut -d';' -f1 | tr '[:upper:]' '[:lower:]')
+            if [[ "$IMAGE_STATUS" =~ ^3[0-9][0-9]$ ]]; then
+              if [ "$HOP" -ge 5 ]; then
+                echo "::error::Live beer-artwork URL exceeded five redirects."
+                exit 1
+              fi
+              LOCATION=$(awk '
+                tolower($0) ~ /^location:/ {
+                  sub(/\r$/, "")
+                  sub(/^[^:]*:[[:space:]]*/, "")
+                  value = $0
+                }
+                END { print value }
+              ' "$IMAGE_HEADERS")
+              if [ -z "$LOCATION" ]; then
+                echo "::error::Live beer-artwork redirect omitted Location."
+                exit 1
+              fi
+              if ! NEXT_URL=$(ruby -ruri -e '
+                current = URI(ARGV.fetch(0))
+                target = URI.join(current.to_s, ARGV.fetch(1))
+                abort unless target.scheme == "https" && target.host && target.userinfo.nil? && target.port == 443
+                puts target.to_s
+              ' "$CURRENT_URL" "$LOCATION"); then
+                echo "::error::Live beer-artwork redirect target was not a valid HTTPS URL."
+                exit 1
+              fi
+              NEXT_HOST=$(ruby -ruri -e 'puts URI(ARGV.fetch(0)).host.downcase' "$NEXT_URL")
+              if [ "$NEXT_HOST" != "$ORIGINAL_HOST" ]; then
+                echo "::error::Live beer-artwork redirect changed hosts (${ORIGINAL_HOST} -> ${NEXT_HOST})."
+                exit 1
+              fi
+              CURRENT_URL="$NEXT_URL"
+              continue
+            fi
+            break
+          done
+
+          IMAGE_BYTES=$(wc -c < "$IMAGE_BODY" | tr -d '[:space:]')
+          if [ "$IMAGE_STATUS" != "200" ]; then
+            echo "::error::Live beer-artwork fetch returned HTTP ${IMAGE_STATUS}."
+            exit 1
+          fi
+          case "$IMAGE_MIME" in
+            image/jpeg|image/png|image/webp|image/heic|image/heif|image/avif|image/gif) ;;
+            *)
+              echo "::error::Live beer-artwork fetch returned unsupported MIME type '${IMAGE_MIME}'."
+              exit 1
+              ;;
+          esac
+          if [ "$IMAGE_BYTES" -le 0 ] || [ "$IMAGE_BYTES" -gt 4194304 ]; then
+            echo "::error::Live beer-artwork fetch returned ${IMAGE_BYTES} bytes; expected 1..4194304."
+            exit 1
+          fi
+          if ! IMAGE_INFO=$(sips -g pixelWidth -g pixelHeight "$IMAGE_BODY" 2>/dev/null); then
+            echo "::error::Live beer-artwork response could not be decoded by ImageIO."
+            exit 1
+          fi
+          IMAGE_WIDTH=$(awk '/pixelWidth:/ { print $2 }' <<<"$IMAGE_INFO")
+          IMAGE_HEIGHT=$(awk '/pixelHeight:/ { print $2 }' <<<"$IMAGE_INFO")
+          if ! [[ "$IMAGE_WIDTH" =~ ^[1-9][0-9]*$ && "$IMAGE_HEIGHT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Live beer-artwork response had invalid pixel dimensions."
+            exit 1
+          fi
+          if [ "$IMAGE_WIDTH" -gt $((24000000 / IMAGE_HEIGHT)) ]; then
+            echo "::error::Live beer-artwork response exceeded the 24MP client limit (${IMAGE_WIDTH}x${IMAGE_HEIGHT})."
+            exit 1
+          fi
+          echo "Live beer-artwork contract returned a renderable ${IMAGE_MIME} image (${IMAGE_WIDTH}x${IMAGE_HEIGHT}, ${IMAGE_BYTES} bytes)."
 
       - name: Build and upload to TestFlight
         env:

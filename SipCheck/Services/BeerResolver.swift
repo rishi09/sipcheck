@@ -74,6 +74,9 @@ struct ResolvedBeer: Equatable {
     /// Exact remote page for an explicitly selected connected-search result.
     /// Bundled catalog, label, and on-device knowledge leave this nil.
     var factSource: BeerFactSource? = nil
+    /// Optional exact product artwork for a selected search result. Reference
+    /// artwork stays separate from user-captured media throughout the app.
+    var referenceImageURL: URL? = nil
 
     /// Where the style/ABV came from — useful for telemetry and for deciding
     /// whether an async top-up is worth firing.
@@ -175,7 +178,8 @@ enum BeerResolver {
             abv: printed.abv ?? selectedCatalogBeer.abv,
             source: source,
             confidence: selectedCatalogBeer.confidence,
-            factSource: selectedCatalogBeer.factSource
+            factSource: selectedCatalogBeer.factSource,
+            referenceImageURL: selectedCatalogBeer.referenceImageURL
         )
     }
 

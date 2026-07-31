@@ -55,6 +55,29 @@ class ScanStore: ObservableObject {
         }
     }
 
+    /// Applies resolver/artwork fields from an asynchronous task onto the
+    /// latest stored record. User-owned state may have changed while that task
+    /// awaited (for example Add Beer can set `linkedJournalId`), so a wholesale
+    /// stale replacement would reopen Want to Try or sever the journal link.
+    @discardableResult
+    func mergeDerivedFields(from derived: Scan) -> Scan? {
+        guard let latest = scans.first(where: { $0.id == derived.id }) else {
+            return nil
+        }
+        var merged = latest
+        merged.beerName = derived.beerName
+        merged.brand = derived.brand
+        merged.style = derived.style
+        merged.abv = derived.abv
+        merged.referenceImageURL = derived.referenceImageURL ?? latest.referenceImageURL
+        merged.verdict = derived.verdict
+        merged.explanation = derived.explanation
+        merged.origin = derived.origin ?? latest.origin
+        merged.factSource = derived.factSource ?? latest.factSource
+        updateScan(merged)
+        return scans.first(where: { $0.id == merged.id })
+    }
+
     /// Close the Want-to-Try loop in one persisted mutation. Besides the source
     /// scan, strict name+brewery duplicates are cleared so a manually logged
     /// beer cannot remain simultaneously under both Tried and Want to Try.
@@ -133,6 +156,7 @@ class ScanStore: ObservableObject {
                     merged.brand = remote.brand ?? local.brand
                     merged.photoFileName = remote.photoFileName ?? local.photoFileName
                     merged.factSource = remote.factSource ?? local.factSource
+                    merged.referenceImageURL = remote.referenceImageURL ?? local.referenceImageURL
                     byID[remote.id] = merged
                 }
             } else {

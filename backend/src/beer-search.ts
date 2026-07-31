@@ -3,9 +3,13 @@ const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const MAX_TAVILY_RESULTS = 10;
+const MAX_TAVILY_TOP_LEVEL_IMAGES = 20;
+const MAX_TAVILY_IMAGES_PER_RESULT = 6;
 const MAX_TITLE_CHARS = 200;
 const MAX_SNIPPET_CHARS = 1_200;
 const MAX_RAW_CHARS = 3_000;
+const MAX_IMAGE_DESCRIPTION_CHARS = 500;
+const MAX_IMAGE_PATH_CHARS = 500;
 const MAX_RAW_SCAN_CHARS = 50_000;
 const MAX_TOTAL_EVIDENCE_CHARS = 32_000;
 const MAX_UPSTREAM_RESPONSE_CHARS = 2_000_000;
@@ -56,6 +60,9 @@ const STYLE_QUERY_TOKENS = new Set([
   "brown", "belgian", "saison", "tripel", "dubbel", "barleywine"
 ]);
 
+const PRODUCT_IMAGE_CUE = /\b(?:can|cans|canned|bottle|bottles|bottled|label|labels|packaging|package|packages|product|products|case|cases|carton|cartons|tallboy|tallboys)\b|\b(?:four|six|twelve|4|6|12)[\s-]*pack\b/iu;
+const NON_PRODUCT_IMAGE_CUE = /\b(?:poster|posters|menu|menus|merch|merchandise|shirt|shirts|t[\s-]*shirt|tee|tees|hoodie|hoodies|hat|hats|sticker|stickers|banner|banners|sign|signs|glassware|festival|festivals|event|events|wallpaper|wallpapers|logo|logos|artwork|print|prints|gift[\s-]*card)\b/iu;
+
 export interface BeerSearchRequest {
   query: string;
   limit: number;
@@ -68,6 +75,7 @@ export interface BeerSearchResult {
   abv: number | null;
   source_url: string;
   confidence: number;
+  image_url?: string | null;
 }
 
 export interface PublicBeerSearchResult {
@@ -76,6 +84,7 @@ export interface PublicBeerSearchResult {
   style: string | null;
   abv: number | null;
   source_url: string;
+  image_url?: string;
 }
 
 export interface TavilyEvidence {
@@ -83,6 +92,13 @@ export interface TavilyEvidence {
   title: string;
   snippet: string;
   rawText: string;
+}
+
+export interface TavilyImageCandidate {
+  url: string;
+  description: string;
+  pathText: string;
+  sourceURL: string | null;
 }
 
 export interface SearchDependencies {
@@ -194,7 +210,8 @@ export function buildTavilyRequestBody(query: string): Record<string, unknown> {
     max_results: MAX_TAVILY_RESULTS,
     chunks_per_source: 3,
     include_answer: false,
-    include_images: false,
+    include_images: true,
+    include_image_descriptions: true,
     include_raw_content: "markdown"
   };
 }
@@ -307,6 +324,76 @@ export function boundTavilyEvidence(payload: unknown, query = ""): TavilyEvidenc
     ...evidence,
     rawText: Array.from(evidence.rawText).slice(0, rawCharactersPerSource).join("")
   }));
+}
+
+function decodedImagePath(rawURL: string): string {
+  let pathname: string;
+  try {
+    pathname = new URL(rawURL).pathname;
+  } catch {
+    return "";
+  }
+  try {
+    pathname = decodeURIComponent(pathname);
+  } catch {
+    // A malformed escape sequence should not make the search fail. The raw
+    // path can still be normalized and checked conservatively.
+  }
+  return cleanEvidenceText(
+    pathname.replace(/[-_.~]+/g, " "),
+    MAX_IMAGE_PATH_CHARS
+  );
+}
+
+/**
+ * Tavily image results are never sent to Gemini. They remain untrusted
+ * candidates until an already-verified beer identity can ground them.
+ */
+export function boundTavilyImages(payload: unknown): TavilyImageCandidate[] {
+  if (!isObject(payload)) return [];
+
+  const accepted: TavilyImageCandidate[] = [];
+  const seenCandidates = new Set<string>();
+
+  const appendImages = (
+    rawImages: unknown,
+    sourceURL: string | null,
+    limit: number
+  ): void => {
+    if (!Array.isArray(rawImages)) return;
+    for (const raw of rawImages.slice(0, limit)) {
+      const rawURL = typeof raw === "string"
+        ? raw
+        : isObject(raw) && typeof raw.url === "string"
+          ? raw.url
+          : null;
+      const url = publicHTTPSURL(rawURL);
+      const key = url ? `${sourceURL ?? "top-level"}|${url}` : "";
+      if (!url || seenCandidates.has(key)) continue;
+      const description = isObject(raw)
+        ? cleanEvidenceText(raw.description, MAX_IMAGE_DESCRIPTION_CHARS)
+        : "";
+      const pathText = decodedImagePath(url);
+      if (!description && !pathText) continue;
+      accepted.push({ url, description, pathText, sourceURL });
+      seenCandidates.add(key);
+    }
+  };
+
+  // Tavily includes images extracted from each result page. Preserve their
+  // source association so a verified beer result can use its own page's image
+  // before considering the less-specific top-level image-search pool.
+  if (Array.isArray(payload.results)) {
+    for (const rawResult of payload.results.slice(0, MAX_TAVILY_RESULTS)) {
+      if (!isObject(rawResult)) continue;
+      const sourceURL = publicHTTPSURL(rawResult.url);
+      if (!sourceURL) continue;
+      appendImages(rawResult.images, sourceURL, MAX_TAVILY_IMAGES_PER_RESULT);
+    }
+  }
+
+  appendImages(payload.images, null, MAX_TAVILY_TOP_LEVEL_IMAGES);
+  return accepted;
 }
 
 const EXTRACTION_INSTRUCTION = `
@@ -469,6 +556,100 @@ function supportsBreweryIdentity(text: string, brewery: string): boolean {
     `\\b${rootPattern}[^\\p{L}\\p{N}]+(?:beerworks|brewery|brewing)\\b`,
     "iu"
   ).test(foldedEvidence(text));
+}
+
+function supportsImageBreweryIdentity(text: string, brewery: string): boolean {
+  if (supportsBreweryIdentity(text, brewery)) return true;
+  const root = breweryRoot(brewery);
+  return root !== null && supportsPhrase(text, root);
+}
+
+function productImageScore(candidate: TavilyImageCandidate): number {
+  const contexts = [candidate.description, candidate.pathText].filter(Boolean);
+  if (contexts.some((context) => NON_PRODUCT_IMAGE_CUE.test(context))) return -1;
+
+  let score = 0;
+  if (candidate.description && PRODUCT_IMAGE_CUE.test(candidate.description)) score += 20;
+  if (candidate.pathText && PRODUCT_IMAGE_CUE.test(candidate.pathText)) score += 10;
+  return score > 0 ? score : -1;
+}
+
+function groundedImageScore(
+  candidate: TavilyImageCandidate,
+  beer: string,
+  brewery: string
+): number {
+  const productScore = productImageScore(candidate);
+  if (productScore < 0) return -1;
+
+  const contexts = [
+    { text: candidate.description, score: 20 },
+    { text: candidate.pathText, score: 10 }
+  ];
+  let beerScore = -1;
+  let breweryScore = -1;
+  for (const context of contexts) {
+    if (!context.text) continue;
+    if (supportsPhrase(context.text, beer)) {
+      beerScore = Math.max(beerScore, context.score);
+    }
+    if (supportsImageBreweryIdentity(context.text, brewery)) {
+      breweryScore = Math.max(breweryScore, context.score);
+    }
+  }
+  if (beerScore < 0 || breweryScore < 0) return -1;
+  return productScore + beerScore + Math.max(0, breweryScore);
+}
+
+function bestGroundedImage(
+  candidates: TavilyImageCandidate[],
+  beer: string,
+  brewery: string
+): string | null {
+  let best: { url: string; score: number; rank: number } | null = null;
+  for (const [rank, candidate] of candidates.entries()) {
+    const url = publicHTTPSURL(candidate.url);
+    if (!url) continue;
+    const score = groundedImageScore(candidate, beer, brewery);
+    if (score < 0) continue;
+    if (!best || score > best.score || (score === best.score && rank < best.rank)) {
+      best = { url, score, rank };
+    }
+  }
+  return best?.url ?? null;
+}
+
+/**
+ * Attach at most one product/package image to each already-verified result.
+ * An image extracted from the result's verified source page is preferred, but
+ * it must still explicitly ground both the exact beer and brewery. Page-level
+ * association alone is not enough: list and marketplace pages can contain
+ * products from several breweries. A top-level image-search fallback uses the
+ * same identity rule. Existing image_url values are discarded so this is the
+ * only route by which artwork reaches the client.
+ */
+export function attachGroundedImages(
+  results: BeerSearchResult[],
+  images: TavilyImageCandidate[]
+): BeerSearchResult[] {
+  return results.map((rawResult) => {
+    const { image_url: _discardedImage, ...result } = rawResult;
+    const sourceLinked = images.filter((candidate) => candidate.sourceURL === result.source_url);
+    const sourceImage = bestGroundedImage(
+      sourceLinked,
+      result.beer,
+      result.brewery
+    );
+    if (sourceImage) return { ...result, image_url: sourceImage };
+
+    const topLevel = images.filter((candidate) => candidate.sourceURL === null);
+    const fallbackImage = bestGroundedImage(
+      topLevel,
+      result.beer,
+      result.brewery
+    );
+    return fallbackImage ? { ...result, image_url: fallbackImage } : result;
+  });
 }
 
 function evidenceWindows(text: string, beer: string): string[] {
@@ -752,13 +933,18 @@ export function validateExtraction(
 }
 
 export function publicSearchResults(results: BeerSearchResult[]): PublicBeerSearchResult[] {
-  return results.map((result) => ({
-    name: result.beer,
-    brewery: result.brewery,
-    style: result.style,
-    abv: result.abv,
-    source_url: result.source_url
-  }));
+  return results.map((result) => {
+    const publicResult: PublicBeerSearchResult = {
+      name: result.beer,
+      brewery: result.brewery,
+      style: result.style,
+      abv: result.abv,
+      source_url: result.source_url
+    };
+    const imageURL = publicHTTPSURL(result.image_url);
+    if (imageURL) publicResult.image_url = imageURL;
+    return publicResult;
+  });
 }
 
 async function fetchJSON(
@@ -828,6 +1014,7 @@ export async function searchBeers(
   );
   const evidence = boundTavilyEvidence(tavilyPayload, request.query);
   if (evidence.length === 0) return [];
+  const imageCandidates = boundTavilyImages(tavilyPayload);
 
   const extract = async (sourceEvidence: TavilyEvidence[]): Promise<BeerSearchResult[]> => {
     const geminiPayload = await fetchJSON(
@@ -850,7 +1037,9 @@ export async function searchBeers(
   };
 
   const firstResults = await extract(evidence);
-  if (firstResults.some((result) => result.style !== null)) return firstResults;
+  if (firstResults.some((result) => result.style !== null)) {
+    return attachGroundedImages(firstResults, imageCandidates);
+  }
 
   const firstQueryToken = distinctiveQueryTokens(request.query)[0];
   const matchingEvidence = firstQueryToken
@@ -861,7 +1050,8 @@ export async function searchBeers(
     : evidence;
   const focusedEvidence = (matchingEvidence.length > 0 ? matchingEvidence : evidence).slice(0, 3);
   const retryResults = await extract(focusedEvidence);
-  return retryResults.some((result) => result.style !== null) || firstResults.length === 0
+  const selectedResults = retryResults.some((result) => result.style !== null) || firstResults.length === 0
     ? retryResults
     : firstResults;
+  return attachGroundedImages(selectedResults, imageCandidates);
 }

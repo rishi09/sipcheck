@@ -299,7 +299,7 @@ def capture(session: CaptureSession) -> None:
     session.tap_id("suggestionRow_0")
     # SwiftUI flattens VerdictCardView into its visible children in Release,
     # so the container/button identifiers are intentionally not relied on.
-    session.wait(lambda node: label(node) == "TRY IT", "TRY IT verdict", timeout=30)
+    session.wait_id("verdictText", timeout=30)
     session.snap(
         "primary/check/03-personalized-verdict.png",
         "Personalized verdict",

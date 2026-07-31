@@ -596,4 +596,62 @@ final class PipelineIntegrationTests: XCTestCase {
         XCTAssertEqual(events.first?.resolvedName, "Orion")
         XCTAssertNil(events.first?.foundationModelsAvailable)
     }
+
+    func testTastePassportPresentationContracts() {
+        let tryStyle = VerdictStyle.style(for: .tryIt)
+        XCTAssertEqual(tryStyle.word, "TRY IT")
+        XCTAssertEqual(tryStyle.symbol, "hand.thumbsup.fill")
+
+        XCTAssertEqual(
+            BeerProductArtwork.assetName(
+                beerName: "Sierra Nevada Pale Ale",
+                brewery: "Sierra Nevada Brewing Company"
+            ),
+            "BeerBrandSierraNevada"
+        )
+        XCTAssertNil(BeerProductArtwork.assetName(
+            beerName: "Sierra Nevada Pale Ale",
+            brewery: "Unrelated Brewery"
+        ))
+        XCTAssertNil(BeerProductArtwork.assetName(
+            beerName: "Sierra Nevada Pale Ale",
+            brewery: nil
+        ))
+        for (beerName, brewery) in [
+            ("Dogfish Head 60 Minute IPA", "Dogfish Head Craft Brewery"),
+            ("Guinness Draught", "Guinness"),
+            ("Lagunitas IPA", "Lagunitas Brewing Company"),
+            ("Corona Extra", "Grupo Modelo")
+        ] {
+            XCTAssertNil(
+                BeerProductArtwork.assetName(beerName: beerName, brewery: brewery),
+                "Logo-only or wrong-product art must defer to exact connected artwork for \(beerName)"
+            )
+        }
+
+        XCTAssertTrue(VerdictCardView.isStrengthProximityCopy(
+            "7% is near your usual 6.4% strength."
+        ))
+        XCTAssertFalse(VerdictCardView.isStrengthProximityCopy(
+            "A crisp 7% IPA with the bitterness you tend to like."
+        ))
+        XCTAssertEqual(
+            VerdictCardView.removingStrengthProximityCopy(
+                "Matches your love of IPA. 7% is near your usual 6.4% strength."
+            ),
+            "Matches your love of IPA."
+        )
+        XCTAssertEqual(
+            VerdictCardView.removingStrengthProximityCopy(
+                "7% is near your usual 6.4% strength. You liked this exact beer before."
+            ),
+            "You liked this exact beer before."
+        )
+
+        let hazy = TastePassportProfile.profile(for: "Hazy IPA")
+        let westCoast = TastePassportProfile.profile(for: "West Coast IPA")
+        XCTAssertEqual(hazy?.notes, ["Tropical", "Citrus", "Juicy", "Soft finish"])
+        XCTAssertEqual(westCoast?.notes, ["Citrus", "Pine", "Resinous", "Dry finish"])
+        XCTAssertNotEqual(hazy, westCoast)
+    }
 }

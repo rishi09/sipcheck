@@ -1,5 +1,60 @@
 import Foundation
 
+/// Remote artwork is reference media, never a captured photo. Keep it in a
+/// separate field so Add Beer / Journal cannot accidentally upload a web image
+/// as something the person photographed.
+enum BeerReferenceImageURL {
+    private static let blockedDomains = [
+        "localhost", "local", "internal", "lan", "home", "onion", "test", "invalid", "example",
+        // Public wildcard-DNS services can resolve an apparently public host
+        // name to loopback/private space. Reference art never needs them.
+        "nip.io", "sslip.io", "xip.io", "localtest.me", "localhost.direct", "lvh.me"
+    ]
+
+    static func validated(_ url: URL?) -> URL? {
+        guard let url,
+              url.absoluteString.utf8.count <= 2_048,
+              url.scheme?.lowercased() == "https",
+              url.user == nil,
+              url.password == nil,
+              url.port == nil || url.port == 443,
+              let host = url.host?.lowercased(),
+              !host.hasSuffix("."),
+              host.contains("."),
+              !host.contains(":"),
+              !isIPv4Address(host),
+              !isNumericHost(host),
+              !blockedDomains.contains(where: { host == $0 || host.hasSuffix(".\($0)") }),
+              host.split(separator: ".").allSatisfy({ label in
+                  (1...63).contains(label.count)
+                      && label.first != "-"
+                      && label.last != "-"
+                      && label.unicodeScalars.allSatisfy { scalar in
+                          scalar.isASCII
+                              && (CharacterSet.alphanumerics.contains(scalar) || scalar == "-")
+                      }
+              }) else {
+            return nil
+        }
+        return url
+    }
+
+    private static func isIPv4Address(_ host: String) -> Bool {
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts.allSatisfy { part in
+            guard let value = Int(part) else { return false }
+            return (0...255).contains(value)
+        }
+    }
+
+    private static func isNumericHost(_ host: String) -> Bool {
+        host.split(separator: ".", omittingEmptySubsequences: false).allSatisfy { label in
+            let value = label.lowercased()
+            return !value.isEmpty && (value.allSatisfy(\.isNumber) || value.hasPrefix("0x"))
+        }
+    }
+}
+
 /// Verdict from AI scan — should the user try this beer?
 enum Verdict: String, Codable, CaseIterable {
     case tryIt = "try_it"
@@ -18,6 +73,9 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     var style: String?
     var abv: Double?
     var photoFileName: String?
+    /// Exact product/reference image returned for an explicitly selected
+    /// connected search result. This never enters the captured-photo pipeline.
+    var referenceImageURL: URL?
     var verdict: Verdict
     var explanation: String
     var timestamp: Date
@@ -39,6 +97,7 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         style: String? = nil,
         abv: Double? = nil,
         photoFileName: String? = nil,
+        referenceImageURL: URL? = nil,
         verdict: Verdict = .yourCall,
         explanation: String = "",
         timestamp: Date = Date(),
@@ -53,6 +112,7 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         self.style = style
         self.abv = abv
         self.photoFileName = photoFileName
+        self.referenceImageURL = BeerReferenceImageURL.validated(referenceImageURL)
         self.verdict = verdict
         self.explanation = explanation
         self.timestamp = timestamp
@@ -67,7 +127,7 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
     // MARK: - CodingKeys & Safe Decoder
 
     enum CodingKeys: String, CodingKey {
-        case id, beerName, brand, style, abv, photoFileName, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, factSource, lastModifiedLocal, isDeleted
+        case id, beerName, brand, style, abv, photoFileName, referenceImageURL, verdict, explanation, timestamp, wantToTry, linkedJournalId, origin, factSource, lastModifiedLocal, isDeleted
     }
 
     init(from decoder: Decoder) throws {
@@ -78,6 +138,15 @@ struct Scan: Identifiable, Codable, Equatable, HasModifiedDate {
         style = try c.decodeIfPresent(String.self, forKey: .style)
         abv = try c.decodeIfPresent(Double.self, forKey: .abv)
         photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
+        do {
+            referenceImageURL = BeerReferenceImageURL.validated(
+                try c.decodeIfPresent(URL.self, forKey: .referenceImageURL)
+            )
+        } catch {
+            // Optional reference art must never make a person's scan history
+            // unreadable after a corrupt or older payload.
+            referenceImageURL = nil
+        }
         verdict = try c.decodeIfPresent(Verdict.self, forKey: .verdict) ?? .yourCall
         explanation = try c.decodeIfPresent(String.self, forKey: .explanation) ?? ""
         timestamp = try c.decodeIfPresent(Date.self, forKey: .timestamp) ?? Date()

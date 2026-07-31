@@ -20,6 +20,7 @@ final class SipCheckUITests: XCTestCase {
         app.launchArguments = [
             "--mock-ai",
             "--mock-beer-search",
+            "--mock-beer-images",
             "--seed-data",
             "--isolated-storage",
             "--follow-up-reminders-off"
@@ -34,6 +35,20 @@ final class SipCheckUITests: XCTestCase {
         shot.name = name
         shot.lifetime = .keepAlways
         add(shot)
+    }
+
+    @discardableResult
+    private func waitForVerdict(
+        _ expectedLabel: String? = nil,
+        timeout: TimeInterval = 10
+    ) -> XCUIElement {
+        let verdict = app.descendants(matching: .any)["verdictText"]
+        XCTAssertTrue(verdict.waitForExistence(timeout: timeout),
+                      "A semantic verdict should render")
+        if let expectedLabel {
+            XCTAssertEqual(verdict.label, expectedLabel)
+        }
+        return verdict
     }
 
     // MARK: - Flow 1: Launch lands on Check tab
@@ -64,16 +79,69 @@ final class SipCheckUITests: XCTestCase {
         field.typeText("Sierra Nevada Pale Ale")
         snap("01-name-entered")
 
-        app.buttons["Check This Beer"].tap()
+        let suggestion = app.buttons["suggestionRow_0"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 3))
+        XCTAssertTrue(suggestion.label.contains("Sierra Nevada Pale Ale"))
+        suggestion.tap()
 
-        // Verdict wording is one of the three fixed values; match by label so
-        // this survives identifier changes in the verdict-first refactor.
-        let verdict = app.staticTexts.matching(
-            NSPredicate(format: "label IN %@", ["TRY IT", "YOUR CALL", "SKIP IT"])
-        ).firstMatch
-        XCTAssertTrue(verdict.waitForExistence(timeout: 10),
-                      "A verdict should render after checking a typed name")
+        let artwork = app.descendants(matching: .any)["tastePassportArtwork"]
+        XCTAssertTrue(artwork.waitForExistence(timeout: 10))
+        XCTAssertEqual(artwork.label, "Product photo of Sierra Nevada Pale Ale")
+        let verdict = waitForVerdict("Verdict: try it")
+        XCTAssertGreaterThan(verdict.frame.minX, artwork.frame.maxX,
+                             "TRY IT should sit clearly to the far right of the thumbnail")
+        XCTAssertLessThan(app.frame.maxX - verdict.frame.maxX, 40,
+                          "The verdict should align near the screen's trailing edge")
+        XCTAssertTrue(app.staticTexts["What it tastes like"].exists)
+        XCTAssertEqual(app.descendants(matching: .any)["tastePassportWhyHeading"].label,
+                       "Why it fits you")
+        XCTAssertFalse(app.staticTexts["Plain English"].exists)
+        XCTAssertFalse(app.staticTexts["Closest memories"].exists)
+        XCTAssertEqual(app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "near your usual")
+        ).count, 0)
         snap("02-verdict")
+    }
+
+    func testCapturedPhotoWinsOverProductArtworkOnTastePassport() {
+        app.terminate()
+        app.launchArguments.append("--taste-passport-captured-photo-fixture")
+        app.launch()
+
+        let artwork = app.descendants(matching: .any)["tastePassportArtwork"]
+        XCTAssertTrue(artwork.waitForExistence(timeout: 5))
+        XCTAssertEqual(artwork.label, "Photo you took of Two Hearted Ale",
+                       "A camera frame must outrank otherwise available product art")
+        let verdict = waitForVerdict("Verdict: try it", timeout: 5)
+        XCTAssertGreaterThan(verdict.frame.minX, artwork.frame.maxX)
+        XCTAssertLessThan(app.frame.maxX - verdict.frame.maxX, 40)
+
+        let reason = app.descendants(matching: .any)["tastePassportWhyReason"]
+        XCTAssertTrue(reason.waitForExistence(timeout: 3))
+        XCTAssertTrue(reason.label.contains("Sierra Nevada Pale Ale"),
+                      "Why it fits should cite the person's own similar-beer evidence")
+        XCTAssertEqual(app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "near your usual")
+        ).count, 0)
+        XCTAssertFalse(app.staticTexts["Closest memories"].exists)
+        snap("01-captured-photo-taste-passport")
+    }
+
+    func testTypingAfterUnreadablePhotoDiscardsStaleCapture() {
+        app.terminate()
+        app.launchArguments.append("--taste-passport-ocr-failure-fixture")
+        app.launch()
+
+        let field = openBeerEntryField()
+        field.tap()
+        field.typeText("Sierra Nevada Pale Ale")
+        XCTAssertTrue(app.buttons["suggestionRow_0"].waitForExistence(timeout: 3))
+        app.buttons["suggestionRow_0"].tap()
+
+        let artwork = app.descendants(matching: .any)["tastePassportArtwork"]
+        XCTAssertTrue(artwork.waitForExistence(timeout: 10))
+        XCTAssertEqual(artwork.label, "Product photo of Sierra Nevada Pale Ale",
+                       "Typing a new beer after failed OCR must not reuse the unrelated camera frame")
     }
 
     func testLongTailSearchShowsSourcedCandidateBelowExactAction() {
@@ -99,10 +167,12 @@ final class SipCheckUITests: XCTestCase {
 
         remote.tap()
         XCTAssertTrue(app.staticTexts["Harbor Fog IPA"].waitForExistence(timeout: 10))
-        let verdict = app.staticTexts.matching(
-            NSPredicate(format: "label IN %@", ["TRY IT", "YOUR CALL", "SKIP IT"])
-        ).firstMatch
-        XCTAssertTrue(verdict.waitForExistence(timeout: 10))
+        _ = waitForVerdict()
+        let artwork = app.descendants(matching: .any)["tastePassportArtwork"]
+        let finalArtwork = NSPredicate(format: "label == %@", "Product photo of Harbor Fog IPA")
+        let artExpectation = XCTNSPredicateExpectation(predicate: finalArtwork, object: artwork)
+        XCTAssertEqual(XCTWaiter.wait(for: [artExpectation], timeout: 5), .completed,
+                       "Connected image_url must survive selection and finish rendering as product art")
         let selectedSource = app.descendants(matching: .any)["verdictBeerFactSource"]
         XCTAssertTrue(selectedSource.waitForExistence(timeout: 3),
                       "The selected remote beer must retain a clickable source on its verdict")
@@ -292,8 +362,7 @@ final class SipCheckUITests: XCTestCase {
         XCTAssertTrue(customBeerResult.waitForExistence(timeout: 3),
                       "Check search must expose the exact typed name when the catalog misses")
         customBeerResult.tap()
-        XCTAssertTrue(app.staticTexts["TRY IT"].waitForExistence(timeout: 10),
-                      "A custom named go-to must remain actionable without catalog facts")
+        _ = waitForVerdict("Verdict: try it")
 
         openSettings()
         let resetToggle = revealReminderToggle()

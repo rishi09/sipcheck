@@ -88,6 +88,29 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertNil(BeerDiscoveryText.coarseStyle(from: "House Ale"))
     }
 
+    func testBreweryIdentityIgnoresLegalSuffixVariantsButNotDifferentProducers() {
+        let canonical = BeerDiscoveryText.breweryIdentity("Russian River Brewing Company")
+
+        for variant in [
+            "Russian River Brewing",
+            "Russian River Brewery LLC",
+            "Russian River Brewing Co.",
+            "Russian River, Inc.",
+            "Russian River"
+        ] {
+            XCTAssertEqual(
+                BeerDiscoveryText.breweryIdentity(variant),
+                canonical,
+                variant
+            )
+        }
+        XCTAssertNotEqual(
+            BeerDiscoveryText.breweryIdentity("Other Russian River Brewing Company"),
+            canonical
+        )
+        XCTAssertEqual(BeerDiscoveryText.breweryIdentity(nil), "")
+    }
+
     func testDiscoveryRelevanceTreatsSpacingVariantsAsExactIdentity() {
         let result = candidate(name: "Sky Lab", brewery: "True Anomaly Brewing", id: "sky-lab")
 
@@ -182,6 +205,68 @@ final class BeerDiscoveryServiceTests: XCTestCase {
         XCTAssertNil(result.abv)
         XCTAssertEqual(assessment.verdict, .tryIt)
         XCTAssertTrue(assessment.shortReason.contains("history"))
+    }
+
+    func testProxyPropagatesOnlySafeOptionalProductArtwork() throws {
+        let validImage = "https://images.ism.beer/products/falling-knife-catch-can.webp"
+        let base: [String: Any] = [
+            "name": "Falling Knife Catch",
+            "brewery": "ISM Brewing",
+            "style": "West Coast IPA",
+            "abv": 6.6,
+            "source_url": "https://ism.beer/drink-menu"
+        ]
+        var withImage = base
+        withImage["image_url"] = validImage
+        let accepted = try XCTUnwrap(BeerSearchProxyClient.parseResponse(
+            Self.proxyResponseData(results: [withImage]),
+            query: "Falling Knife Catch",
+            limit: 5
+        ).first)
+        XCTAssertEqual(accepted.imageURL?.absoluteString, validImage)
+        XCTAssertEqual(accepted.resolvedBeer.referenceImageURL, accepted.imageURL)
+
+        for unsafeValue: Any in [
+            "https://can.127.0.0.1.nip.io/falling-knife-catch.webp",
+            "http://images.ism.beer/falling-knife-catch.webp",
+            42
+        ] {
+            var unsafe = base
+            unsafe["image_url"] = unsafeValue
+            let candidate = try XCTUnwrap(BeerSearchProxyClient.parseResponse(
+                Self.proxyResponseData(results: [unsafe]),
+                query: "Falling Knife Catch",
+                limit: 5
+            ).first)
+            XCTAssertNil(candidate.imageURL,
+                         "Bad optional art must be dropped without losing grounded beer facts")
+        }
+    }
+
+    func testProxyPreservesSignedArtworkURLBytesExactly() throws {
+        let signedImage = "https://cdn.ism.beer/products/falling-knife-catch.webp?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=ABC%2F20260730%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=AaBb%2B%2F%3D&response-content-disposition=inline%3B%20filename%3D%22Catch%20Can.webp%22"
+        let result: [String: Any] = [
+            "name": "Falling Knife Catch",
+            "brewery": "ISM Brewing",
+            "style": "West Coast IPA",
+            "abv": 6.6,
+            "source_url": "https://ism.beer/drink-menu?utm_source=search",
+            "image_url": signedImage
+        ]
+
+        let candidate = try XCTUnwrap(BeerSearchProxyClient.parseResponse(
+            Self.proxyResponseData(results: [result]),
+            query: "Falling Knife Catch",
+            limit: 5
+        ).first)
+
+        XCTAssertEqual(candidate.imageURL?.absoluteString, signedImage)
+        XCTAssertEqual(candidate.resolvedBeer.referenceImageURL?.absoluteString, signedImage)
+        XCTAssertEqual(
+            candidate.sourceURL.absoluteString,
+            "https://ism.beer/drink-menu",
+            "Source links may be canonicalized without mutating signed artwork URLs"
+        )
     }
 
     func testProxyRejectsMalformedSchemaAndInvalidFacts() throws {
@@ -522,6 +607,61 @@ final class BeerDiscoveryServiceTests: XCTestCase {
 
         XCTAssertEqual(results.first?.name, "Pliny the Elder")
         XCTAssertEqual(recorder.hosts, ["catalog.beer"])
+    }
+
+    func testArtworkPreferenceUsesSeparateCacheLaneAndTopsUpStrongCatalogMatch() async throws {
+        let recorder = RequestRecorder()
+        let imageURL = "https://images.russianriverbrewing.com/products/pliny-the-elder-bottle.webp"
+        let webData = try Self.proxyResponseData(results: [[
+            "name": "Pliny the Elder",
+            "brewery": "Russian River Brewing",
+            "style": "India Pale Ale",
+            "abv": 8.0,
+            "source_url": "https://www.russianriverbrewing.com/pliny-the-elder/",
+            "image_url": imageURL
+        ]])
+        StubURLProtocol.install { request in
+            recorder.record(request.url!)
+            if request.url?.host == "catalog.beer" {
+                return Self.response(
+                    for: request,
+                    body: Self.catalogHTML(
+                        name: "Pliny the Elder",
+                        brewery: "Russian River Brewing Company",
+                        style: "India Pale Ale",
+                        abv: "8% ABV"
+                    )
+                )
+            }
+            return Self.response(for: request, data: webData)
+        }
+        let service = BeerDiscoveryService(
+            session: stubSession(),
+            cacheURL: nil,
+            mockSearch: false,
+            webSearchEndpoint: Self.proxyEndpoint,
+            networkAvailable: { true }
+        )
+
+        let factsOnly = try await service.search(query: "Pliny", limit: 5)
+        let withArtwork = try await service.search(
+            query: "Pliny",
+            limit: 5,
+            preferArtwork: true
+        )
+
+        XCTAssertNil(factsOnly.first?.imageURL)
+        XCTAssertEqual(withArtwork.first?.imageURL?.absoluteString, imageURL)
+        XCTAssertEqual(
+            BeerDiscoveryText.breweryIdentity(withArtwork.first?.brewery),
+            BeerDiscoveryText.breweryIdentity("Russian River Brewing Company"),
+            "Artwork top-up must accept harmless brewery legal-suffix variants"
+        )
+        XCTAssertEqual(
+            recorder.hosts,
+            ["catalog.beer", "catalog.beer", "search.sipcheck.app"],
+            "An earlier fast catalog cache entry must not suppress explicit artwork enrichment"
+        )
     }
 
     func testServiceTopsUpStrongCatalogMatchWhenStyleCannotBeScored() async throws {

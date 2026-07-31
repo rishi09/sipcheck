@@ -5,6 +5,7 @@ struct CloudKitScanMetadata: Equatable {
     let origin: String?
     let factSource: BeerFactSource?
     let brand: String?
+    let referenceImageURL: URL?
 }
 
 enum CloudKitScanMetadataCodec {
@@ -12,16 +13,62 @@ enum CloudKitScanMetadataCodec {
         let origin: String?
         let factSource: BeerFactSource?
         let brand: String?
+        let referenceImageURL: URL?
+
+        private enum CodingKeys: String, CodingKey {
+            case origin, factSource, brand, referenceImageURL
+        }
+
+        init(
+            origin: String?,
+            factSource: BeerFactSource?,
+            brand: String?,
+            referenceImageURL: URL?
+        ) {
+            self.origin = origin
+            self.factSource = factSource
+            self.brand = brand
+            self.referenceImageURL = referenceImageURL
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            origin = (try? container.decodeIfPresent(String.self, forKey: .origin)) ?? nil
+            factSource = (try? container.decodeIfPresent(BeerFactSource.self, forKey: .factSource)) ?? nil
+            brand = (try? container.decodeIfPresent(String.self, forKey: .brand)) ?? nil
+            referenceImageURL = BeerReferenceImageURL.validated(
+                (try? container.decodeIfPresent(URL.self, forKey: .referenceImageURL)) ?? nil
+            )
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encodeIfPresent(origin, forKey: .origin)
+            try container.encodeIfPresent(factSource, forKey: .factSource)
+            try container.encodeIfPresent(brand, forKey: .brand)
+            try container.encodeIfPresent(referenceImageURL, forKey: .referenceImageURL)
+        }
     }
 
     private static let v2Prefix = "SipCheck metadata v2: "
     private static let catalogPrefix = "SipCheck source v1 - Catalog.beer: "
     private static let webPrefix = "SipCheck source v1 - Brewery website: "
 
-    static func encode(origin: String?, factSource: BeerFactSource?, brand: String? = nil) -> String? {
+    static func encode(
+        origin: String?,
+        factSource: BeerFactSource?,
+        brand: String? = nil,
+        referenceImageURL: URL? = nil
+    ) -> String? {
         let cleanBrand = brand?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let cleanBrand, !cleanBrand.isEmpty {
-            let payload = V2Payload(origin: origin, factSource: factSource, brand: cleanBrand)
+        let cleanReferenceImageURL = BeerReferenceImageURL.validated(referenceImageURL)
+        if (cleanBrand?.isEmpty == false) || cleanReferenceImageURL != nil {
+            let payload = V2Payload(
+                origin: origin,
+                factSource: factSource,
+                brand: cleanBrand?.isEmpty == false ? cleanBrand : nil,
+                referenceImageURL: cleanReferenceImageURL
+            )
             if let data = try? JSONEncoder().encode(payload) {
                 return v2Prefix + data.base64EncodedString()
             }
@@ -38,7 +85,7 @@ enum CloudKitScanMetadataCodec {
 
     static func decode(_ value: String?) -> CloudKitScanMetadata {
         guard let value else {
-            return CloudKitScanMetadata(origin: nil, factSource: nil, brand: nil)
+            return CloudKitScanMetadata(origin: nil, factSource: nil, brand: nil, referenceImageURL: nil)
         }
 
         if value.hasPrefix(v2Prefix) {
@@ -48,12 +95,13 @@ enum CloudKitScanMetadataCodec {
                 return CloudKitScanMetadata(
                     origin: payload.origin,
                     factSource: payload.factSource,
-                    brand: payload.brand
+                    brand: payload.brand,
+                    referenceImageURL: BeerReferenceImageURL.validated(payload.referenceImageURL)
                 )
             }
             // A malformed compatible payload is still user data. Preserve it
             // as legacy origin text instead of dropping the entire scan.
-            return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil)
+            return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil, referenceImageURL: nil)
         }
 
         let candidates: [(String, BeerFactSource.Kind)] = [
@@ -74,10 +122,11 @@ enum CloudKitScanMetadataCodec {
             return CloudKitScanMetadata(
                 origin: origin.isEmpty ? nil : origin,
                 factSource: factSource,
-                brand: nil
+                brand: nil,
+                referenceImageURL: nil
             )
         }
-        return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil)
+        return CloudKitScanMetadata(origin: value, factSource: nil, brand: nil, referenceImageURL: nil)
     }
 }
 
@@ -419,7 +468,12 @@ final class CloudKitSyncService {
         record["abv"] = scan.abv.map { $0 as CKRecordValue }
         record["linkedJournalId"] = scan.linkedJournalId.map { $0.uuidString as CKRecordValue }
         record["origin"] = CloudKitScanMetadataCodec
-            .encode(origin: scan.origin, factSource: scan.factSource, brand: scan.brand)
+            .encode(
+                origin: scan.origin,
+                factSource: scan.factSource,
+                brand: scan.brand,
+                referenceImageURL: scan.referenceImageURL
+            )
             .map { $0 as CKRecordValue }
     }
 
@@ -446,6 +500,7 @@ final class CloudKitSyncService {
             brand: metadata.brand,
             style: record["style"] as? String,
             abv: record["abv"] as? Double,
+            referenceImageURL: metadata.referenceImageURL,
             verdict: verdict,
             explanation: record["explanation"] as? String ?? "",
             timestamp: record["timestamp"] as? Date ?? Date(),

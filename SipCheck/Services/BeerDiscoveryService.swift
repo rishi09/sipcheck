@@ -14,6 +14,9 @@ struct BeerDiscoveryCandidate: Identifiable, Codable, Equatable, Sendable {
     let abv: Double?
     let source: Source
     let sourceURL: URL
+    /// Exact product/reference artwork when the connected source can ground it.
+    /// Optional so older proxy deployments and catalog-only results remain valid.
+    var imageURL: URL? = nil
 
     var beerStyle: BeerStyle? {
         coarseStyleName.flatMap(BeerStyle.init(rawValue:))
@@ -29,7 +32,8 @@ struct BeerDiscoveryCandidate: Identifiable, Codable, Equatable, Sendable {
             factSource: BeerFactSource(
                 kind: source == .catalogBeer ? .catalogBeer : .webSearch,
                 url: sourceURL
-            )
+            ),
+            referenceImageURL: imageURL
         )
     }
 
@@ -55,6 +59,10 @@ enum BeerDiscoveryError: Error {
 }
 
 enum BeerDiscoveryText {
+    private static let brewerySuffixes = Set([
+        "brewery", "brewing", "company", "co", "inc", "llc", "ltd"
+    ])
+
     static func normalize(_ value: String) -> String {
         let folded = value.folding(
             options: [.caseInsensitive, .diacriticInsensitive],
@@ -99,6 +107,16 @@ enum BeerDiscoveryText {
         else { parsed = nil }
         guard let parsed, (0...25).contains(parsed) else { return nil }
         return parsed
+    }
+
+    /// Canonical comparison key for legal-suffix variants returned by different
+    /// sources (for example, "Brewing" vs "Brewing Company").
+    static func breweryIdentity(_ value: String?) -> String {
+        var tokens = normalize(value ?? "").split(separator: " ").map(String.init)
+        while let last = tokens.last, brewerySuffixes.contains(last) {
+            tokens.removeLast()
+        }
+        return tokens.joined(separator: " ")
     }
 }
 
@@ -406,7 +424,7 @@ struct BeerSearchProxyClient: @unchecked Sendable {
     ]
     private static let responseByteLimit = 256_000
     private static let allowedResultKeys: Set<String> = [
-        "name", "brewery", "style", "abv", "source_url"
+        "name", "brewery", "style", "abv", "source_url", "image_url"
     ]
     private static let requiredResultKeys: Set<String> = [
         "name", "brewery", "style", "source_url"
@@ -515,6 +533,11 @@ struct BeerSearchProxyClient: @unchecked Sendable {
                 abv = nil
             }
 
+            // Artwork is optional enrichment. A malformed CDN value must not
+            // erase an otherwise grounded beer identity and its source facts.
+            let imageURL = (result["image_url"] as? String)
+                .flatMap(allowedImageURL)
+
             let candidate = BeerDiscoveryCandidate(
                 id: "web:\(BeerDiscoveryText.normalize(brewery)):\(BeerDiscoveryText.normalize(name))",
                 name: name,
@@ -525,7 +548,8 @@ struct BeerSearchProxyClient: @unchecked Sendable {
                 )?.rawValue,
                 abv: abv,
                 source: .webSearch,
-                sourceURL: sourceURL
+                sourceURL: sourceURL,
+                imageURL: imageURL
             )
             guard BeerDiscoveryRelevance.score(candidate, query: query) > 0 else {
                 throw BeerDiscoveryError.invalidResponse
@@ -572,6 +596,18 @@ struct BeerSearchProxyClient: @unchecked Sendable {
             return nil
         }
         return canonicalSourceURL(url)
+    }
+
+    /// Product-CDN URLs may contain signed, case-sensitive query bytes. Validate
+    /// without source-link canonicalization so `%2F`, `%2B`, and signatures are
+    /// preserved exactly as issued.
+    private static func allowedImageURL(_ raw: String) -> URL? {
+        guard raw == raw.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.utf8.count <= 2_048,
+              let url = URL(string: raw) else {
+            return nil
+        }
+        return BeerReferenceImageURL.validated(url)
     }
 
     private static func isIPv4Address(_ host: String) -> Bool {
@@ -746,6 +782,7 @@ actor BeerDiscoveryService {
     func search(
         query: String,
         limit: Int = 8,
+        preferArtwork: Bool = false,
         onCatalogResults: (([BeerDiscoveryCandidate]) async -> Void)? = nil
     ) async throws -> [BeerDiscoveryCandidate] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -759,7 +796,11 @@ actor BeerDiscoveryService {
         let fetchLimit = 8
         if mockSearch { return Array(mockCandidates(for: normalized).prefix(limit)) }
 
-        let cached = cache.lookup(query: normalized)
+        // Artwork searches deliberately have their own cache lane: a fast
+        // catalog-only hit must not suppress a later, explicitly requested
+        // product-image top-up after the user chooses that beer.
+        let cacheKey = preferArtwork ? "\(normalized)|artwork" : normalized
+        let cached = cache.lookup(query: cacheKey)
         if let fresh = cached.fresh { return Array(fresh.prefix(limit)) }
         guard networkAvailable() else {
             if let stale = cached.stale { return Array(stale.prefix(limit)) }
@@ -792,7 +833,8 @@ actor BeerDiscoveryService {
         let catalogResults = results
         let shouldSearchWeb = Self.needsWebTopUp(
             catalogResults: catalogResults,
-            query: trimmed
+            query: trimmed,
+            requireArtwork: preferArtwork
         )
         if shouldSearchWeb, webSearchClient.isConfigured {
             webSearchAttempted = true
@@ -832,7 +874,7 @@ actor BeerDiscoveryService {
                 && !results.contains(where: { $0.source == .webSearch })
             cache.store(
                 results,
-                for: normalized,
+                for: cacheKey,
                 ttlOverride: degradedTopUp ? 10 * 60 : nil
             )
         }
@@ -845,9 +887,13 @@ actor BeerDiscoveryService {
 
     private static func needsWebTopUp(
         catalogResults: [BeerDiscoveryCandidate],
-        query: String
+        query: String,
+        requireArtwork: Bool
     ) -> Bool {
         guard !catalogResults.isEmpty else { return true }
+        if requireArtwork, !catalogResults.contains(where: { $0.imageURL != nil }) {
+            return true
+        }
         guard let best = catalogResults.max(by: {
             BeerDiscoveryRelevance.score($0, query: query)
                 < BeerDiscoveryRelevance.score($1, query: query)
@@ -856,20 +902,11 @@ actor BeerDiscoveryService {
         if bestRelevance < 92 { return true }
         if best.beerStyle == nil { return true }
 
-        let queryBrewery = breweryIdentity(query)
+        let queryBrewery = BeerDiscoveryText.breweryIdentity(query)
         return catalogResults.contains { candidate in
             guard let brewery = candidate.brewery else { return false }
-            return breweryIdentity(brewery) == queryBrewery
+            return BeerDiscoveryText.breweryIdentity(brewery) == queryBrewery
         }
-    }
-
-    private static func breweryIdentity(_ value: String) -> String {
-        let suffixes = Set(["brewery", "brewing", "company", "co"])
-        return BeerDiscoveryText.normalize(value)
-            .split(separator: " ")
-            .map(String.init)
-            .filter { !suffixes.contains($0) }
-            .joined(separator: " ")
     }
 
     private func mockCandidates(for query: String) -> [BeerDiscoveryCandidate] {
@@ -883,7 +920,8 @@ actor BeerDiscoveryService {
                 coarseStyleName: BeerStyle.ipa.rawValue,
                 abv: 6.8,
                 source: .webSearch,
-                sourceURL: URL(string: "https://neighborhood-fermentary.example/beers/harbor-fog")!
+                sourceURL: URL(string: "https://neighborhood-fermentary.example/beers/harbor-fog")!,
+                imageURL: URL(string: "https://mock-images.sipcheck.app/harbor-fog-can.png")
             )
         ]
     }

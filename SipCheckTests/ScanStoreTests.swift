@@ -22,6 +22,11 @@ final class ScanStoreTests: XCTestCase {
         super.tearDown()
     }
 
+    private func v2MetadataPayload(_ object: [String: Any]) throws -> String {
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        return "SipCheck metadata v2: " + data.base64EncodedString()
+    }
+
     // MARK: - Add
 
     func testAddScan() {
@@ -80,6 +85,45 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(store.scans.first?.wantToTry, true)
     }
 
+    func testAsyncDerivedMergePreservesNewerJournalAndPhotoState() throws {
+        let journalID = UUID()
+        let initial = Scan(
+            beerName: "Awaiting IPA",
+            brand: "Awaiting Brewing",
+            verdict: .yourCall,
+            explanation: "Initial",
+            wantToTry: true
+        )
+        store.addScan(initial)
+
+        // Capture the task's stale value before user-owned state changes.
+        var staleDerived = initial
+        var latest = try XCTUnwrap(store.scans.first)
+        latest.photoFileName = "user-captured.jpg"
+        store.updateScan(latest)
+        store.markTried(
+            beerName: initial.beerName,
+            brewery: initial.brand,
+            linkedJournalId: journalID,
+            sourceScanId: initial.id
+        )
+
+        staleDerived.style = BeerStyle.ipa.rawValue
+        staleDerived.verdict = .tryIt
+        staleDerived.explanation = "Refined"
+        staleDerived.referenceImageURL = URL(
+            string: "https://images.awaitingbrewing.com/awaiting-ipa-can.webp"
+        )
+        let merged = try XCTUnwrap(store.mergeDerivedFields(from: staleDerived))
+
+        XCTAssertEqual(merged.linkedJournalId, journalID)
+        XCTAssertFalse(merged.wantToTry)
+        XCTAssertEqual(merged.photoFileName, "user-captured.jpg")
+        XCTAssertEqual(merged.style, BeerStyle.ipa.rawValue)
+        XCTAssertEqual(merged.verdict, .tryIt)
+        XCTAssertEqual(merged.referenceImageURL, staleDerived.referenceImageURL)
+    }
+
     // MARK: - Persistence
 
     func testPersistenceAcrossInstances() {
@@ -92,6 +136,7 @@ final class ScanStoreTests: XCTestCase {
             brand: "Persistent Brewing",
             style: "IPA",
             photoFileName: "scan-photo.jpg",
+            referenceImageURL: URL(string: "https://images.persistentbrewing.com/persistent-ipa-can.webp"),
             verdict: .tryIt,
             explanation: "Great",
             factSource: source
@@ -105,6 +150,10 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(store2.scans.first?.beerName, "Persistent IPA")
         XCTAssertEqual(store2.scans.first?.brand, "Persistent Brewing")
         XCTAssertEqual(store2.scans.first?.photoFileName, "scan-photo.jpg")
+        XCTAssertEqual(
+            store2.scans.first?.referenceImageURL?.absoluteString,
+            "https://images.persistentbrewing.com/persistent-ipa-can.webp"
+        )
         XCTAssertEqual(store2.scans.first?.verdict, .tryIt)
         XCTAssertEqual(store2.scans.first?.factSource, source)
     }
@@ -125,6 +174,13 @@ final class ScanStoreTests: XCTestCase {
         )
         XCTAssertEqual(malformed.beerName, "Still Readable")
         XCTAssertNil(malformed.factSource)
+
+        let malformedArtwork = try JSONDecoder().decode(
+            Scan.self,
+            from: Data(#"{"beerName":"Still Readable Too","referenceImageURL":42}"#.utf8)
+        )
+        XCTAssertEqual(malformedArtwork.beerName, "Still Readable Too")
+        XCTAssertNil(malformedArtwork.referenceImageURL)
     }
 
     func testCloudKitMetadataCodecRoundTripsSourceAndOriginWithoutNewFields() throws {
@@ -170,7 +226,8 @@ final class ScanStoreTests: XCTestCase {
         let encoded = try XCTUnwrap(CloudKitScanMetadataCodec.encode(
             origin: "California",
             factSource: source,
-            brand: "Sierra Nevada Brewing Company"
+            brand: "Sierra Nevada Brewing Company",
+            referenceImageURL: URL(string: "https://images.sierranevada.com/pale-ale-bottle.webp")
         ))
         let decoded = CloudKitScanMetadataCodec.decode(encoded)
 
@@ -178,6 +235,65 @@ final class ScanStoreTests: XCTestCase {
         XCTAssertEqual(decoded.origin, "California")
         XCTAssertEqual(decoded.factSource, source)
         XCTAssertEqual(decoded.brand, "Sierra Nevada Brewing Company")
+        XCTAssertEqual(
+            decoded.referenceImageURL?.absoluteString,
+            "https://images.sierranevada.com/pale-ale-bottle.webp"
+        )
+    }
+
+    func testCloudKitMetadataCodecDecodesOldV2PayloadWithoutReferenceImage() throws {
+        let sourceURL = "https://legacybrewery.com/beers/legacy-ipa"
+        let encoded = try v2MetadataPayload([
+            "origin": "California",
+            "factSource": ["kind": "webSearch", "url": sourceURL],
+            "brand": "Legacy Brewing Company"
+        ])
+
+        let decoded = CloudKitScanMetadataCodec.decode(encoded)
+
+        XCTAssertEqual(decoded.origin, "California")
+        XCTAssertEqual(decoded.brand, "Legacy Brewing Company")
+        XCTAssertEqual(decoded.factSource, BeerFactSource(
+            kind: .webSearch,
+            url: try XCTUnwrap(URL(string: sourceURL))
+        ))
+        XCTAssertNil(decoded.referenceImageURL)
+    }
+
+    func testMalformedOptionalV2ReferencePreservesOtherMetadata() throws {
+        let sourceURL = "https://legacybrewery.com/beers/source-aware-ipa"
+        let encoded = try v2MetadataPayload([
+            "origin": "Brewed in Long Beach.",
+            "factSource": ["kind": "webSearch", "url": sourceURL],
+            "brand": "Source Aware Brewing",
+            "referenceImageURL": 42
+        ])
+
+        let decoded = CloudKitScanMetadataCodec.decode(encoded)
+
+        XCTAssertEqual(decoded.origin, "Brewed in Long Beach.")
+        XCTAssertEqual(decoded.brand, "Source Aware Brewing")
+        XCTAssertEqual(decoded.factSource, BeerFactSource(
+            kind: .webSearch,
+            url: try XCTUnwrap(URL(string: sourceURL))
+        ))
+        XCTAssertNil(decoded.referenceImageURL)
+    }
+
+    func testReferenceArtworkURLRejectsPrivateAndWildcardDNSHosts() {
+        XCTAssertNotNil(BeerReferenceImageURL.validated(
+            URL(string: "https://images.realbrewery.com/products/beer-can.webp")
+        ))
+        for raw in [
+            "http://images.realbrewery.com/beer.jpg",
+            "https://127.0.0.1/beer.jpg",
+            "https://0177.0.0.1/beer.jpg",
+            "https://can.127.0.0.1.nip.io/beer.jpg",
+            "https://user:pass@images.realbrewery.com/beer.jpg",
+            "https://images.realbrewery.com:8443/beer.jpg"
+        ] {
+            XCTAssertNil(BeerReferenceImageURL.validated(URL(string: raw)), raw)
+        }
     }
 
     func testCloudKitMetadataCodecPreservesLegacyAndMalformedOrigins() {
@@ -240,6 +356,7 @@ final class ScanStoreTests: XCTestCase {
             beerName: "Local Beer",
             brand: "Local Brewery",
             photoFileName: "local-photo.jpg",
+            referenceImageURL: URL(string: "https://images.localbrewery.com/local-beer-can.webp"),
             explanation: "Local"
         )
         store.addScan(local)
@@ -247,12 +364,17 @@ final class ScanStoreTests: XCTestCase {
         var remote = local
         remote.brand = nil
         remote.photoFileName = nil
+        remote.referenceImageURL = nil
         remote.explanation = "Newer remote copy"
         remote.lastModifiedLocal = Date().addingTimeInterval(60)
         store.applyRemoteScans([remote])
 
         XCTAssertEqual(store.scans.first?.brand, "Local Brewery")
         XCTAssertEqual(store.scans.first?.photoFileName, "local-photo.jpg")
+        XCTAssertEqual(
+            store.scans.first?.referenceImageURL?.host,
+            "images.localbrewery.com"
+        )
         XCTAssertEqual(store.scans.first?.explanation, "Newer remote copy")
     }
 

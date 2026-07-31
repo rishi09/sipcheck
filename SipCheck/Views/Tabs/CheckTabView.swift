@@ -189,11 +189,13 @@ struct CheckTabView: View {
     @State private var scanGeneration = 0
     @State private var scanTask: Task<Void, Never>?
     @State private var refineTask: Task<Void, Never>?
+    @State private var artworkTask: Task<Void, Never>?
     @State private var menuRunnerUp: Scan?
     /// The entire verdict card is a snapshot of what SipCheck knew when the
     /// check ran. Freezing its exact-history evidence prevents a later Journal
     /// edit from being mixed with the persisted verdict/explanation.
     @State private var verdictHistorySnapshot: BeerTasteRecord?
+    @State private var verdictBecauseRows: [(text: String, isPro: Bool)] = []
 
 
     // Scanning animation state
@@ -228,6 +230,10 @@ struct CheckTabView: View {
                     savedForLater: savedForLater,
                     capturedImage: capturedImage,
                     runnerUp: menuRunnerUp,
+                    becauseRows: verdictBecauseRows,
+                    onBack: {
+                        resetScanState()
+                    },
                     onSaveForLater: {
                         saveForLater(scan)
                     },
@@ -260,6 +266,12 @@ struct CheckTabView: View {
         }
         .task {
             #if DEBUG
+            if applyTastePassportCapturedPhotoFixtureIfRequested() {
+                return
+            }
+            if applyTastePassportOCRFailureFixtureIfRequested() {
+                return
+            }
             if let scenario = DeveloperScenario.current {
                 applyDeveloperScenario(scenario)
             }
@@ -303,6 +315,10 @@ struct CheckTabView: View {
             Text("Please enable camera access in Settings to scan beer labels.")
         }
         .onChange(of: capturedImage) { _, newImage in
+            #if DEBUG
+            guard !isTastePassportCapturedPhotoFixture,
+                  !isTastePassportOCRFailureFixture else { return }
+            #endif
             if let image = newImage {
                 if let liveText = pendingLiveScanText {
                     pendingLiveScanText = nil
@@ -475,6 +491,62 @@ struct CheckTabView: View {
     // MARK: - Error Banner
 
     #if DEBUG
+    private var isTastePassportCapturedPhotoFixture: Bool {
+        ProcessInfo.processInfo.arguments.contains("--taste-passport-captured-photo-fixture")
+    }
+
+    private var isTastePassportOCRFailureFixture: Bool {
+        ProcessInfo.processInfo.arguments.contains("--taste-passport-ocr-failure-fixture")
+    }
+
+    @discardableResult
+    private func applyTastePassportCapturedPhotoFixtureIfRequested() -> Bool {
+        guard isTastePassportCapturedPhotoFixture else {
+            return false
+        }
+        let image = TastePassportFixtureImage.capturedPhoto()
+        capturedImage = image
+        let scan = Scan(
+                beerName: "Two Hearted Ale",
+                brand: "Bell's Brewery",
+                style: BeerStyle.ipa.rawValue,
+                abv: 7,
+                verdict: .tryIt,
+                explanation: "7% is near your usual 6.4% strength."
+        )
+        present(
+            ScanOutcome(
+                scan: scan,
+                source: ResolvedBeer.Source.labelText.rawValue,
+                score: 3,
+                nameIsGuess: false,
+                startedStyleless: false,
+                // Keeps this deterministic while still exercising the real
+                // presentation and photo-persistence seam.
+                isMenu: true,
+                menuRunnerUp: nil
+            ),
+            rawText: "TWO HEARTED ALE\nIPA\n7% ABV",
+            path: "image",
+            latencyMs: 0,
+            image: image
+        )
+        return true
+    }
+
+    @discardableResult
+    private func applyTastePassportOCRFailureFixtureIfRequested() -> Bool {
+        guard isTastePassportOCRFailureFixture else {
+            return false
+        }
+        // Reproduces the real glare/empty-OCR rescue state without routing a
+        // synthetic bitmap through Vision. The next typed check must discard
+        // this stale camera frame and use exact product art instead.
+        capturedImage = TastePassportFixtureImage.capturedPhoto()
+        phase = .failed("Couldn't read the label — try again with less glare, or type the name.")
+        return true
+    }
+
     private func applyDeveloperScenario(_ scenario: DeveloperScenario) {
         if scenario == .error {
             phase = .failed(DeveloperScenario.errorMessage)
@@ -734,7 +806,7 @@ struct CheckTabView: View {
     }
 
     private func discoveryIdentityKey(name: String, brewery: String?) -> String {
-        "\(BeerDiscoveryText.normalize(name))|\(BeerDiscoveryText.normalize(brewery ?? ""))"
+        "\(BeerDiscoveryText.normalize(name))|\(BeerDiscoveryText.breweryIdentity(brewery))"
     }
 
     private func discoverySuggestionRow(
@@ -869,9 +941,21 @@ struct CheckTabView: View {
         guard !query.isEmpty else {
             return TextEntrySearchState(suggestions: [], customQuery: nil)
         }
-        let suggestions = query.count >= 2
+        let catalogSuggestions = query.count >= 2
             ? BundledCatalog.shared.search(name: query, limit: 5)
             : []
+        let suggestions = catalogSuggestions.map { suggestion -> ResolvedBeer in
+            guard let remote = discoverySuggestions.first(where: {
+                $0.imageURL != nil
+                    && discoveryIdentityKey(name: $0.name, brewery: $0.brewery)
+                        == discoveryIdentityKey(name: suggestion.name, brewery: suggestion.brewery)
+            }) else {
+                return suggestion
+            }
+            var enriched = suggestion
+            enriched.referenceImageURL = remote.imageURL
+            return enriched
+        }
         return TextEntrySearchState(
             suggestions: suggestions,
             customQuery: query
@@ -915,6 +999,10 @@ struct CheckTabView: View {
         cancelBeerDiscovery()
         showingTextEntry = false
         textEntryInput = ""
+        // The exact-name action means exactly what the person typed. Brewery
+        // identity and product art are adopted only from a suggestion they
+        // explicitly select; result timing must never silently choose a same-
+        // named beer from another producer.
         runScan(text: input)
     }
 
@@ -1025,6 +1113,11 @@ struct CheckTabView: View {
     private func runScan(text: String, selectedCatalogBeer: ResolvedBeer? = nil) {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        // A typed/search result represents a new identity. Never let a frame
+        // retained from an unsuccessful camera read masquerade as its photo;
+        // searched beers should use their exact product art when available.
+        capturedImage = nil
+        pendingLiveScanText = nil
         guard startScan() else { return }
         let generation = scanGeneration
         let library = makeLibrarySnapshot()
@@ -1055,10 +1148,12 @@ struct CheckTabView: View {
         if case .recognizing = phase { return false }
         scanTask?.cancel()
         refineTask?.cancel()
+        artworkTask?.cancel()
         scanGeneration += 1
         savedForLater = false
         menuRunnerUp = nil
         verdictHistorySnapshot = nil
+        verdictBecauseRows = []
         spinnerDegrees = 0
         scanningPhraseIndex = 0
         withAnimation { phase = .recognizing }
@@ -1189,6 +1284,7 @@ struct CheckTabView: View {
             brand: settled.keepResolvedFacts ? trustedFacts.brewery : nil,
             style: settled.keepResolvedFacts ? trustedFacts.style?.rawValue : nil,
             abv: settled.keepResolvedFacts ? trustedFacts.abv : nil,
+            referenceImageURL: resolved.referenceImageURL,
             verdict: settled.verdict,
             explanation: settled.explanation,
             wantToTry: false,
@@ -1242,11 +1338,15 @@ struct CheckTabView: View {
 
         savedForLater = false
         menuRunnerUp = outcome.menuRunnerUp
+        let library = makeLibrarySnapshot()
         verdictHistorySnapshot = outcome.nameIsGuess
             ? nil
-            : makeLibrarySnapshot()
+            : library
                 .exactItem(name: outcome.scan.beerName, brewery: outcome.scan.brand)?
                 .latestEncounter
+        verdictBecauseRows = outcome.nameIsGuess
+            ? []
+            : Self.personalEvidenceRows(for: outcome.scan, library: library)
         let willRefine = EnrichmentPolicy.shouldStart(
             nameIsGuess: outcome.nameIsGuess,
             startedStyleless: outcome.startedStyleless,
@@ -1257,8 +1357,22 @@ struct CheckTabView: View {
                 : ScanningPipeline.shared.canEnrichOnline
         )
         withAnimation { phase = .verdict(outcome.scan, refining: willRefine) }
+        if path == "text",
+           outcome.scan.referenceImageURL == nil,
+           BeerProductArtwork.assetName(
+               beerName: outcome.scan.beerName,
+               brewery: outcome.scan.brand
+           ) == nil {
+            startArtworkTopUp(for: outcome.scan)
+        }
         if willRefine {
-            startRefinement(for: outcome.scan, text: rawText, outcome: outcome, image: image)
+            startRefinement(
+                for: outcome.scan,
+                text: rawText,
+                path: path,
+                outcome: outcome,
+                image: image
+            )
         }
 
         if let image {
@@ -1282,10 +1396,151 @@ struct CheckTabView: View {
         }
     }
 
+    /// A typed catalog pick gets its verdict immediately from local facts, then
+    /// may gain exact product art without blocking or changing that answer.
+    /// Brewery-qualified identity is required so a same-name beer cannot borrow
+    /// another producer's label.
+    private func startArtworkTopUp(for scan: Scan) {
+        guard let brewery = scan.brand?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !brewery.isEmpty else {
+            return
+        }
+        artworkTask?.cancel()
+        let expectedName = BeerDiscoveryText.normalize(scan.beerName)
+        let expectedBrewery = BeerDiscoveryText.breweryIdentity(brewery)
+        let query = "\(scan.beerName) \(brewery)"
+
+        artworkTask = Task(priority: .utility) {
+            let results = try? await BeerDiscoveryService.shared.search(
+                query: query,
+                limit: 6,
+                preferArtwork: true
+            )
+            guard !Task.isCancelled,
+                  let candidate = results?.first(where: {
+                      $0.imageURL != nil
+                          && BeerDiscoveryText.normalize($0.name) == expectedName
+                          && BeerDiscoveryText.breweryIdentity($0.brewery) == expectedBrewery
+                  }),
+                  let imageURL = candidate.imageURL else {
+                return
+            }
+
+            await MainActor.run {
+                guard case .verdict(var current, let refining) = phase,
+                      current.id == scan.id,
+                      current.referenceImageURL == nil else {
+                    return
+                }
+                current.referenceImageURL = imageURL
+                guard let merged = scanStore.mergeDerivedFields(from: current) else {
+                    return
+                }
+                withAnimation(.smooth(duration: 0.25)) {
+                    phase = .verdict(merged, refining: refining)
+                }
+            }
+        }
+    }
+
+    private static func personalEvidenceRows(
+        for scan: Scan,
+        library: BeerLibrarySnapshot
+    ) -> [(text: String, isPro: Bool)] {
+        guard let targetStyle = resolvedStyle(scan.style) else { return [] }
+        let targetRating: Rating
+        let isPro: Bool
+        switch scan.verdict {
+        case .tryIt:
+            targetRating = .like
+            isPro = true
+        case .skipIt:
+            targetRating = .dislike
+            isPro = false
+        case .yourCall:
+            return []
+        }
+
+        let exact = library.tasteRecords.first { record in
+            BeerDiscoveryText.normalize(record.name) == BeerDiscoveryText.normalize(scan.beerName)
+                && BeerDiscoveryText.breweryIdentity(record.brewery)
+                    == BeerDiscoveryText.breweryIdentity(scan.brand)
+                && record.rating == targetRating
+        }
+        if let exact {
+            if let stars = exact.stars {
+                return [("You gave this beer \(stars) stars before.", isPro)]
+            }
+            return [(
+                targetRating == .like
+                    ? "You liked this beer before."
+                    : "This beer wasn't for you last time.",
+                isPro
+            )]
+        }
+
+        var seenNames: Set<String> = []
+        let related = library.tasteRecords.filter { record in
+            guard record.rating == targetRating,
+                  let recordStyle = resolvedStyle(record.style),
+                  relatedStyles(for: targetStyle).contains(recordStyle) else {
+                return false
+            }
+            return seenNames.insert(BeerDiscoveryText.normalize(record.name)).inserted
+        }
+        guard let first = related.first else { return [] }
+        let family = styleFamilyName(for: targetStyle)
+        if related.count >= 2 {
+            return [(
+                "You \(targetRating == .like ? "liked" : "disliked") \(first.name) and \(related[1].name), both similar \(family) beers.",
+                isPro
+            )]
+        }
+        return [(
+            "You \(targetRating == .like ? "liked" : "disliked") \(first.name), a similar \(family) beer.",
+            isPro
+        )]
+    }
+
+    private static func resolvedStyle(_ value: String?) -> BeerStyle? {
+        guard let value else { return nil }
+        return BeerStyle.allCases.first {
+            $0.rawValue.caseInsensitiveCompare(value) == .orderedSame
+        } ?? TasteScorer.inferStyle(from: value)
+    }
+
+    private static func relatedStyles(for style: BeerStyle) -> [BeerStyle] {
+        switch style {
+        case .ipa, .paleAle: return [.ipa, .paleAle]
+        case .stout, .porter, .brownAle: return [.stout, .porter, .brownAle]
+        case .lager, .pilsner: return [.lager, .pilsner]
+        default: return [style]
+        }
+    }
+
+    private static func styleFamilyName(for style: BeerStyle) -> String {
+        switch style {
+        case .ipa, .paleAle: return "hoppy"
+        case .stout, .porter, .brownAle: return "roasty"
+        case .lager, .pilsner: return "crisp"
+        case .sour: return "tart"
+        case .wheat: return "wheat"
+        case .amber: return "malty"
+        case .belgian: return "Belgian-style"
+        case .other: return "style-adjacent"
+        }
+    }
+
     /// Stage 2: bounded background enrichment. The provider supplies facts only;
     /// corrected metadata may update in place, but the visible recommendation
     /// is an immutable snapshot of the settled local answer.
-    private func startRefinement(for scan: Scan, text: String, outcome: ScanOutcome, image: UIImage?) {
+    private func startRefinement(
+        for scan: Scan,
+        text: String,
+        path: String,
+        outcome: ScanOutcome,
+        image: UIImage?
+    ) {
         let nameIsGuess = outcome.nameIsGuess
         let startedStyleless = outcome.startedStyleless
 
@@ -1359,7 +1614,13 @@ struct CheckTabView: View {
                         : library
                             .exactItem(name: current.beerName, brewery: current.brand)?
                             .latestEncounter
-                    scanStore.updateScan(current)
+                    verdictBecauseRows = outcome.nameIsGuess
+                        ? []
+                        : Self.personalEvidenceRows(for: current, library: library)
+                    guard let merged = scanStore.mergeDerivedFields(from: current) else {
+                        return
+                    }
+                    current = merged
                     if nameChanged, current.wantToTry {
                         // Same identifier → replaces the pending follow-up, so the
                         // notification names the corrected beer. Only saved beers
@@ -1369,6 +1630,17 @@ struct CheckTabView: View {
                 }
                 withAnimation(.smooth(duration: 0.35)) {
                     phase = .verdict(current, refining: false)
+                }
+                if path == "text",
+                   current.referenceImageURL == nil,
+                   BeerProductArtwork.assetName(
+                       beerName: current.beerName,
+                       brewery: current.brand
+                   ) == nil {
+                    // The immediate text verdict can predate connected facts.
+                    // Once refinement supplies a brewery-qualified identity,
+                    // retry the exact-art lane without delaying the verdict.
+                    startArtworkTopUp(for: current)
                 }
             }
         }
@@ -1446,12 +1718,15 @@ struct CheckTabView: View {
         scanTask = nil
         refineTask?.cancel()
         refineTask = nil
+        artworkTask?.cancel()
+        artworkTask = nil
         phraseTimer?.invalidate()
         phraseTimer = nil
         scanGeneration += 1
         savedForLater = false
         menuRunnerUp = nil
         verdictHistorySnapshot = nil
+        verdictBecauseRows = []
         pendingLiveScanText = nil
         capturedImage = nil
         spinnerDegrees = 0
