@@ -406,6 +406,15 @@ struct VerdictCardView: View {
             referenceImageURL: scan.referenceImageURL
         )
         .frame(width: 88, height: 112)
+        // Clip after the concrete thumbnail frame. A bundled SwiftUI Image can
+        // otherwise paint its scaled-to-fill pixels outside the proposal even
+        // though the inner artwork view clips its own pre-layout bounds.
+        .clipShape(RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+                .accessibilityHidden(true)
+        )
         .accessibilityIdentifier("tastePassportArtwork")
     }
 
@@ -800,11 +809,6 @@ struct BeerPassportArtwork: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: SipRadius.card, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                    .accessibilityHidden(true)
-            )
     }
 }
 
