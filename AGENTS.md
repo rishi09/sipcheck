@@ -71,7 +71,7 @@ review/analyze overrides automatic delivery.
 | Canonical beer-library projection (completed 2026-07-30) | `codex/beer-library-projection` | Released after 185 unit/integration tests, 10 UI flows, signed branch build 115, and published E2E run 57. No files remain reserved. |
 | Tavily + Gemini long-tail upgrade (completed 2026-07-30) | `codex/tavily-gemini-search` | Released after exact-SHA Vercel verification, a 10/10 identity + 9/9 supported-category live eval, 187 unit/integration tests, 11 UI flows, signed build 135, and corrected release-smoke branch build 137. No files remain reserved. |
 | Developer scenario lab + unified CLI (completed 2026-07-30) | `codex/dev-tools` | Released after CLI routing checks, Debug/Release/test builds, 188 unit/integration tests, 11 UI flows, signed branch build 126, and published E2E run 63. No files remain reserved. |
-| Taste Passport beer detail (active) | `codex/taste-passport-detail` | `AGENTS.md`, verdict/detail presentation, scan/reference-image metadata, Check result wiring, connected beer image discovery contract/backend, and focused unit/UI tests. History and Find/Library UI remain unreserved and out of scope. |
+| Taste Passport beer detail (completed 2026-07-30) | `codex/taste-passport-detail` | Released after exact-SHA Vercel verification, 196 unit/integration tests, 13 UI flows, screenshot review, signed branch build 140, and published E2E run 69. History and Find/Library UI remain unreserved and out of scope. |
 
 ## Camera / Scan Feature — Requirements & Architecture (READ FIRST)
 These are locked product constraints. Do not re-litigate them; build to them.
