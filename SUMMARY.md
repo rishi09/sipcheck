@@ -1,0 +1,31 @@
+# E2E run 69
+- commit: 7016bf75b172a77a174fbe2944d606dc43c6dd1c
+- branch: codex/taste-passport-detail
+- xcodebuild exit code: 0
+- run url: https://github.com/rishi09/sipcheck/actions/runs/30600154121
+
+## Screenshots
+- manifest.json
+- SipCheckUITests_testCapturedPhotoWinsOverProductArtworkOnTastePassport___01-captured-photo-taste-passport_0_BF94BA13-700B-40EE-B1EB-3498D57D87C5.png.png
+- SipCheckUITests_testJournalEditAndDeleteImmediatelyUpdateVerdictHistory___01-journal-rating-wins_0_979C7D89-B88B-476D-95A4-11C63E316D19.png.png
+- SipCheckUITests_testJournalEditAndDeleteImmediatelyUpdateVerdictHistory___02-deleted-history-stays-deleted_0_0CE08F2F-6E4F-44EF-BEE9-94F4C2A53239.png.png
+- SipCheckUITests_testJournalEditPersistsAfterRelaunch___01-persisted-detail_0_5D197752-AB27-42F5-B056-861164D876CE.png.png
+- SipCheckUITests_testJournalRowOpensDetail___01-journal_0_142A9E0C-5085-434E-9167-37F16576558D.png.png
+- SipCheckUITests_testJournalRowOpensDetail___02-detail-sheet_0_B7182926-BCA0-4C90-B860-1BF02DCC2717.png.png
+- SipCheckUITests_testJournalRowOpensDetail___03-after-save_0_B72C5EBB-29E8-4E11-8F0F-260D52C726DD.png.png
+- SipCheckUITests_testJournalSearchFilters___01-search-filtered_0_41450DD4-D92C-43FC-9A62-964346B1221C.png.png
+- SipCheckUITests_testLaunchShowsCheckTab___01-check-tab_0_D53E86B0-0310-4BC8-A13D-885A96671313.png.png
+- SipCheckUITests_testLongTailSearchShowsSourcedCandidateBelowExactAction___01-long-tail-result_0_917705B8-F09C-426D-AC7E-A77D71D101AD.png.png
+- SipCheckUITests_testLongTailSearchShowsSourcedCandidateBelowExactAction___02-long-tail-verdict_0_926ED1D4-ACA7-47F9-83CF-94BB9D15C290.png.png
+- SipCheckUITests_testProfileShowsStats___01-profile_0_470F2536-A72E-4181-B5BB-2D078DC4A99D.png.png
+- SipCheckUITests_testRecentScanOpensDetail___02-recent-scan-detail_0_4C4DB180-65B9-4B1B-ABD4-8C0AF0D26F61.png.png
+- SipCheckUITests_testReplayResetsRemindersAndShowsShortVisualOnboarding___01-go-to-search-switch_0_9A53CC8E-379F-46AE-B681-FF8C0B2E443D.png.png
+- SipCheckUITests_testReplayResetsRemindersAndShowsShortVisualOnboarding___02-go-to-style-grid_0_39BE41B2-C07C-4ABD-A4F3-D56E0B2B57AB.png.png
+- SipCheckUITests_testReplayResetsRemindersAndShowsShortVisualOnboarding___03-stay-away-blank-slate_0_25446CC6-EBDA-4445-ABE2-6602CDDC2C00.png.png
+- SipCheckUITests_testReplayResetsRemindersAndShowsShortVisualOnboarding___04-reminders-reset_0_84F3EC4B-E0F4-473C-BDF7-E9E7181C0260.png.png
+- SipCheckUITests_testSipCheckLabLaunchesFourIsolatedScenarios___01-dev-scenario-empty_0_762DD7AD-13BC-4DCC-A16F-1295827E96FB.png.png
+- SipCheckUITests_testSipCheckLabLaunchesFourIsolatedScenarios___02-dev-scenario-rich-history_0_76A0D862-62B8-4557-B6AB-319E68B9DA16.png.png
+- SipCheckUITests_testSipCheckLabLaunchesFourIsolatedScenarios___03-dev-scenario-saved-only_0_BB7BA9F3-5CFD-4D9B-93AB-836B7BC784F9.png.png
+- SipCheckUITests_testSipCheckLabLaunchesFourIsolatedScenarios___04-dev-scenario-error_0_EC6DA283-EBFD-409E-9B13-4236B6E32383.png.png
+- SipCheckUITests_testTypedNameProducesVerdict___01-name-entered_0_0D395FD7-5C72-46C4-8A03-FF1EC163FF2A.png.png
+- SipCheckUITests_testTypedNameProducesVerdict___02-verdict_0_E4BE4B9A-4897-47BA-ADF0-71AE939E7EA9.png.png
